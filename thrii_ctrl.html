@@ -254,6 +254,7 @@
     </fieldset>
   </main>
 
+  <script src="doc/thr10ii_w_symbol_table_1_44_0_a.js"></script>
   <script>
     const MIDI_SERVICE_UUID = '03b80e5a-ede8-4b33-a751-6ce34ec4c700';
     const MIDI_CHAR_UUID = '7772e5db-3868-4112-a1a9-f2669d106bf3';
@@ -471,6 +472,595 @@
       return out;
     }
 
+    // Parser section: incoming THR-II frame decoding and event extraction.
+
+    function readU32LEFromBytes(bytes, offset = 0) {
+      if ((offset + 4) > bytes.length) {
+        throw new Error('Out of bounds LE32 read at offset ' + offset);
+      }
+      return (
+        (bytes[offset]) |
+        (bytes[offset + 1] << 8) |
+        (bytes[offset + 2] << 16) |
+        ((bytes[offset + 3] << 24) >>> 0)
+      ) >>> 0;
+    }
+
+    function decodeBitBucket7THR(encodedBytes, validDecodedBytes) {
+      const out = [];
+      for (let p = 0; p < encodedBytes.length;) {
+        const bucket = encodedBytes[p++] & 0x7f;
+        for (let i = 0; i < 7 && p < encodedBytes.length; i += 1) {
+          const low = encodedBytes[p++] & 0x7f;
+          const msb = (bucket >> (6 - i)) & 0x01;
+          out.push(low | (msb << 7));
+        }
+      }
+
+      const maxLen = Math.max(0, Number(validDecodedBytes) || 0);
+      return Uint8Array.from(out.slice(0, maxLen));
+    }
+
+    function sliceU32LEWords(bytes, offset = 0, warnings = []) {
+      const out = [];
+      if (offset < 0 || offset > bytes.length) {
+        warnings.push('Invalid word slice offset: ' + offset);
+        return out;
+      }
+
+      const available = bytes.length - offset;
+      if (available % 4 !== 0) {
+        warnings.push('Payload tail is not aligned to 4 bytes: ' + available);
+      }
+
+      for (let p = offset; (p + 4) <= bytes.length; p += 4) {
+        out.push(readU32LEFromBytes(bytes, p));
+      }
+      return out;
+    }
+
+    function readF32LEFromU32(u32) {
+      const buf = new ArrayBuffer(4);
+      const dv = new DataView(buf);
+      dv.setUint32(0, u32 >>> 0, true);
+      return dv.getFloat32(0, true);
+    }
+
+    // Parser section: symbol table resolution (local JSON + runtime fallback map).
+    function buildFallbackSymbolMaps() {
+      const byId = {};
+      const byName = {};
+
+      const add = (id, name) => {
+        const key = Number(id) >>> 0;
+        if (!Number.isFinite(key)) return;
+        if (typeof name !== 'string' || !name) return;
+        byId[String(key)] = name;
+        if (!Object.prototype.hasOwnProperty.call(byName, name)) {
+          byName[name] = key;
+        }
+      };
+
+      add(thrKeys.unit.amp, 'Amp');
+      add(thrKeys.unit.fx1, 'FX1');
+      add(thrKeys.unit.fx2, 'FX2');
+      add(thrKeys.unit.fx3, 'FX3');
+      add(thrKeys.unit.fx4, 'FX4');
+      add(thrKeys.unit.guitarProc, 'GuitarProc');
+      add(thrKeys.unit.global, 'Global');
+
+      add(thrKeys.parameter.spkSimType, 'SpkSimType');
+      add(thrKeys.parameter.gateEnable, 'GateEnable');
+      add(thrKeys.parameter.fx1Enable, 'FX1EnableState');
+      add(thrKeys.parameter.fx2Enable, 'FX2EnableState');
+      add(thrKeys.parameter.fx3Enable, 'FX3EnableState');
+      add(thrKeys.parameter.fx4Enable, 'FX4EnableState');
+
+      Object.entries(thrKeys.enumValue.effect).forEach(([name, id]) => add(id, name));
+      Object.entries(thrKeys.enumValue.echo).forEach(([name, id]) => add(id, name));
+      Object.entries(thrKeys.enumValue.reverb).forEach(([name, id]) => add(id, name));
+      Object.entries(thrKeys.enumValue.cabinetSymbolToIndex).forEach(([id, value]) => add(Number(id), 'CabinetIndex_' + value));
+
+      return { byId, byName, source: 'fallback' };
+    }
+
+    function getResolvedSymbolName(symbolKey) {
+      const key = String((Number(symbolKey) >>> 0));
+      if (key === String(thrKeys.unit.global >>> 0)) {
+        return 'Global';
+      }
+      if (thrIncomingParser.symbols.byId && Object.prototype.hasOwnProperty.call(thrIncomingParser.symbols.byId, key)) {
+        return thrIncomingParser.symbols.byId[key];
+      }
+      return null;
+    }
+
+    function resolveSymbol(symbolKey) {
+      const key = Number(symbolKey) >>> 0;
+      const name = getResolvedSymbolName(key);
+      return { id: key, name: name || null };
+    }
+
+    async function ensureParserSymbolsLoaded() {
+      if (thrIncomingParser.symbols.ready) {
+        return thrIncomingParser.symbols;
+      }
+      if (thrIncomingParser.symbols.loadingPromise) {
+        return thrIncomingParser.symbols.loadingPromise;
+      }
+
+      thrIncomingParser.symbols.loadingPromise = (async () => {
+        try {
+          if (window.THR_SYMBOL_TABLE && window.THR_SYMBOL_TABLE.byId) {
+            const table = window.THR_SYMBOL_TABLE;
+            thrIncomingParser.symbols.byId = table.byId;
+            thrIncomingParser.symbols.byName = table.byName || {};
+            thrIncomingParser.symbols.source = 'doc/thr10ii_w_symbol_table_1_44_0_a.js';
+            thrIncomingParser.symbols.ready = true;
+            if (thrIncomingParser.debug.events) {
+              log('Parser symbols loaded: ' + Object.keys(table.byId).length + ' entries');
+            }
+            return thrIncomingParser.symbols;
+          }
+
+          const response = await fetch('doc/thr10ii_w_symbol_table_1_44_0_a.json', { cache: 'no-store' });
+          if (!response.ok) {
+            throw new Error('HTTP ' + response.status);
+          }
+          const parsed = await response.json();
+          if (!parsed || typeof parsed !== 'object' || !parsed.byId || !parsed.byName) {
+            throw new Error('Invalid symbol table format.');
+          }
+
+          thrIncomingParser.symbols.byId = parsed.byId;
+          thrIncomingParser.symbols.byName = parsed.byName;
+          thrIncomingParser.symbols.source = 'doc/thr10ii_w_symbol_table_1_44_0_a.json';
+          thrIncomingParser.symbols.ready = true;
+          if (thrIncomingParser.debug.events) {
+            log('Parser symbols loaded: ' + Object.keys(parsed.byId).length + ' entries');
+          }
+        } catch (err) {
+          const fallback = buildFallbackSymbolMaps();
+          thrIncomingParser.symbols.byId = fallback.byId;
+          thrIncomingParser.symbols.byName = fallback.byName;
+          thrIncomingParser.symbols.source = fallback.source;
+          thrIncomingParser.symbols.ready = true;
+          log('Parser symbols fallback enabled: ' + err.message);
+        }
+        return thrIncomingParser.symbols;
+      })();
+
+      return thrIncomingParser.symbols.loadingPromise;
+    }
+
+    function decodeTypedValue(typeCode, valueRawU32) {
+      const normalizedType = Number(typeCode) >>> 0;
+      if (normalizedType === thrTypeCode.float32) {
+        return {
+          rawU32: valueRawU32 >>> 0,
+          typeCode: normalizedType,
+          decoded: readF32LEFromU32(valueRawU32 >>> 0),
+          decodedKind: 'float32'
+        };
+      }
+
+      if (normalizedType === thrTypeCode.bool) {
+        return {
+          rawU32: valueRawU32 >>> 0,
+          typeCode: normalizedType,
+          decoded: (valueRawU32 >>> 0) !== 0,
+          decodedKind: 'bool'
+        };
+      }
+
+      return {
+        rawU32: valueRawU32 >>> 0,
+        typeCode: normalizedType,
+        decoded: valueRawU32 >>> 0,
+        decodedKind: normalizedType === thrTypeCode.enum ? 'enum_u32' : 'u32'
+      };
+    }
+
+    function extractSysexFrames(bytes) {
+      const frames = [];
+      let start = -1;
+
+      for (let i = 0; i < bytes.length; i += 1) {
+        const b = bytes[i];
+        if (b === 0xf0) {
+          start = i;
+          continue;
+        }
+        if (b === 0xf7 && start >= 0) {
+          frames.push(bytes.slice(start, i + 1));
+          start = -1;
+        }
+      }
+
+      return frames;
+    }
+
+    function parseIncomingThrFrame(rawFrame, source) {
+      const warnings = [];
+      if (rawFrame.length < 14) throw new Error('Frame too short for THR parse.');
+      if (rawFrame[0] !== 0xf0 || rawFrame[rawFrame.length - 1] !== 0xf7) {
+        throw new Error('Not a SysEx frame.');
+      }
+
+      const manufacturer = [rawFrame[1], rawFrame[2], rawFrame[3]];
+      if (manufacturer[0] !== 0x00 || manufacturer[1] !== 0x01 || manufacturer[2] !== 0x0c) {
+        warnings.push('Unexpected manufacturer bytes: ' + manufacturer.map(v => v.toString(16).padStart(2, '0')).join(' '));
+      }
+
+      const header = {
+        family: rawFrame[4],
+        model: rawFrame[5],
+        marker: rawFrame[6],
+        group: rawFrame[7],
+        counter: rawFrame[8],
+        pc: rawFrame[9],
+        l2: rawFrame[10],
+        l1: rawFrame[11],
+        lastValidIndex: ((rawFrame[10] & 0x0f) * 16) + (rawFrame[11] & 0x0f)
+      };
+
+      const encodedPayload = rawFrame.slice(12, rawFrame.length - 1);
+      const decodedPayload = decodeBitBucket7THR(encodedPayload, header.lastValidIndex + 1);
+
+      let opcode = null;
+      let declaredLength = null;
+      let payloadWords = [];
+      if (decodedPayload.length >= 8) {
+        opcode = readU32LEFromBytes(decodedPayload, 0);
+        declaredLength = readU32LEFromBytes(decodedPayload, 4);
+        payloadWords = sliceU32LEWords(decodedPayload, 8, warnings);
+      } else {
+        warnings.push('Decoded payload shorter than opcode+length.');
+      }
+
+      return {
+        source,
+        rawHex: toHex(rawFrame),
+        header,
+        encodedPayload,
+        decodedPayload,
+        opcode,
+        declaredLength,
+        payloadWords,
+        warnings
+      };
+    }
+
+    function parseOutgoingFrameMeta(frameBytes, label) {
+      if (!(frameBytes instanceof Uint8Array) || frameBytes.length < 14) {
+        return null;
+      }
+
+      if (frameBytes[0] !== 0xf0 || frameBytes[frameBytes.length - 1] !== 0xf7) {
+        return null;
+      }
+
+      const header = {
+        group: frameBytes[7],
+        counter: frameBytes[8],
+        l2: frameBytes[10],
+        l1: frameBytes[11]
+      };
+      const lastValidIndex = ((header.l2 & 0x0f) * 16) + (header.l1 & 0x0f);
+      const encoded = frameBytes.slice(12, frameBytes.length - 1);
+      const decoded = decodeBitBucket7THR(encoded, lastValidIndex + 1);
+
+      let opcode = null;
+      let declaredLength = null;
+      if (decoded.length >= 8) {
+        const firstWord = readU32LEFromBytes(decoded, 0);
+        // Heuristic: THR opcodes are small values (<= 0x0f).
+        if (firstWord <= 0x0f) {
+          opcode = firstWord;
+          declaredLength = readU32LEFromBytes(decoded, 4);
+        }
+      }
+
+      return {
+        timeMs: Date.now(),
+        label: label || 'TX',
+        group: header.group,
+        counter: header.counter,
+        opcode,
+        declaredLength,
+        rawHex: toHex(frameBytes)
+      };
+    }
+
+    function correlateIncomingToPending(parsed) {
+      const pending = thrIncomingParser.pendingOutbound;
+      if (!pending.length) return null;
+
+      // First try exact group+counter match.
+      const exactIdx = pending.findIndex(item => item.group === parsed.header.group && item.counter === parsed.header.counter);
+      if (exactIdx >= 0) {
+        return pending.splice(exactIdx, 1)[0];
+      }
+
+      // Then fallback to latest command opcode in same group for answer/ready style frames.
+      if (parsed.opcode === 0x01 || parsed.opcode === 0x06) {
+        for (let i = pending.length - 1; i >= 0; i -= 1) {
+          const item = pending[i];
+          if (item.group === parsed.header.group && item.opcode != null) {
+            return pending.splice(i, 1)[0];
+          }
+        }
+      }
+
+      return null;
+    }
+
+    function decodeIncomingSemanticEvents(parsed) {
+      const events = [];
+      if (parsed.opcode == null) {
+        return events;
+      }
+
+      if (parsed.opcode === 0x01) {
+        let ackCode = null;
+        for (const w of parsed.payloadWords) {
+          if (w === 0xffffffff) {
+            ackCode = w;
+            break;
+          }
+        }
+        if (ackCode == null && parsed.payloadWords.some(w => w === 0x00000000)) {
+          ackCode = 0x00000000;
+        }
+
+        const correlation = correlateIncomingToPending(parsed);
+        if (ackCode != null) {
+          events.push({
+            kind: ackCode === 0xffffffff ? 'nack' : 'ack',
+            code: ackCode,
+            correlation,
+            group: parsed.header.group,
+            counter: parsed.header.counter,
+            opcode: parsed.opcode
+          });
+        } else {
+          events.push({
+            kind: 'answer',
+            correlation,
+            group: parsed.header.group,
+            counter: parsed.header.counter,
+            opcode: parsed.opcode,
+            payloadWords: parsed.payloadWords
+          });
+        }
+        return events;
+      }
+
+      if (parsed.opcode === 0x04) {
+        if (parsed.payloadWords.length >= 4) {
+          const uKey = parsed.payloadWords[0] >>> 0;
+          const pKey = parsed.payloadWords[1] >>> 0;
+          const typeCode = parsed.payloadWords[2] >>> 0;
+          const valueRaw = parsed.payloadWords[3] >>> 0;
+          const value = decodeTypedValue(typeCode, valueRaw);
+
+          events.push({
+            kind: 'parameter_change',
+            group: parsed.header.group,
+            counter: parsed.header.counter,
+            opcode: parsed.opcode,
+            uKey,
+            pKey,
+            typeCode,
+            valueRaw,
+            value,
+            names: {
+              unit: resolveSymbol(uKey),
+              parameter: resolveSymbol(pKey),
+              valueSymbol: value.decodedKind === 'enum_u32' ? resolveSymbol(value.decoded) : null
+            },
+            payloadWords: parsed.payloadWords
+          });
+          return events;
+        }
+
+        events.push({
+          kind: 'parameter_change_report',
+          group: parsed.header.group,
+          counter: parsed.header.counter,
+          opcode: parsed.opcode,
+          payloadWords: parsed.payloadWords
+        });
+        return events;
+      }
+
+      if (parsed.opcode === 0x03) {
+        if (parsed.payloadWords.length >= 2) {
+          const uKey = parsed.payloadWords[0] >>> 0;
+          const unitTypeKey = parsed.payloadWords[1] >>> 0;
+          events.push({
+            kind: 'unit_type_change',
+            group: parsed.header.group,
+            counter: parsed.header.counter,
+            opcode: parsed.opcode,
+            uKey,
+            unitTypeKey,
+            names: {
+              unit: resolveSymbol(uKey),
+              unitType: resolveSymbol(unitTypeKey)
+            },
+            payloadWords: parsed.payloadWords
+          });
+          return events;
+        }
+
+        events.push({
+          kind: 'unit_type_report',
+          group: parsed.header.group,
+          counter: parsed.header.counter,
+          opcode: parsed.opcode,
+          payloadWords: parsed.payloadWords
+        });
+        return events;
+      }
+
+      if (parsed.opcode === 0x06) {
+        const correlation = correlateIncomingToPending(parsed);
+        events.push({
+          kind: 'status_ready',
+          correlation,
+          group: parsed.header.group,
+          counter: parsed.header.counter,
+          opcode: parsed.opcode,
+          payloadWords: parsed.payloadWords
+        });
+        return events;
+      }
+
+      events.push({
+        kind: 'unknown_opcode',
+        group: parsed.header.group,
+        counter: parsed.header.counter,
+        opcode: parsed.opcode,
+        payloadWords: parsed.payloadWords
+      });
+      return events;
+    }
+
+    const thrIncomingParser = {
+      parseIncomingThrFrame,
+      decodeBitBucket7THR,
+      extractSysexFrames,
+      sliceU32LEWords,
+      decodeTypedValue,
+      ensureSymbolsLoaded: ensureParserSymbolsLoaded,
+      resolveSymbol,
+      decodeIncomingSemanticEvents,
+      parseOutgoingFrameMeta,
+      history: [],
+      events: [],
+      pendingOutbound: [],
+      symbols: {
+        ready: false,
+        loadingPromise: null,
+        byId: {},
+        byName: {},
+        source: 'none'
+      },
+      debug: {
+        raw: true,
+        parsed: true,
+        decoded: true,
+        events: true
+      }
+    };
+
+    window.thrIncomingParser = thrIncomingParser;
+
+    function pushParserHistory(entry) {
+      thrIncomingParser.history.push(entry);
+      if (thrIncomingParser.history.length > 40) {
+        thrIncomingParser.history.shift();
+      }
+    }
+
+    function pushParserEvent(entry) {
+      thrIncomingParser.events.push(entry);
+      if (thrIncomingParser.events.length > 120) {
+        thrIncomingParser.events.shift();
+      }
+    }
+
+    function registerOutgoingForParser(bytes, label) {
+      const meta = parseOutgoingFrameMeta(bytes, label);
+      if (!meta) return;
+      if (meta.opcode == null) return;
+      thrIncomingParser.pendingOutbound.push(meta);
+      if (thrIncomingParser.pendingOutbound.length > 120) {
+        thrIncomingParser.pendingOutbound.shift();
+      }
+    }
+
+    function logParsedFrame(parsed) {
+      const opText = parsed.opcode == null ? 'n/a' : '0x' + parsed.opcode.toString(16).padStart(8, '0');
+      const lenText = parsed.declaredLength == null ? 'n/a' : parsed.declaredLength;
+      if (thrIncomingParser.debug.parsed) {
+        log(
+          'RX ' + parsed.source + ' parsed: grp=' + parsed.header.group +
+          ' cnt=' + parsed.header.counter +
+          ' last=' + parsed.header.lastValidIndex +
+          ' op=' + opText +
+          ' len=' + lenText
+        );
+      }
+      if (parsed.warnings.length && thrIncomingParser.debug.parsed) {
+        log('RX ' + parsed.source + ' parser warnings: ' + parsed.warnings.join(' | '));
+      }
+      if (parsed.decodedPayload.length && thrIncomingParser.debug.decoded) {
+        log('RX ' + parsed.source + ' decoded: ' + toHex(parsed.decodedPayload));
+      }
+    }
+
+    function logParserEvent(event, source) {
+      if (!thrIncomingParser.debug.events) return;
+      const corr = event.correlation ? (' corr(cnt=' + event.correlation.counter + ',op=0x' + event.correlation.opcode.toString(16) + ')') : '';
+      if (event.kind === 'ack' || event.kind === 'nack') {
+        log('RX ' + source + ' event: ' + event.kind.toUpperCase() + corr);
+        return;
+      }
+
+      if (event.kind === 'parameter_change') {
+        const unitName = event.names && event.names.unit && event.names.unit.name ? event.names.unit.name : 'u#' + event.uKey;
+        const paramName = event.names && event.names.parameter && event.names.parameter.name ? event.names.parameter.name : 'p#' + event.pKey;
+        const valueText = event.value && typeof event.value.decoded === 'number'
+          ? Number.isFinite(event.value.decoded) ? event.value.decoded.toFixed(4) : String(event.value.decoded)
+          : String(event.value && event.value.decoded);
+        log('RX ' + source + ' event: parameter_change ' + unitName + '.' + paramName + ' = ' + valueText + corr);
+        return;
+      }
+
+      if (event.kind === 'unit_type_change') {
+        const unitName = event.names && event.names.unit && event.names.unit.name ? event.names.unit.name : 'u#' + event.uKey;
+        const typeName = event.names && event.names.unitType && event.names.unitType.name ? event.names.unitType.name : 'v#' + event.unitTypeKey;
+        log('RX ' + source + ' event: unit_type_change ' + unitName + ' -> ' + typeName + corr);
+        return;
+      }
+
+      log('RX ' + source + ' event: ' + event.kind + ' op=0x' + event.opcode.toString(16) + corr);
+    }
+
+    function handleIncomingBytes(bytes, source) {
+      const payload = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+      if (thrIncomingParser.debug.raw) {
+        log('RX ' + source + ' raw: ' + toHex(payload));
+      }
+
+      const frames = extractSysexFrames(payload);
+      if (!frames.length) {
+        return;
+      }
+
+      frames.forEach(frame => {
+        try {
+          const parsed = parseIncomingThrFrame(frame, source);
+          pushParserHistory(parsed);
+          logParsedFrame(parsed);
+
+          const events = decodeIncomingSemanticEvents(parsed);
+          events.forEach(event => {
+            pushParserEvent(event);
+            logParserEvent(event, source);
+          });
+        } catch (err) {
+          log('RX ' + source + ' parser error: ' + err.message);
+        }
+      });
+    }
+
+    ensureParserSymbolsLoaded().catch(() => {
+      // Symbols are optional for parser correctness and fallback map remains active.
+    });
+
     function setStatus() {
       const names = [];
       if (midiOut) names.push('USB OUT: ' + (midiOut.name || 'Unnamed'));
@@ -524,6 +1114,7 @@
     }
 
     async function sendAndLog(bytes, transportLabel) {
+      registerOutgoingForParser(bytes, transportLabel);
       await sendMidi(bytes);
       if (transportLabel) {
         log(transportLabel + ': ' + toHex(bytes));
@@ -543,7 +1134,7 @@
     }
 
     function onUsbMidiMessage(event) {
-      log('RX USB: ' + toHex(event.data));
+      handleIncomingBytes(new Uint8Array(event.data), 'USB');
     }
 
     async function requestUsbMidiPermissionHint() {
@@ -661,7 +1252,7 @@
         await bleMidiChar.startNotifications();
         bleNotificationHandler = e => {
           const rx = new Uint8Array(e.target.value.buffer);
-          log('RX BLE raw: ' + toHex(rx));
+          handleIncomingBytes(rx, 'BLE');
         };
         bleMidiChar.addEventListener('characteristicvaluechanged', bleNotificationHandler);
       } catch (err) {
