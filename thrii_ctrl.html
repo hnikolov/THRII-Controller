@@ -185,9 +185,21 @@
         <label for="cabPreset">Cabinet:</label>
         <select id="cabPreset" class="builderControl">
           <option value="0">British 4x12 (0)</option>
+          <option value="1">American 4x12 (1)</option>
+          <option value="2">Brown 4x12 (2)</option>
+          <option value="3">Vintage 4x12 (3)</option>
+          <option value="4">Fuel 4x12 (4)</option>
+          <option value="5">Juicy 4x12 (5)</option>
+          <option value="6">Mods 4x12 (6)</option>
+          <option value="7">American 2x12 (7)</option>
           <option value="8">British 2x12 (8)</option>
+          <option value="9">British Blues (9)</option>
           <option value="10">Boutique 2x12 (10)</option>
+          <option value="11">Yamaha 2x12 (11)</option>
           <option value="12">California 1x12 (12)</option>
+          <option value="13">American 1x12 (13)</option>
+          <option value="14">American 4x10 (14)</option>
+          <option value="15">Boutique 1x12 (15)</option>
           <option value="16">Bypass (16)</option>
         </select>
         <button class="btnBuilderSend builderControl" data-builder="cabinet" data-value="from-select">Send Cabinet</button>
@@ -368,7 +380,9 @@
     };
 
     const thrTypeCode = {
-      float32: 0x00000004
+      float32: 0x00000004,
+      bool: 0x00000003,
+      enum: 0x00000002
     };
 
     const thrOpcode = {
@@ -860,11 +874,13 @@
       }
       cabIndex = Math.max(0, Math.min(16, cabIndex));
 
-      const valueRawU32 = new DataView(writeF32LE(cabIndex).buffer).getUint32(0, true);
+      // Cabinet selection follows enum writes in working C++ implementation:
+      // Type=0x02 and Value=integer index 0..16 in LE u32.
+      const valueRawU32 = cabIndex >>> 0;
       return buildSetParameter(
         thrKeys.unit.guitarProc,
         thrKeys.parameter.spkSimType,
-        thrTypeCode.float32,
+        thrTypeCode.enum,
         valueRawU32,
         options
       );

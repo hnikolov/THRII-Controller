@@ -27,7 +27,7 @@ For each packed block:
 - `bucket = packed[0]`
 - For `i = 0..6` (or until block ends):
   - `low = packed[i + 1] & 0x7F`
-  - `msb = (bucket >> i) & 0x01`
+  - `msb = (bucket >> (6 - i)) & 0x01`
   - `raw = low | (msb << 7)`
 
 ## Encode algorithm (raw 8-bit -> 7-bit packed)
@@ -36,7 +36,7 @@ For each group of up to 7 raw bytes:
 
 - Start `bucket = 0`
 - For each raw byte at index `i`:
-  - If `(raw[i] & 0x80) != 0`, set `bucket |= (1 << i)`
+  - If `(raw[i] & 0x80) != 0`, set `bucket |= (1 << (6 - i))`
   - Emit `raw[i] & 0x7F` as the low byte
 - Emit `bucket` first, then emitted low bytes
 
@@ -49,7 +49,7 @@ export function decodeBitBucketed(packed) {
     const bucket = packed[p++] & 0x7f;
     for (let i = 0; i < 7 && p < packed.length; i += 1) {
       const low = packed[p++] & 0x7f;
-      const msb = (bucket >> i) & 0x01;
+      const msb = (bucket >> (6 - i)) & 0x01;
       out.push(low | (msb << 7));
     }
   }
@@ -63,7 +63,7 @@ export function encodeBitBucketed(raw) {
     const lows = [];
     for (let i = 0; i < 7 && (p + i) < raw.length; i += 1) {
       const b = raw[p + i] & 0xff;
-      if (b & 0x80) bucket |= (1 << i);
+      if (b & 0x80) bucket |= (1 << (6 - i));
       lows.push(b & 0x7f);
     }
     out.push(bucket, ...lows);
@@ -80,7 +80,7 @@ Raw bytes:
 
 MSBs are `[1, 0, 1, 0, 0, 0, 1]` so bucket byte is:
 
-- `0b1000101 = 0x45` (Note: Why not 0x51?)
+- `0b1010001 = 0x51`
 
 Low 7-bit bytes are:
 
@@ -88,7 +88,7 @@ Low 7-bit bytes are:
 
 Packed block:
 
-- `[0x45, 0x00, 0x01, 0x7F, 0x7F, 0x00, 0x55, 0x2A]`
+- `[0x51, 0x00, 0x01, 0x7F, 0x7F, 0x00, 0x55, 0x2A]`
 
 ## THR-II specific caution
 
