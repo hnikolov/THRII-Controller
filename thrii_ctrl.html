@@ -100,6 +100,20 @@
       white-space: pre-wrap;
     }
 
+    #parserDiag {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.55);
+      padding: 0.55rem;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 0.9rem;
+    }
+
+    #parserDiag .diag-line {
+      margin: 0.2rem 0;
+      line-height: 1.35;
+    }
+
     small {
       opacity: 0.85;
     }
@@ -129,6 +143,17 @@
     .btnAmpCollection {
       width: 100%;
       text-align: left;
+    }
+
+    .syncedFromAmp {
+      outline: 2px solid #2d7a47;
+      background: #e8f6eb;
+      box-shadow: inset 0 0 0 1px rgba(45, 122, 71, 0.3);
+    }
+
+    .syncUnknown {
+      outline: 2px dashed #9a8a5f;
+      background: #f8f3e4;
     }
 
     @media (max-width: 820px) {
@@ -242,6 +267,18 @@
       <div class="row">
         <input id="sysexHex" type="text" placeholder="f0 00 01 0c ... f7" />
         <button id="btnSendSysEx">Send SysEx</button>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Parser Diagnostics</legend>
+      <div id="parserDiag">
+        <div class="diag-line">Frames RX: <span id="pdRxFrames">0</span> | Events: <span id="pdEvents">0</span> | Errors: <span id="pdErrors">0</span></div>
+        <div class="diag-line">Last event: <span id="pdLastEvent">(none)</span></div>
+        <div class="diag-line">Last parameter: <span id="pdLastParam">(none)</span></div>
+        <div class="diag-line">Dump: <span id="pdDump">idle</span></div>
+        <div class="diag-line">Symbols: <span id="pdSymbols">pending</span></div>
+        <div class="diag-line">Last error: <span id="pdLastError">none</span></div>
       </div>
     </fieldset>
 
@@ -596,10 +633,12 @@
             thrIncomingParser.symbols.byId = table.byId;
             thrIncomingParser.symbols.byName = table.byName || {};
             thrIncomingParser.symbols.source = 'doc/thr10ii_w_symbol_table_1_44_0_a.js';
+            thrIncomingParser.state.symbols.source = thrIncomingParser.symbols.source;
             thrIncomingParser.symbols.ready = true;
             if (thrIncomingParser.debug.events) {
               log('Parser symbols loaded: ' + Object.keys(table.byId).length + ' entries');
             }
+            updateParserDiagnosticsView();
             return thrIncomingParser.symbols;
           }
 
@@ -615,17 +654,21 @@
           thrIncomingParser.symbols.byId = parsed.byId;
           thrIncomingParser.symbols.byName = parsed.byName;
           thrIncomingParser.symbols.source = 'doc/thr10ii_w_symbol_table_1_44_0_a.json';
+          thrIncomingParser.state.symbols.source = thrIncomingParser.symbols.source;
           thrIncomingParser.symbols.ready = true;
           if (thrIncomingParser.debug.events) {
             log('Parser symbols loaded: ' + Object.keys(parsed.byId).length + ' entries');
           }
+          updateParserDiagnosticsView();
         } catch (err) {
           const fallback = buildFallbackSymbolMaps();
           thrIncomingParser.symbols.byId = fallback.byId;
           thrIncomingParser.symbols.byName = fallback.byName;
           thrIncomingParser.symbols.source = fallback.source;
+          thrIncomingParser.state.symbols.source = thrIncomingParser.symbols.source;
           thrIncomingParser.symbols.ready = true;
           log('Parser symbols fallback enabled: ' + err.message);
+          updateParserDiagnosticsView();
         }
         return thrIncomingParser.symbols;
       })();
@@ -795,6 +838,127 @@
       return null;
     }
 
+    // Parser section: multi-frame series assembly for large incoming payloads.
+    function makeIncomingSeriesKey(parsed) {
+      return [
+        'rx',
+        parsed.source,
+        parsed.header.group,
+        parsed.header.counter,
+        parsed.opcode
+      ].join('|');
+    }
+
+    function consumeIncomingSeriesFrame(parsed) {
+      const events = [];
+      if (parsed.opcode == null || parsed.declaredLength == null) {
+        return events;
+      }
+
+      const opcode = parsed.opcode >>> 0;
+      const expectedLength = parsed.declaredLength >>> 0;
+      if (opcode > 0x0f) {
+        return events;
+      }
+
+      // For small command replies we skip series assembly and keep Iteration 3 semantics unchanged.
+      const bodyChunk = parsed.decodedPayload.length >= 8 ? parsed.decodedPayload.slice(8) : new Uint8Array(0);
+      if (expectedLength < 64 && bodyChunk.length >= expectedLength) {
+        return events;
+      }
+
+      const key = makeIncomingSeriesKey(parsed);
+      const now = Date.now();
+      let series = thrIncomingParser.series.incomingByKey[key];
+      if (!series) {
+        series = {
+          key,
+          source: parsed.source,
+          group: parsed.header.group,
+          counter: parsed.header.counter,
+          opcode,
+          expectedLength,
+          chunks: [],
+          bytes: [],
+          startedAtMs: now,
+          touchedAtMs: now,
+          nextChunkIndex: 0
+        };
+        thrIncomingParser.series.incomingByKey[key] = series;
+      }
+
+      if (expectedLength > series.expectedLength) {
+        series.expectedLength = expectedLength;
+      }
+
+      const chunkIndex = series.nextChunkIndex;
+      series.nextChunkIndex += 1;
+      series.touchedAtMs = now;
+
+      const chunkHex = toHex(bodyChunk);
+      series.chunks.push({
+        index: chunkIndex,
+        byteLength: bodyChunk.length,
+        hex: chunkHex
+      });
+      for (let i = 0; i < bodyChunk.length; i += 1) {
+        series.bytes.push(bodyChunk[i]);
+      }
+
+      const assembledLength = series.bytes.length;
+      events.push({
+        kind: 'dump_chunk',
+        source: parsed.source,
+        group: parsed.header.group,
+        counter: parsed.header.counter,
+        opcode,
+        expectedLength: series.expectedLength,
+        assembledLength,
+        chunkIndex,
+        chunkLength: bodyChunk.length,
+        chunkHex
+      });
+
+      if (assembledLength >= series.expectedLength) {
+        const complete = Uint8Array.from(series.bytes.slice(0, series.expectedLength));
+        const completeHex = toHex(complete);
+        const u32Words = [];
+        for (let p = 0; (p + 4) <= complete.length; p += 4) {
+          u32Words.push(readU32LEFromBytes(complete, p));
+        }
+
+        events.push({
+          kind: 'dump_complete',
+          source: parsed.source,
+          group: parsed.header.group,
+          counter: parsed.header.counter,
+          opcode,
+          expectedLength: series.expectedLength,
+          assembledLength: complete.length,
+          chunkCount: series.chunks.length,
+          payloadHex: completeHex,
+          payloadWords: u32Words
+        });
+
+        delete thrIncomingParser.series.incomingByKey[key];
+      }
+
+      cleanupStaleIncomingSeries(now);
+      return events;
+    }
+
+    function cleanupStaleIncomingSeries(nowMs = Date.now()) {
+      const entries = Object.entries(thrIncomingParser.series.incomingByKey);
+      if (!entries.length) return;
+      const timeoutMs = thrIncomingParser.series.staleTimeoutMs;
+
+      entries.forEach(([key, series]) => {
+        if ((nowMs - series.touchedAtMs) > timeoutMs) {
+          delete thrIncomingParser.series.incomingByKey[key];
+        }
+      });
+    }
+
     function decodeIncomingSemanticEvents(parsed) {
       const events = [];
       if (parsed.opcode == null) {
@@ -927,6 +1091,311 @@
       return events;
     }
 
+    // Parser section: event-driven shadow state for diagnostics and future UI sync.
+    function createParserShadowState() {
+      return {
+        stats: {
+          framesRx: 0,
+          eventsRx: 0,
+          parserErrors: 0,
+          ackCount: 0,
+          nackCount: 0,
+          lastEventKind: '(none)',
+          lastEventAtMs: 0,
+          lastError: 'none'
+        },
+        units: {},
+        lastParameterChange: null,
+        dump: {
+          inProgress: false,
+          opcode: null,
+          expectedLength: 0,
+          assembledLength: 0,
+          chunkCount: 0,
+          lastComplete: null
+        },
+        symbols: {
+          source: 'pending'
+        }
+      };
+    }
+
+    function ensureShadowUnit(uKey, unitName) {
+      const key = String(Number(uKey) >>> 0);
+      if (!Object.prototype.hasOwnProperty.call(thrIncomingParser.state.units, key)) {
+        thrIncomingParser.state.units[key] = {
+          id: Number(uKey) >>> 0,
+          name: unitName || ('u#' + key),
+          typeKey: null,
+          typeName: null,
+          parameters: {}
+        };
+      }
+
+      const unit = thrIncomingParser.state.units[key];
+      if (unitName) {
+        unit.name = unitName;
+      }
+      return unit;
+    }
+
+    function formatParserValue(value) {
+      if (value == null) return 'n/a';
+      if (typeof value === 'boolean') return value ? 'true' : 'false';
+      if (typeof value === 'number') {
+        if (!Number.isFinite(value)) return String(value);
+        return value.toFixed(4);
+      }
+      return String(value);
+    }
+
+    function clearControlSyncMarkers() {
+      const marked = document.querySelectorAll('.syncedFromAmp, .syncUnknown');
+      marked.forEach(el => {
+        el.classList.remove('syncedFromAmp');
+        el.classList.remove('syncUnknown');
+      });
+    }
+
+    function markControlFromAmp(selector, fallbackSelector = null) {
+      let el = document.querySelector(selector);
+      if (!el && fallbackSelector) {
+        el = document.querySelector(fallbackSelector);
+        if (el) {
+          el.classList.add('syncUnknown');
+          return;
+        }
+      }
+      if (el) {
+        el.classList.add('syncedFromAmp');
+      }
+    }
+
+    function scheduleSyncMarkerCleanup() {
+      if (thrIncomingParser.syncMarkerTimer) {
+        clearTimeout(thrIncomingParser.syncMarkerTimer);
+      }
+      thrIncomingParser.syncMarkerTimer = setTimeout(() => {
+        clearControlSyncMarkers();
+        thrIncomingParser.syncMarkerTimer = null;
+      }, 1600);
+    }
+
+    function readShadowParamByName(paramName) {
+      const units = Object.values(thrIncomingParser.state.units || {});
+      let latest = null;
+      units.forEach(unit => {
+        Object.values(unit.parameters || {}).forEach(param => {
+          if (param.name !== paramName) return;
+          if (!latest || (param.updatedAtMs || 0) > (latest.updatedAtMs || 0)) {
+            latest = { unit, param };
+          }
+        });
+      });
+      return latest;
+    }
+
+    function getLatestShadowUnitByName(unitName) {
+      const units = Object.values(thrIncomingParser.state.units || {}).filter(u => u.name === unitName);
+      if (!units.length) return null;
+      units.sort((a, b) => {
+        const aTime = Math.max(0, ...Object.values(a.parameters || {}).map(p => p.updatedAtMs || 0));
+        const bTime = Math.max(0, ...Object.values(b.parameters || {}).map(p => p.updatedAtMs || 0));
+        return bTime - aTime;
+      });
+      return units[0];
+    }
+
+    function normalizeOnOff(value) {
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'number') return value >= 0.5;
+      return null;
+    }
+
+    function syncControlsFromShadowState() {
+      clearControlSyncMarkers();
+
+      const cabinet = readShadowParamByName('SpkSimType');
+      if (cabinet && cabinet.param) {
+        const select = document.getElementById('cabPreset');
+        const v = Number(cabinet.param.value);
+        if (Number.isFinite(v) && v >= 0 && v <= 16) {
+          select.value = String(Math.round(v));
+          markControlFromAmp('#cabPreset');
+        } else {
+          markControlFromAmp('#cabPreset', '#cabPreset');
+        }
+      }
+
+      const toggleMap = [
+        { paramName: 'FX1EnableState', target: 'compressor' },
+        { paramName: 'GateEnableState', target: 'gate' },
+        { paramName: 'FX2EnableState', target: 'effect' },
+        { paramName: 'FX3EnableState', target: 'echo' },
+        { paramName: 'FX4EnableState', target: 'reverb' }
+      ];
+      toggleMap.forEach(item => {
+        const hit = readShadowParamByName(item.paramName);
+        if (!hit || !hit.param) return;
+        const enabled = normalizeOnOff(hit.param.value);
+        if (enabled == null) {
+          markControlFromAmp('[data-builder="toggle"][data-target="' + item.target + '"][data-enabled="1"]', '[data-builder="toggle"][data-target="' + item.target + '"]');
+          return;
+        }
+        markControlFromAmp('[data-builder="toggle"][data-target="' + item.target + '"][data-enabled="' + (enabled ? '1' : '0') + '"]');
+      });
+
+      const typeMap = [
+        { unitName: 'Amp', builder: null, dataSet: null, ampButtons: true },
+        { unitName: 'FX2', builder: 'effect', dataSet: thrKeys.enumValue.effect },
+        { unitName: 'FX3', builder: 'echo', dataSet: thrKeys.enumValue.echo },
+        { unitName: 'FX4', builder: 'reverb', dataSet: thrKeys.enumValue.reverb }
+      ];
+
+      typeMap.forEach(item => {
+        const unit = getLatestShadowUnitByName(item.unitName);
+        if (!unit || unit.typeKey == null) return;
+
+        if (item.ampButtons) {
+          const keyHex = Number(unit.typeKey) >>> 0;
+          markControlFromAmp('.btnAmpCollection[data-amp-hex="' + keyHex + '"]', '.btnAmpCollection');
+          return;
+        }
+
+        const lookup = item.dataSet || {};
+        const selected = Object.keys(lookup).find(k => Number(lookup[k]) === (Number(unit.typeKey) >>> 0));
+        if (selected) {
+          markControlFromAmp('[data-builder="' + item.builder + '"][data-value="' + selected + '"]');
+        } else {
+          markControlFromAmp('[data-builder="' + item.builder + '"]', '[data-builder="' + item.builder + '"]');
+        }
+      });
+
+      scheduleSyncMarkerCleanup();
+    }
+
+    function applyParserEventToShadowState(event, source) {
+      const state = thrIncomingParser.state;
+      state.stats.eventsRx += 1;
+      state.stats.lastEventKind = event.kind;
+      state.stats.lastEventAtMs = Date.now();
+
+      if (event.kind === 'ack') {
+        state.stats.ackCount += 1;
+        return;
+      }
+
+      if (event.kind === 'nack') {
+        state.stats.nackCount += 1;
+        return;
+      }
+
+      if (event.kind === 'parameter_change') {
+        const unitName = event.names && event.names.unit && event.names.unit.name ? event.names.unit.name : null;
+        const paramName = event.names && event.names.parameter && event.names.parameter.name ? event.names.parameter.name : null;
+        const unit = ensureShadowUnit(event.uKey, unitName);
+        const paramKey = String(Number(event.pKey) >>> 0);
+        const decoded = event.value ? event.value.decoded : null;
+
+        unit.parameters[paramKey] = {
+          id: Number(event.pKey) >>> 0,
+          name: paramName || ('p#' + paramKey),
+          typeCode: Number(event.typeCode) >>> 0,
+          decodedKind: event.value ? event.value.decodedKind : null,
+          rawU32: Number(event.valueRaw) >>> 0,
+          value: decoded,
+          updatedAtMs: Date.now()
+        };
+
+        state.lastParameterChange = {
+          source,
+          unitName: unit.name,
+          paramName: unit.parameters[paramKey].name,
+          value: decoded,
+          updatedAtMs: Date.now()
+        };
+        return;
+      }
+
+      if (event.kind === 'unit_type_change') {
+        const unitName = event.names && event.names.unit && event.names.unit.name ? event.names.unit.name : null;
+        const unit = ensureShadowUnit(event.uKey, unitName);
+        unit.typeKey = Number(event.unitTypeKey) >>> 0;
+        unit.typeName = event.names && event.names.unitType && event.names.unitType.name ? event.names.unitType.name : ('v#' + unit.typeKey);
+        return;
+      }
+
+      if (event.kind === 'dump_chunk') {
+        state.dump.inProgress = true;
+        state.dump.opcode = Number(event.opcode) >>> 0;
+        state.dump.expectedLength = Number(event.expectedLength) >>> 0;
+        state.dump.assembledLength = Number(event.assembledLength) >>> 0;
+        state.dump.chunkCount = Number(event.chunkIndex) + 1;
+        return;
+      }
+
+      if (event.kind === 'dump_complete') {
+        state.dump.inProgress = false;
+        state.dump.opcode = Number(event.opcode) >>> 0;
+        state.dump.expectedLength = Number(event.expectedLength) >>> 0;
+        state.dump.assembledLength = Number(event.assembledLength) >>> 0;
+        state.dump.chunkCount = Number(event.chunkCount) >>> 0;
+        state.dump.lastComplete = {
+          source,
+          opcode: Number(event.opcode) >>> 0,
+          bytes: Number(event.assembledLength) >>> 0,
+          chunks: Number(event.chunkCount) >>> 0,
+          completedAtMs: Date.now()
+        };
+      }
+    }
+
+    function updateParserDiagnosticsView() {
+      const state = thrIncomingParser.state;
+      const set = (id, text) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+      };
+
+      set('pdRxFrames', String(state.stats.framesRx));
+      set('pdEvents', String(state.stats.eventsRx));
+      set('pdErrors', String(state.stats.parserErrors));
+
+      const lastEventText = state.stats.lastEventAtMs
+        ? state.stats.lastEventKind + ' @ ' + new Date(state.stats.lastEventAtMs).toLocaleTimeString()
+        : state.stats.lastEventKind;
+      set('pdLastEvent', lastEventText);
+
+      if (state.lastParameterChange) {
+        set(
+          'pdLastParam',
+          state.lastParameterChange.unitName + '.' + state.lastParameterChange.paramName + ' = ' + formatParserValue(state.lastParameterChange.value)
+        );
+      } else {
+        set('pdLastParam', '(none)');
+      }
+
+      if (state.dump.inProgress) {
+        set(
+          'pdDump',
+          'op=0x' + state.dump.opcode.toString(16) +
+          ' ' + state.dump.assembledLength + '/' + state.dump.expectedLength +
+          ' bytes (' + state.dump.chunkCount + ' chunks)'
+        );
+      } else if (state.dump.lastComplete) {
+        set(
+          'pdDump',
+          'last complete op=0x' + state.dump.lastComplete.opcode.toString(16) +
+          ' ' + state.dump.lastComplete.bytes + ' bytes (' + state.dump.lastComplete.chunks + ' chunks)'
+        );
+      } else {
+        set('pdDump', 'idle');
+      }
+
+      set('pdSymbols', state.symbols.source || 'pending');
+      set('pdLastError', state.stats.lastError || 'none');
+    }
+
     const thrIncomingParser = {
       parseIncomingThrFrame,
       decodeBitBucket7THR,
@@ -940,6 +1409,12 @@
       history: [],
       events: [],
       pendingOutbound: [],
+      state: createParserShadowState(),
+      syncMarkerTimer: null,
+      series: {
+        incomingByKey: {},
+        staleTimeoutMs: 8000
+      },
       symbols: {
         ready: false,
         loadingPromise: null,
@@ -969,6 +1444,12 @@
       if (thrIncomingParser.events.length > 120) {
         thrIncomingParser.events.shift();
       }
+    }
+
+    function onParserError(source, err) {
+      thrIncomingParser.state.stats.parserErrors += 1;
+      thrIncomingParser.state.stats.lastError = source + ': ' + err.message;
+      updateParserDiagnosticsView();
     }
 
     function registerOutgoingForParser(bytes, label) {
@@ -1026,6 +1507,25 @@
         return;
       }
 
+      if (event.kind === 'dump_chunk') {
+        log(
+          'RX ' + source + ' event: dump_chunk op=0x' + event.opcode.toString(16) +
+          ' chunk=' + (event.chunkIndex + 1) +
+          ' size=' + event.chunkLength +
+          ' total=' + event.assembledLength + '/' + event.expectedLength
+        );
+        return;
+      }
+
+      if (event.kind === 'dump_complete') {
+        log(
+          'RX ' + source + ' event: dump_complete op=0x' + event.opcode.toString(16) +
+          ' chunks=' + event.chunkCount +
+          ' bytes=' + event.assembledLength
+        );
+        return;
+      }
+
       log('RX ' + source + ' event: ' + event.kind + ' op=0x' + event.opcode.toString(16) + corr);
     }
 
@@ -1041,18 +1541,25 @@
       }
 
       frames.forEach(frame => {
+        thrIncomingParser.state.stats.framesRx += 1;
         try {
           const parsed = parseIncomingThrFrame(frame, source);
           pushParserHistory(parsed);
           logParsedFrame(parsed);
 
-          const events = decodeIncomingSemanticEvents(parsed);
+          const assemblyEvents = consumeIncomingSeriesFrame(parsed);
+          const semanticEvents = decodeIncomingSemanticEvents(parsed);
+          const events = assemblyEvents.concat(semanticEvents);
           events.forEach(event => {
             pushParserEvent(event);
+            applyParserEventToShadowState(event, source);
             logParserEvent(event, source);
           });
+          syncControlsFromShadowState();
+          updateParserDiagnosticsView();
         } catch (err) {
           log('RX ' + source + ' parser error: ' + err.message);
+          onParserError(source, err);
         }
       });
     }
@@ -1640,6 +2147,7 @@
           const btn = document.createElement('button');
           btn.className = 'btnAmpCollection';
           btn.textContent = amp.slot + ' - ' + amp.symbol;
+          btn.dataset.ampHex = String(amp.hex >>> 0);
           btn.addEventListener('click', () => safeRun(() => sendAmpByDefinition(amp)));
           row.appendChild(btn);
         });
@@ -1683,6 +2191,7 @@
     });
 
     renderAmpCollections();
+    updateParserDiagnosticsView();
     setStatus();
   </script>
 </body>
