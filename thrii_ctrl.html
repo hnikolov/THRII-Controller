@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>THR-II Controller (USB/BLE)</title>
+  <style>
+    :root {
+      --thr-bg: #f5f0e3;  /* #c8b487; */
+      --panel: #f5f0e3;
+      --text: #1e1c17;
+      --border: #8c7a55;
+      --accent: #6b5430;
+    }
+
+    body {
+      margin: 0;
+      background: var(--thr-bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+    }
+
+    main {
+      max-width: 820px;
+      margin: 1.2rem auto;
+      padding: 0 1rem 1rem;
+    }
+
+    h1 {
+      margin: 0.2rem 0 0.8rem;
+      font-size: 1.3rem;
+    }
+
+    fieldset {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+      margin: 0.8rem 0;
+      padding: 0.8rem;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin: 0.45rem 0;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text);
+      padding: 0.45rem 0.75rem;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .accent {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    #status {
+      font-weight: 600;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.45);
+    }
+
+    #sysexHex {
+      width: min(100%, 760px);
+      padding: 0.45rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    #log {
+      min-height: 180px;
+      max-height: 320px;
+      overflow: auto;
+      background: #1b1a17;
+      color: #e7e0d1;
+      border-radius: 8px;
+      padding: 0.6rem;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      white-space: pre-wrap;
+    }
+
+    small {
+      opacity: 0.85;
+    }
+
+    .amp-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.7rem;
+    }
+
+    .amp-column {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.45);
+      padding: 0.55rem;
+    }
+
+    .amp-column h3 {
+      margin: 0 0 0.45rem;
+      font-size: 0.95rem;
+    }
+
+    .amp-column .row {
+      margin: 0;
+    }
+
+    .btnAmpCollection {
+      width: 100%;
+      text-align: left;
+    }
+
+    @media (max-width: 820px) {
+      .amp-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Yamaha THR-II Controller</h1>
+
+    <fieldset>
+      <legend>Connection</legend>
+      <div class="row">
+        <button id="btnConnect">Connect</button>
+        <button id="btnDisconnect">Disconnect All</button>
+        <span id="status">Not connected</span>
+      </div>
+      <div id="deviceInfo">Device: (none)</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>THR-II Commands</legend>
+      <div class="row">
+        <button class="accent" id="btnActivate">Activate THR-II</button>
+      </div>
+      <div class="row">
+        <button class="btnPreset" data-preset="0">Preset 1</button>
+        <button class="btnPreset" data-preset="1">Preset 2</button>
+        <button class="btnPreset" data-preset="2">Preset 3</button>
+        <button class="btnPreset" data-preset="3">Preset 4</button>
+        <button class="btnPreset" data-preset="4">Preset 5</button>
+      </div>
+      <div class="row">
+        <button class="btnAmpModel" data-model="classicLead">Classic Lead</button>
+        <button class="btnAmpModel" data-model="classicSpecial">Classic Special</button>
+        <button class="btnAmpModel" data-model="boutiqueClean">Boutique Clean</button>
+        <button class="btnAmpModel" data-model="modernHiGain">Modern Hi Gain</button>
+      </div>
+      <small>Controls are always visible. Buttons become active once USB or BLE is connected.</small>
+    </fieldset>
+
+    <fieldset>
+      <legend>THR-II Amps</legend>
+      <div id="ampCollections" class="amp-grid"></div>
+      <small>Each collection includes 8 amp models. Buttons send generated 2-message SysEx commands.</small>
+    </fieldset>
+
+    <fieldset>
+      <legend>Raw SysEx</legend>
+      <div class="row">
+        <input id="sysexHex" type="text" placeholder="f0 00 01 0c ... f7" />
+        <button id="btnSendSysEx">Send SysEx</button>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Log</legend>
+      <div class="row">
+        <button id="btnClearLog">Clear Log</button>
+      </div>
+      <div id="log"></div>
+    </fieldset>
+  </main>
+
+  <script>
+    const MIDI_SERVICE_UUID = '03b80e5a-ede8-4b33-a751-6ce34ec4c700';
+    const MIDI_CHAR_UUID = '7772e5db-3868-4112-a1a9-f2669d106bf3';
+
+    const thrActivateSequenceHex = [
+      'f0 7e 7f 06 01 f7',
+      'f0 00 01 0c 24 01 4d 00 00 00 00 07 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 f7',
+      'f0 00 01 0c 24 01 4d 00 01 00 00 07 00 04 00 00 00 04 00 00 00 00 00 00 00 00 00 00 f7',
+      'f0 00 01 0c 24 01 4d 00 02 00 00 03 28 72 4d 54 5d 00 00 00 f7'
+    ];
+
+    const ampModelCommandsHex = {
+      classicLead: [
+        'f0 00 01 0c 24 01 4d 00 03 00 00 07 00 08 00 00 00 08 00 00 00 00 00 00 00 00 00 00 f7',
+        'f0 00 01 0c 24 01 4d 00 04 00 00 07 04 0c 01 00 00 19 00 00 00 00 00 00 00 00 00 00 f7'
+      ],
+      classicSpecial: [
+        'f0 00 01 0c 24 01 4d 00 03 00 00 07 00 08 00 00 00 08 00 00 00 00 00 00 00 00 00 00 f7',
+        'f0 00 01 0c 24 01 4d 00 04 00 00 07 00 0c 01 00 00 78 00 00 00 00 00 00 00 00 00 00 f7'
+      ],
+      boutiqueClean: [
+        'f0 00 01 0c 24 01 4d 00 03 00 00 07 00 08 00 00 00 08 00 00 00 00 00 00 00 00 00 00 f7',
+        'f0 00 01 0c 24 01 4d 00 04 00 00 07 04 0c 01 00 00 36 00 00 00 00 00 00 00 00 00 00 f7'
+      ],
+      modernHiGain: [
+        'f0 00 01 0c 24 01 4d 00 03 00 00 07 00 08 00 00 00 08 00 00 00 00 00 00 00 00 00 00 f7',
+        'f0 00 01 0c 24 01 4d 00 04 00 00 07 04 0c 01 00 00 0b 00 00 00 00 00 00 00 00 00 00 f7'
+      ]
+    };
+
+    const ampSelectCommand1TemplateHex =
+      'f0 00 01 0c 24 01 4d 00 03 00 00 07 00 08 00 00 00 08 00 00 00 00 00 00 00 00 00 00 f7';
+    const ampSelectCommand2TemplateHex =
+      'f0 00 01 0c 24 01 4d 00 04 00 00 07 00 0c 01 00 00 00 00 00 00 00 00 00 00 00 00 00 f7';
+
+    const ampCollections = {
+      modern: {
+        label: 'Modern',
+        amps: [
+          { slot: 'CLEAN', symbol: 'THR30_Carmen', hex: 0xB2 },
+          { slot: 'CRUNCH', symbol: 'THR30_SR101', hex: 0xA3 },
+          { slot: 'LEAD', symbol: 'THR10_Brit', hex: 0xBB },
+          { slot: 'HI GAIN', symbol: 'THR10X_Brown2', hex: 0x8B },
+          { slot: 'SPECIAL', symbol: 'THR30_Stealth', hex: 0x9C },
+          { slot: 'BASS', symbol: 'THR30_JKBass2', hex: 0xB8 },
+          { slot: 'ACO', symbol: 'THR10_Aco_Dynamic1', hex: 0x97 },
+          { slot: 'FLAT', symbol: 'THR10_Flat_V', hex: 0xB5 }
+        ]
+      },
+      boutique: {
+        label: 'Boutique',
+        amps: [
+          { slot: 'CLEAN', symbol: 'THR10C_BJunior2', hex: 0xB6 },
+          { slot: 'CRUNCH', symbol: 'THR10C_Mini', hex: 0x71 },
+          { slot: 'LEAD', symbol: 'THR30_Blondie', hex: 0xA8 },
+          { slot: 'HI GAIN', symbol: 'THR30_FLead', hex: 0xAF },
+          { slot: 'SPECIAL', symbol: 'THR10X_South', hex: 0x84 },
+          { slot: 'BASS', symbol: 'THR10_Bass_Mesa', hex: 0xAB },
+          { slot: 'ACO', symbol: 'THR10_Aco_Tube1', hex: 0x98 },
+          { slot: 'FLAT', symbol: 'THR10_Flat_B', hex: 0xB4 }
+        ]
+      },
+      classic: {
+        label: 'Classic',
+        amps: [
+          { slot: 'CLEAN', symbol: 'THR10C_Deluxe', hex: 0x4A },
+          { slot: 'CRUNCH', symbol: 'THR10C_DC30', hex: 0x88 },
+          { slot: 'LEAD', symbol: 'THR10_Lead', hex: 0x99 },
+          { slot: 'HI GAIN', symbol: 'THR10_Modern', hex: 0x7F },
+          { slot: 'SPECIAL', symbol: 'THR10X_Brown1', hex: 0x78 },
+          { slot: 'BASS', symbol: 'THR10_Bass_Eden_Marcus', hex: 0xB7 },
+          { slot: 'ACO', symbol: 'THR10_Aco_Condenser1', hex: 0x93 },
+          { slot: 'FLAT', symbol: 'THR10_Flat', hex: 0x8F }
+        ]
+      }
+    };
+
+    const ampModelLabels = {
+      classicLead: 'Classic Lead',
+      classicSpecial: 'Classic Special',
+      boutiqueClean: 'Boutique Clean',
+      modernHiGain: 'Modern Hi Gain'
+    };
+
+    let bleDevice = null;
+    let bleServer = null;
+    let bleMidiChar = null;
+    let bleTs = 0;
+    let bleNotificationHandler = null;
+
+    let midiAccess = null;
+    let midiOut = null;
+    let midiIn = null;
+
+    function log(msg) {
+      const el = document.getElementById('log');
+      const t = new Date().toLocaleTimeString();
+      el.textContent += '[' + t + '] ' + msg + '\n';
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function toHex(bytes) {
+      return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' ');
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function parseSysExHex(hexStr) {
+      const cleaned = (hexStr || '').replace(/[^0-9a-fA-F]/g, '');
+      if (!cleaned || cleaned.length % 2 !== 0) throw new Error('Invalid hex string.');
+      const out = new Uint8Array(cleaned.length / 2);
+      for (let i = 0; i < cleaned.length; i += 2) {
+        out[i / 2] = parseInt(cleaned.slice(i, i + 2), 16);
+      }
+      return out;
+    }
+
+    function isUserCancellationError(err) {
+      return !!err && (err.name === 'NotFoundError' || err.name === 'AbortError');
+    }
+
+    function setStatus() {
+      const names = [];
+      if (midiOut) names.push('USB OUT: ' + (midiOut.name || 'Unnamed'));
+      if (midiIn) names.push('USB IN: ' + (midiIn.name || 'Unnamed'));
+      if (bleDevice && bleMidiChar) names.push('BLE: ' + (bleDevice.name || 'Unnamed'));
+
+      document.getElementById('status').textContent = names.length ? 'Connected' : 'Not connected';
+      document.getElementById('deviceInfo').textContent = 'Device: ' + (names.join(' | ') || '(none)');
+
+      const connected = names.length > 0;
+      document.getElementById('btnConnect').disabled = connected;
+      document.getElementById('btnDisconnect').disabled = !connected;
+      document.getElementById('btnActivate').disabled = !connected;
+      document.getElementById('btnSendSysEx').disabled = !connected;
+      document.querySelectorAll('.btnPreset').forEach(btn => { btn.disabled = !connected; });
+      document.querySelectorAll('.btnAmpModel').forEach(btn => { btn.disabled = !connected; });
+      document.querySelectorAll('.btnAmpCollection').forEach(btn => { btn.disabled = !connected; });
+    }
+
+    function anyConnected() {
+      return !!midiOut || !!bleMidiChar;
+    }
+
+    function nextBleTs() {
+      const ts = bleTs;
+      bleTs = (bleTs + 1) & 0x1fff;
+      return [0x80 | (ts >> 7), 0x80 | (ts & 0x7f)];
+    }
+
+    function buildBlePacket(bytes) {
+      const [hi, lo] = nextBleTs();
+      const packet = new Uint8Array(2 + bytes.length);
+      packet[0] = hi;
+      packet[1] = lo;
+      packet.set(bytes, 2);
+      return packet;
+    }
+
+    async function sendBle(bytes, chunkPayloadSize = 200) {
+      if (!bleMidiChar) throw new Error('BLE is not connected.');
+      for (let i = 0; i < bytes.length; i += chunkPayloadSize) {
+        const chunk = bytes.slice(i, i + chunkPayloadSize);
+        const packet = buildBlePacket(chunk);
+        if (typeof bleMidiChar.writeValueWithoutResponse === 'function') {
+          await bleMidiChar.writeValueWithoutResponse(packet);
+        } else {
+          await bleMidiChar.writeValue(packet);
+        }
+      }
+    }
+
+    async function sendAndLog(bytes, transportLabel) {
+      await sendMidi(bytes);
+      if (transportLabel) {
+        log(transportLabel + ': ' + toHex(bytes));
+      }
+    }
+
+    async function sendMidi(bytes) {
+      if (midiOut) {
+        midiOut.send(Array.from(bytes));
+        return;
+      }
+      if (bleMidiChar) {
+        await sendBle(bytes);
+        return;
+      }
+      throw new Error('No USB or BLE output connected.');
+    }
+
+    function onUsbMidiMessage(event) {
+      log('RX USB: ' + toHex(event.data));
+    }
+
+    async function requestUsbMidiPermissionHint() {
+      if (!navigator.usb || typeof navigator.usb.requestDevice !== 'function') {
+        return { cancelled: false };
+      }
+
+      try {
+        const granted = await navigator.usb.getDevices();
+        if (granted.length > 0) {
+          return { cancelled: false };
+        }
+
+        await navigator.usb.requestDevice({
+          filters: [{ classCode: 0x01, subclassCode: 0x03 }]
+        });
+        return { cancelled: false };
+      } catch (err) {
+        if (isUserCancellationError(err)) {
+          return { cancelled: true };
+        }
+        return { cancelled: false };
+      }
+    }
+
+    async function tryConnectUsb() {
+      if (!navigator.requestMIDIAccess) {
+        log('Web MIDI is not supported in this browser.');
+        return { connected: false, cancelled: false };
+      }
+
+      const usbPermission = await requestUsbMidiPermissionHint();
+      if (usbPermission.cancelled) {
+        disconnectUsb();
+        return { connected: false, cancelled: true };
+      }
+
+      try {
+        midiAccess = await navigator.requestMIDIAccess({ sysex: true });
+      } catch (err) {
+        log('Web MIDI access failed: ' + err.message);
+        return { connected: false, cancelled: false };
+      }
+
+      const outputs = Array.from(midiAccess.outputs.values());
+      const inputs = Array.from(midiAccess.inputs.values());
+
+      if (!outputs.length && !inputs.length) {
+        log('No USB MIDI ports available.');
+        disconnectUsb();
+        return { connected: false, cancelled: false };
+      }
+
+      midiOut = outputs[0] || null;
+      midiIn = inputs.find(i => midiOut && i.name === midiOut.name) || inputs[0] || null;
+      if (midiIn) {
+        midiIn.addEventListener('midimessage', onUsbMidiMessage);
+      }
+
+      log('USB connected: ' + [midiOut && midiOut.name, midiIn && midiIn.name].filter(Boolean).join(' | '));
+      setStatus();
+      return { connected: !!midiOut || !!midiIn, cancelled: false };
+    }
+
+    function cleanupBle() {
+      if (bleMidiChar && bleNotificationHandler) {
+        try {
+          bleMidiChar.removeEventListener('characteristicvaluechanged', bleNotificationHandler);
+        } catch (err) {}
+      }
+      bleNotificationHandler = null;
+      bleMidiChar = null;
+      bleServer = null;
+    }
+
+    function onBleDisconnected() {
+      cleanupBle();
+      log('BLE disconnected.');
+      setStatus();
+    }
+
+    async function connectBle() {
+      if (!navigator.bluetooth) {
+        log('Web Bluetooth is not supported in this browser.');
+        return { connected: false, cancelled: false };
+      }
+
+      try {
+        bleDevice = await navigator.bluetooth.requestDevice({
+          filters: [{ services: [MIDI_SERVICE_UUID] }]
+        });
+      } catch (err) {
+        if (isUserCancellationError(err)) {
+          log('BLE chooser canceled by user.');
+          return { connected: false, cancelled: true };
+        }
+        log('BLE request failed: ' + err.message);
+        return { connected: false, cancelled: false };
+      }
+
+      bleDevice.removeEventListener('gattserverdisconnected', onBleDisconnected);
+      bleDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
+
+      try {
+        bleServer = await bleDevice.gatt.connect();
+        const service = await bleServer.getPrimaryService(MIDI_SERVICE_UUID);
+        bleMidiChar = await service.getCharacteristic(MIDI_CHAR_UUID);
+      } catch (err) {
+        cleanupBle();
+        log('BLE connect failed: ' + err.message);
+        return { connected: false, cancelled: false };
+      }
+
+      try {
+        await bleMidiChar.startNotifications();
+        bleNotificationHandler = e => {
+          const rx = new Uint8Array(e.target.value.buffer);
+          log('RX BLE raw: ' + toHex(rx));
+        };
+        bleMidiChar.addEventListener('characteristicvaluechanged', bleNotificationHandler);
+      } catch (err) {
+        log('BLE notifications unavailable: ' + err.message);
+      }
+
+      log('BLE connected: ' + (bleDevice.name || 'Unnamed'));
+      setStatus();
+      return { connected: true, cancelled: false };
+    }
+
+    async function onConnect() {
+      const usbResult = await tryConnectUsb();
+      if (usbResult.connected) {
+        return;
+      }
+
+      if (usbResult.cancelled) {
+        log('USB canceled. Falling back to BLE.');
+      } else {
+        log('USB not connected. Falling back to BLE.');
+      }
+
+      const bleResult = await connectBle();
+      if (!bleResult.connected && bleResult.cancelled) {
+        log('BLE connection canceled by user.');
+      }
+      if (!bleResult.connected) {
+        setStatus();
+      }
+    }
+
+    function disconnectUsb() {
+      if (midiIn) {
+        midiIn.removeEventListener('midimessage', onUsbMidiMessage);
+      }
+      midiIn = null;
+      midiOut = null;
+      midiAccess = null;
+    }
+
+    async function disconnectBle() {
+      if (bleDevice && bleDevice.gatt && bleDevice.gatt.connected) {
+        bleDevice.gatt.disconnect();
+      }
+      cleanupBle();
+    }
+
+    async function disconnectAll() {
+      disconnectUsb();
+      await disconnectBle();
+      log('Disconnected all transports.');
+      setStatus();
+    }
+
+    async function activateThrII() {
+      if (!anyConnected()) throw new Error('Connect USB or BLE first.');
+      for (let i = 0; i < thrActivateSequenceHex.length; i += 1) {
+        const syx = parseSysExHex(thrActivateSequenceHex[i]);
+        await sendAndLog(syx, 'TX THR activation ' + (i + 1) + '/' + thrActivateSequenceHex.length);
+        await sleep(500);
+      }
+      log('THR-II activation sequence completed.');
+    }
+
+    async function sendPreset(presetIndex) {
+      if (!anyConnected()) throw new Error('Connect USB or BLE first.');
+      const n = Math.max(0, Math.min(4, Number(presetIndex)));
+      const hex = 'f000010c24014d0108000e0b000e0000000400000000 ' + n.toString(16).padStart(2, '0') + ' 0000000000f7';
+      await sendAndLog(parseSysExHex(hex), 'TX THR preset ' + (n + 1));
+      log('THR preset ' + (n + 1) + ' command sent.');
+    }
+
+    function encodeBitBucket7(rawBytes) {
+      const bucketed = [];
+      for (let p = 0; p < rawBytes.length; p += 7) {
+        let bucket = 0;
+        const lows = [];
+        for (let i = 0; i < 7 && (p + i) < rawBytes.length; i += 1) {
+          const value = rawBytes[p + i] & 0xff;
+          if (value & 0x80) bucket |= (1 << i);
+          lows.push(value & 0x7f);
+        }
+        bucketed.push(bucket, ...lows);
+      }
+      return Uint8Array.from(bucketed);
+    }
+
+    function buildAmpSelectCommandBytes(ampHexValue) {
+      const cmd1 = parseSysExHex(ampSelectCommand1TemplateHex);
+      const cmd2 = parseSysExHex(ampSelectCommand2TemplateHex);
+
+      // THR-II amp-select command family:
+      // - low 7-bit value is stored at byte 17
+      // - bucket byte is at byte 12
+      // - MSB flag for this value maps to bit position 2 (0x04) in the bucket byte
+      const value = ampHexValue & 0xff;
+      const valueLow7 = value & 0x7f;
+      const bucket = (value & 0x80) ? 0x04 : 0x00;
+      cmd2[12] = bucket;
+      cmd2[17] = valueLow7;
+
+      return [cmd1, cmd2];
+    }
+
+    function findAmp(collectionKey, slotName) {
+      const collection = ampCollections[collectionKey];
+      if (!collection) return null;
+      return collection.amps.find(amp => amp.slot === slotName) || null;
+    }
+
+    async function sendAmpByDefinition(def) {
+      if (!anyConnected()) throw new Error('Connect USB or BLE first.');
+      if (!def) throw new Error('Amp model definition is missing.');
+
+      const commands = buildAmpSelectCommandBytes(def.hex);
+      for (let i = 0; i < commands.length; i += 1) {
+        await sendAndLog(commands[i], 'TX amp model ' + (i + 1) + '/' + commands.length);
+      }
+
+      log(
+        'Amp model set: ' + def.slot + ' / ' + def.symbol +
+        ' (0x' + def.hex.toString(16).padStart(2, '0').toUpperCase() + ')'
+      );
+    }
+
+    async function sendAmpModel(modelKey) {
+      if (!anyConnected()) throw new Error('Connect USB or BLE first.');
+      const commandPair = ampModelCommandsHex[modelKey];
+      if (!commandPair) throw new Error('Unknown amp model command: ' + modelKey);
+
+      for (let i = 0; i < commandPair.length; i += 1) {
+        await sendAndLog(parseSysExHex(commandPair[i]), 'TX amp model ' + (i + 1) + '/' + commandPair.length);
+      }
+
+      log('Amp model set: ' + (ampModelLabels[modelKey] || modelKey));
+    }
+
+    function renderAmpCollections() {
+      const container = document.getElementById('ampCollections');
+      container.innerHTML = '';
+
+      Object.keys(ampCollections).forEach(collectionKey => {
+        const collection = ampCollections[collectionKey];
+        const col = document.createElement('div');
+        col.className = 'amp-column';
+
+        const title = document.createElement('h3');
+        title.textContent = collection.label;
+        col.appendChild(title);
+
+        const row = document.createElement('div');
+        row.className = 'row';
+
+        collection.amps.forEach(amp => {
+          const btn = document.createElement('button');
+          btn.className = 'btnAmpCollection';
+          btn.textContent = amp.slot + ' - ' + amp.symbol;
+          btn.addEventListener('click', () => safeRun(() => sendAmpByDefinition(amp)));
+          row.appendChild(btn);
+        });
+
+        col.appendChild(row);
+        container.appendChild(col);
+      });
+    }
+
+    async function safeRun(fn) {
+      try {
+        await fn();
+      } catch (err) {
+        log('Error: ' + err.message);
+      }
+    }
+
+    document.getElementById('btnConnect').addEventListener('click', () => safeRun(onConnect));
+    document.getElementById('btnDisconnect').addEventListener('click', () => safeRun(disconnectAll));
+    document.getElementById('btnClearLog').addEventListener('click', () => {
+      document.getElementById('log').textContent = '';
+    });
+    document.getElementById('btnActivate').addEventListener('click', () => safeRun(activateThrII));
+    document.getElementById('btnSendSysEx').addEventListener('click', () => {
+      safeRun(async () => {
+        const syx = parseSysExHex(document.getElementById('sysexHex').value);
+        await sendAndLog(syx, 'TX SysEx');
+      });
+    });
+
+    document.querySelectorAll('.btnPreset').forEach(btn => {
+      btn.addEventListener('click', () => safeRun(() => sendPreset(btn.dataset.preset)));
+    });
+
+    document.querySelectorAll('.btnAmpModel').forEach(btn => {
+      btn.addEventListener('click', () => safeRun(() => sendAmpModel(btn.dataset.model)));
+    });
+
+    renderAmpCollections();
+    setStatus();
+  </script>
+</body>
+</html>
