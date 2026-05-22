@@ -180,6 +180,52 @@
     </fieldset>
 
     <fieldset>
+      <legend>THR-II Modules (Builder Test)</legend>
+      <div class="row">
+        <label for="cabPreset">Cabinet:</label>
+        <select id="cabPreset" class="builderControl">
+          <option value="0">British 4x12 (0)</option>
+          <option value="8">British 2x12 (8)</option>
+          <option value="10">Boutique 2x12 (10)</option>
+          <option value="12">California 1x12 (12)</option>
+          <option value="16">Bypass (16)</option>
+        </select>
+        <button class="btnBuilderSend builderControl" data-builder="cabinet" data-value="from-select">Send Cabinet</button>
+      </div>
+      <div class="row">
+        <button class="btnBuilderSend builderControl" data-builder="toggle" data-target="compressor" data-enabled="1">Compressor ON</button>
+        <button class="btnBuilderSend builderControl" data-builder="toggle" data-target="compressor" data-enabled="0">Compressor OFF</button>
+        <button class="btnBuilderSend builderControl" data-builder="toggle" data-target="gate" data-enabled="1">Gate ON</button>
+        <button class="btnBuilderSend builderControl" data-builder="toggle" data-target="gate" data-enabled="0">Gate OFF</button>
+      </div>
+      <div class="row">
+        <button class="btnBuilderSend builderControl" data-builder="toggle" data-target="effect" data-enabled="1">Effect ON</button>
+        <button class="btnBuilderSend builderControl" data-builder="toggle" data-target="effect" data-enabled="0">Effect OFF</button>
+        <button class="btnBuilderSend builderControl" data-builder="toggle" data-target="echo" data-enabled="1">Echo ON</button>
+        <button class="btnBuilderSend builderControl" data-builder="toggle" data-target="echo" data-enabled="0">Echo OFF</button>
+        <button class="btnBuilderSend builderControl" data-builder="toggle" data-target="reverb" data-enabled="1">Reverb ON</button>
+        <button class="btnBuilderSend builderControl" data-builder="toggle" data-target="reverb" data-enabled="0">Reverb OFF</button>
+      </div>
+      <div class="row">
+        <button class="btnBuilderSend builderControl" data-builder="effect" data-value="chorus">Effect: Chorus</button>
+        <button class="btnBuilderSend builderControl" data-builder="effect" data-value="flanger">Effect: Flanger</button>
+        <button class="btnBuilderSend builderControl" data-builder="effect" data-value="phaser">Effect: Phaser</button>
+        <button class="btnBuilderSend builderControl" data-builder="effect" data-value="tremolo">Effect: Tremolo</button>
+      </div>
+      <div class="row">
+        <button class="btnBuilderSend builderControl" data-builder="echo" data-value="tapeEcho">Echo: Tape Echo</button>
+        <button class="btnBuilderSend builderControl" data-builder="echo" data-value="digitalDelay">Echo: Digital Delay</button>
+      </div>
+      <div class="row">
+        <button class="btnBuilderSend builderControl" data-builder="reverb" data-value="spring">Reverb: Spring</button>
+        <button class="btnBuilderSend builderControl" data-builder="reverb" data-value="plate">Reverb: Plate</button>
+        <button class="btnBuilderSend builderControl" data-builder="reverb" data-value="room">Reverb: Room</button>
+        <button class="btnBuilderSend builderControl" data-builder="reverb" data-value="hall">Reverb: Hall</button>
+      </div>
+      <small>Builder test controls for cabinet/type/toggle commands. These use the reusable protocol builders.</small>
+    </fieldset>
+
+    <fieldset>
       <legend>Raw SysEx</legend>
       <div class="row">
         <input id="sysexHex" type="text" placeholder="f0 00 01 0c ... f7" />
@@ -280,6 +326,57 @@
       modernHiGain: 'Modern Hi Gain'
     };
 
+    const thrKeys = {
+      unit: {
+        amp: 0x0000010c,
+        fx1: 0x00000109,
+        fx2: 0x0000010e,
+        fx3: 0x00000111,
+        fx4: 0x00000114,
+        guitarProc: 0x0000013c,
+        global: 0xffffffff
+      },
+      parameter: {
+        spkSimType: 0x00000107,
+        gateEnable: 0x00000104,
+        fx1Enable: 0x00000130,
+        fx2Enable: 0x0000012f,
+        fx3Enable: 0x0000012e,
+        fx4Enable: 0x00000132
+      },
+      enumValue: {
+        effect: {
+          chorus: 230,
+          flanger: 226,
+          phaser: 208,
+          tremolo: 220
+        },
+        echo: {
+          tapeEcho: 235,
+          digitalDelay: 241
+        },
+        reverb: {
+          spring: 243,
+          plate: 249,
+          room: 256,
+          hall: 254
+        },
+        cabinetSymbolToIndex: {
+          145: 16
+        }
+      }
+    };
+
+    const thrTypeCode = {
+      float32: 0x00000004
+    };
+
+    const thrOpcode = {
+      setGlobalOrType: 0x00000008,
+      askGlobal: 0x00000009,
+      setParameter: 0x0000000a
+    };
+
     let bleDevice = null;
     let bleServer = null;
     let bleMidiChar = null;
@@ -289,6 +386,7 @@
     let midiAccess = null;
     let midiOut = null;
     let midiIn = null;
+    let thrCommandCounter = 3;
 
     function log(msg) {
       const el = document.getElementById('log');
@@ -305,6 +403,12 @@
       return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    function nextCommandCounter() {
+      const c = thrCommandCounter & 0x7f;
+      thrCommandCounter = (thrCommandCounter + 1) & 0x7f;
+      return c;
+    }
+
     function parseSysExHex(hexStr) {
       const cleaned = (hexStr || '').replace(/[^0-9a-fA-F]/g, '');
       if (!cleaned || cleaned.length % 2 !== 0) throw new Error('Invalid hex string.');
@@ -317,6 +421,40 @@
 
     function isUserCancellationError(err) {
       return !!err && (err.name === 'NotFoundError' || err.name === 'AbortError');
+    }
+
+    function clamp01(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return 0;
+      return Math.max(0, Math.min(1, n));
+    }
+
+    function writeU32LE(value) {
+      const v = Number(value) >>> 0;
+      return Uint8Array.from([
+        v & 0xff,
+        (v >>> 8) & 0xff,
+        (v >>> 16) & 0xff,
+        (v >>> 24) & 0xff
+      ]);
+    }
+
+    function writeF32LE(value) {
+      const buf = new ArrayBuffer(4);
+      const dv = new DataView(buf);
+      dv.setFloat32(0, Number(value), true);
+      return new Uint8Array(buf);
+    }
+
+    function concatBytes(...parts) {
+      const len = parts.reduce((sum, part) => sum + part.length, 0);
+      const out = new Uint8Array(len);
+      let off = 0;
+      for (const part of parts) {
+        out.set(part, off);
+        off += part.length;
+      }
+      return out;
     }
 
     function setStatus() {
@@ -336,6 +474,7 @@
       document.querySelectorAll('.btnPreset').forEach(btn => { btn.disabled = !connected; });
       document.querySelectorAll('.btnAmpModel').forEach(btn => { btn.disabled = !connected; });
       document.querySelectorAll('.btnAmpCollection').forEach(btn => { btn.disabled = !connected; });
+      document.querySelectorAll('.builderControl').forEach(el => { el.disabled = !connected; });
     }
 
     function anyConnected() {
@@ -582,37 +721,210 @@
       log('THR preset ' + (n + 1) + ' command sent.');
     }
 
-    function encodeBitBucket7(rawBytes) {
-      const bucketed = [];
-      for (let p = 0; p < rawBytes.length; p += 7) {
+    function encodeBitBucket7Padded(rawBytes) {
+      const groups = Math.max(1, Math.ceil(rawBytes.length / 7));
+      const out = [];
+
+      for (let g = 0; g < groups; g += 1) {
         let bucket = 0;
         const lows = [];
-        for (let i = 0; i < 7 && (p + i) < rawBytes.length; i += 1) {
-          const value = rawBytes[p + i] & 0xff;
-          if (value & 0x80) bucket |= (1 << i);
+
+        for (let i = 0; i < 7; i += 1) {
+          const idx = g * 7 + i;
+          const value = idx < rawBytes.length ? (rawBytes[idx] & 0xff) : 0;
+
+          // THR-II follows the documented bitbucket ordering where byte #1 maps to bit6, byte #7 maps to bit0.
+          if (value & 0x80) bucket |= (1 << (6 - i));
           lows.push(value & 0x7f);
         }
-        bucketed.push(bucket, ...lows);
+
+        out.push(bucket, ...lows);
       }
-      return Uint8Array.from(bucketed);
+
+      return Uint8Array.from(out);
     }
 
-    function buildAmpSelectCommandBytes(ampHexValue) {
-      const cmd1 = parseSysExHex(ampSelectCommand1TemplateHex);
-      const cmd2 = parseSysExHex(ampSelectCommand2TemplateHex);
+    function buildCommandFrameFromRawPayload(rawPayload, options = {}) {
+      const group = options.group || 0;
+      const counter = options.counter == null ? nextCommandCounter() : options.counter;
+      const lastValidIndex = options.lastValidIndex == null ? Math.max(0, rawPayload.length - 1) : options.lastValidIndex;
+      const encoded = encodeBitBucket7Padded(rawPayload);
 
-      // THR-II amp-select command family:
-      // - low 7-bit value is stored at byte 17
-      // - bucket byte is at byte 12
-      // - MSB flag for this value maps to bit position 2 (0x04) in the bucket byte
-      const value = ampHexValue & 0xff;
-      const valueLow7 = value & 0x7f;
-      const bucket = (value & 0x80) ? 0x04 : 0x00;
-      cmd2[12] = bucket;
-      cmd2[17] = valueLow7;
-
-      return [cmd1, cmd2];
+      const frame = new Uint8Array(12 + encoded.length + 1);
+      frame[0] = 0xf0;
+      frame[1] = 0x00;
+      frame[2] = 0x01;
+      frame[3] = 0x0c;
+      frame[4] = 0x24;
+      frame[5] = 0x01;
+      frame[6] = 0x4d;
+      frame[7] = group & 0x7f;
+      frame[8] = counter & 0x7f;
+      frame[9] = 0x00;
+      frame[10] = (lastValidIndex >> 4) & 0x0f;
+      frame[11] = lastValidIndex & 0x0f;
+      frame.set(encoded, 12);
+      frame[12 + encoded.length] = 0xf7;
+      return frame;
     }
+
+    function buildHeaderFrame(args) {
+      const opcodeRaw = writeU32LE(args.opcode >>> 0);
+      const followingRaw = writeU32LE(args.followingBytes >>> 0);
+      return buildCommandFrameFromRawPayload(concatBytes(opcodeRaw, followingRaw), {
+        group: args.group || 0,
+        counter: args.counter,
+        lastValidIndex: 7
+      });
+    }
+
+    function buildBodyFrame(args) {
+      return buildCommandFrameFromRawPayload(args.bodyRawPayload, {
+        group: args.group || 0,
+        counter: args.counter,
+        lastValidIndex: Math.max(0, args.bodyRawPayload.length - 1)
+      });
+    }
+
+    function buildSetParameter(uKey, pKey, typeCode, valueRawU32, options = {}) {
+      const header = buildHeaderFrame({
+        group: options.group || 0,
+        counter: options.headerCounter,
+        opcode: thrOpcode.setParameter,
+        followingBytes: 16
+      });
+
+      const bodyPayload = concatBytes(
+        writeU32LE(uKey),
+        writeU32LE(pKey),
+        writeU32LE(typeCode),
+        writeU32LE(valueRawU32)
+      );
+
+      const body = buildBodyFrame({
+        group: options.group || 0,
+        counter: options.bodyCounter,
+        bodyRawPayload: bodyPayload
+      });
+
+      return [header, body];
+    }
+
+    function buildAskGlobalParameter(uKeyGlobal, pKey, options = {}) {
+      const header = buildHeaderFrame({
+        group: options.group || 0,
+        counter: options.headerCounter,
+        opcode: thrOpcode.askGlobal,
+        followingBytes: 8
+      });
+
+      const bodyPayload = concatBytes(writeU32LE(uKeyGlobal), writeU32LE(pKey));
+      const body = buildBodyFrame({
+        group: options.group || 0,
+        counter: options.bodyCounter,
+        bodyRawPayload: bodyPayload
+      });
+
+      return [header, body];
+    }
+
+    function buildSelectUnitType(uKey, enumSymbolKey, options = {}) {
+      const headerCounter = options.headerCounter == null ? nextCommandCounter() : options.headerCounter;
+      const bodyCounter = options.bodyCounter == null ? nextCommandCounter() : options.bodyCounter;
+
+      const header = buildHeaderFrame({
+        group: options.group || 0,
+        counter: headerCounter,
+        opcode: thrOpcode.setGlobalOrType,
+        followingBytes: 8
+      });
+
+      const bodyPayload = concatBytes(writeU32LE(uKey), writeU32LE(enumSymbolKey));
+      const body = buildBodyFrame({
+        group: options.group || 0,
+        counter: bodyCounter,
+        bodyRawPayload: bodyPayload
+      });
+
+      return [header, body];
+    }
+
+    function buildSelectAmp(ampSymbolKey, options = {}) {
+      return buildSelectUnitType(thrKeys.unit.amp, ampSymbolKey, options);
+    }
+
+    function buildSelectCabinet(cabIndexOrSymbolKey, options = {}) {
+      let cabIndex = Number(cabIndexOrSymbolKey);
+      if (Object.prototype.hasOwnProperty.call(thrKeys.enumValue.cabinetSymbolToIndex, cabIndexOrSymbolKey)) {
+        cabIndex = thrKeys.enumValue.cabinetSymbolToIndex[cabIndexOrSymbolKey];
+      }
+      cabIndex = Math.max(0, Math.min(16, cabIndex));
+
+      const valueRawU32 = new DataView(writeF32LE(cabIndex).buffer).getUint32(0, true);
+      return buildSetParameter(
+        thrKeys.unit.guitarProc,
+        thrKeys.parameter.spkSimType,
+        thrTypeCode.float32,
+        valueRawU32,
+        options
+      );
+    }
+
+    function buildSetModuleEnabled(target, enabled, options = {}) {
+      const map = {
+        compressor: thrKeys.parameter.fx1Enable,
+        gate: thrKeys.parameter.gateEnable,
+        effect: thrKeys.parameter.fx2Enable,
+        echo: thrKeys.parameter.fx3Enable,
+        reverb: thrKeys.parameter.fx4Enable
+      };
+
+      const pKey = map[target];
+      if (pKey == null) throw new Error('Unknown module enable target: ' + target);
+
+      const valueRawU32 = new DataView(writeF32LE(enabled ? 1 : 0).buffer).getUint32(0, true);
+      return buildSetParameter(
+        thrKeys.unit.guitarProc,
+        pKey,
+        thrTypeCode.float32,
+        valueRawU32,
+        options
+      );
+    }
+
+    function buildSelectEffect(effectSymbolKey, options = {}) {
+      return buildSelectUnitType(thrKeys.unit.fx2, effectSymbolKey, options);
+    }
+
+    function buildSelectEcho(echoSymbolKey, options = {}) {
+      return buildSelectUnitType(thrKeys.unit.fx3, echoSymbolKey, options);
+    }
+
+    function buildSelectReverb(reverbSymbolKey, options = {}) {
+      return buildSelectUnitType(thrKeys.unit.fx4, reverbSymbolKey, options);
+    }
+
+    function buildSetModuleParameter(uKey, pKey, value01, options = {}) {
+      const valueRawU32 = new DataView(writeF32LE(clamp01(value01)).buffer).getUint32(0, true);
+      return buildSetParameter(uKey, pKey, thrTypeCode.float32, valueRawU32, options);
+    }
+
+    const thrProtocolBuilders = {
+      buildHeaderFrame,
+      buildBodyFrame,
+      buildSetParameter,
+      buildAskGlobalParameter,
+      buildSelectAmp,
+      buildSelectCabinet,
+      buildSetModuleEnabled,
+      buildSelectEffect,
+      buildSelectEcho,
+      buildSelectReverb,
+      buildSetModuleParameter,
+      keys: thrKeys
+    };
+
+    window.thrProtocolBuilders = thrProtocolBuilders;
 
     function findAmp(collectionKey, slotName) {
       const collection = ampCollections[collectionKey];
@@ -624,7 +936,7 @@
       if (!anyConnected()) throw new Error('Connect USB or BLE first.');
       if (!def) throw new Error('Amp model definition is missing.');
 
-      const commands = buildAmpSelectCommandBytes(def.hex);
+      const commands = buildSelectAmp(def.hex);
       for (let i = 0; i < commands.length; i += 1) {
         await sendAndLog(commands[i], 'TX amp model ' + (i + 1) + '/' + commands.length);
       }
@@ -645,6 +957,60 @@
       }
 
       log('Amp model set: ' + (ampModelLabels[modelKey] || modelKey));
+    }
+
+    async function sendCommandFrames(frames, label) {
+      if (!anyConnected()) throw new Error('Connect USB or BLE first.');
+      for (let i = 0; i < frames.length; i += 1) {
+        await sendAndLog(frames[i], label + ' ' + (i + 1) + '/' + frames.length);
+      }
+    }
+
+    async function sendBuilderControl(btn) {
+      const kind = btn.dataset.builder;
+      if (!kind) throw new Error('Builder action is missing.');
+
+      if (kind === 'cabinet') {
+        const select = document.getElementById('cabPreset');
+        const index = Number(select.value);
+        await sendCommandFrames(buildSelectCabinet(index), 'TX builder cabinet');
+        log('Cabinet command sent: index ' + index);
+        return;
+      }
+
+      if (kind === 'toggle') {
+        const target = btn.dataset.target;
+        const enabled = btn.dataset.enabled === '1';
+        await sendCommandFrames(buildSetModuleEnabled(target, enabled), 'TX builder toggle');
+        log('Toggle command sent: ' + target + ' -> ' + (enabled ? 'ON' : 'OFF'));
+        return;
+      }
+
+      if (kind === 'effect') {
+        const effectKey = thrKeys.enumValue.effect[btn.dataset.value];
+        if (effectKey == null) throw new Error('Unknown effect type: ' + btn.dataset.value);
+        await sendCommandFrames(buildSelectEffect(effectKey), 'TX builder effect');
+        log('Effect type command sent: ' + btn.dataset.value);
+        return;
+      }
+
+      if (kind === 'echo') {
+        const echoKey = thrKeys.enumValue.echo[btn.dataset.value];
+        if (echoKey == null) throw new Error('Unknown echo type: ' + btn.dataset.value);
+        await sendCommandFrames(buildSelectEcho(echoKey), 'TX builder echo');
+        log('Echo type command sent: ' + btn.dataset.value);
+        return;
+      }
+
+      if (kind === 'reverb') {
+        const reverbKey = thrKeys.enumValue.reverb[btn.dataset.value];
+        if (reverbKey == null) throw new Error('Unknown reverb type: ' + btn.dataset.value);
+        await sendCommandFrames(buildSelectReverb(reverbKey), 'TX builder reverb');
+        log('Reverb type command sent: ' + btn.dataset.value);
+        return;
+      }
+
+      throw new Error('Unknown builder action: ' + kind);
     }
 
     function renderAmpCollections() {
@@ -703,6 +1069,10 @@
 
     document.querySelectorAll('.btnAmpModel').forEach(btn => {
       btn.addEventListener('click', () => safeRun(() => sendAmpModel(btn.dataset.model)));
+    });
+
+    document.querySelectorAll('.btnBuilderSend').forEach(btn => {
+      btn.addEventListener('click', () => safeRun(() => sendBuilderControl(btn)));
     });
 
     renderAmpCollections();
