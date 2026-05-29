@@ -353,6 +353,43 @@
     </fieldset>
 
     <fieldset>
+      <legend>Settings Dump</legend>
+      <div class="row">
+        <strong>Download:</strong>
+        <button class="dumpControl btnDumpDownload" data-target-kind="actual">Actual</button>
+        <button class="dumpControl btnDumpDownload" data-target-kind="slot" data-target-value="0">Slot 1</button>
+        <button class="dumpControl btnDumpDownload" data-target-kind="slot" data-target-value="1">Slot 2</button>
+        <button class="dumpControl btnDumpDownload" data-target-kind="slot" data-target-value="2">Slot 3</button>
+        <button class="dumpControl btnDumpDownload" data-target-kind="slot" data-target-value="3">Slot 4</button>
+        <button class="dumpControl btnDumpDownload" data-target-kind="slot" data-target-value="4">Slot 5</button>
+      </div>
+      <div class="row">
+        <strong>Upload:</strong>
+        <button class="dumpControl btnDumpUpload" data-target-kind="actual">Actual</button>
+        <button class="dumpControl btnDumpUpload" data-target-kind="slot" data-target-value="0">Slot 1</button>
+        <button class="dumpControl btnDumpUpload" data-target-kind="slot" data-target-value="1">Slot 2</button>
+        <button class="dumpControl btnDumpUpload" data-target-kind="slot" data-target-value="2">Slot 3</button>
+        <button class="dumpControl btnDumpUpload" data-target-kind="slot" data-target-value="3">Slot 4</button>
+        <button class="dumpControl btnDumpUpload" data-target-kind="slot" data-target-value="4">Slot 5</button>
+      </div>
+      <div class="row">
+        <span id="dumpUiActive">Session: idle</span>
+        <span id="dumpUiStatus">Status: idle</span>
+      </div>
+      <div class="row">
+        <span id="dumpUiTarget">Target: n/a</span>
+        <span id="dumpUiBytes">Bytes: n/a</span>
+      </div>
+      <div class="row">
+        <span id="dumpUiName">Patch name: (unknown)</span>
+      </div>
+      <div class="row">
+        <small id="dumpUiWarning">Warnings: none</small>
+      </div>
+      <small>Upload uses serializer source path (shadow/domain first, cached raw fallback). Patch name comes from latest parsed dump metadata.</small>
+    </fieldset>
+
+    <fieldset>
       <legend>THR-II Amps</legend>
       <div id="ampCollections" class="amp-grid"></div>
       <small>Each collection includes 8 amp models. Buttons send generated 2-message SysEx commands.</small>
@@ -609,9 +646,19 @@
     };
 
     const thrOpcode = {
+      requestUserSettingsDump: 0x0000000c,
+      uploadUserSettingsDump: 0x0000000d,
       setGlobalOrType: 0x00000008,
       askGlobal: 0x00000009,
       setParameter: 0x0000000a
+    };
+
+    const thrDumpProtocol = {
+      actualTargetU32: 0xffffffff,
+      minSlot: 0,
+      maxSlot: 4,
+      defaultUploadChunkDecodedSize: 210,
+      defaultUploadTailWords: [0x00000000, 0x00000001, 0x00000000, 0x00000000]
     };
 
     let bleDevice = null;
@@ -664,6 +711,53 @@
       const n = Number(value);
       if (!Number.isFinite(n)) return 0;
       return Math.max(0, Math.min(1, n));
+    }
+
+    function normalizeDumpTargetRef(targetRef) {
+      if (targetRef && typeof targetRef === 'object') {
+        if (targetRef.kind === 'actual') {
+          return { kind: 'actual', value: thrDumpProtocol.actualTargetU32 >>> 0 };
+        }
+        if (targetRef.kind === 'slot') {
+          const slot = Math.max(
+            thrDumpProtocol.minSlot,
+            Math.min(thrDumpProtocol.maxSlot, Number(targetRef.value) | 0)
+          );
+          return { kind: 'slot', value: slot };
+        }
+      }
+
+      const numeric = Number(targetRef);
+      if (Number.isFinite(numeric)) {
+        const asU32 = numeric >>> 0;
+        if (asU32 === (thrDumpProtocol.actualTargetU32 >>> 0)) {
+          return { kind: 'actual', value: thrDumpProtocol.actualTargetU32 >>> 0 };
+        }
+        const slot = Math.max(
+          thrDumpProtocol.minSlot,
+          Math.min(thrDumpProtocol.maxSlot, numeric | 0)
+        );
+        return { kind: 'slot', value: slot };
+      }
+
+      throw new Error('Invalid dump target. Use slot 0..4 or actual (0xffffffff).');
+    }
+
+    function dumpTargetRefToU32(targetRef) {
+      const normalized = normalizeDumpTargetRef(targetRef);
+      if (normalized.kind === 'actual') return thrDumpProtocol.actualTargetU32 >>> 0;
+      return normalized.value >>> 0;
+    }
+
+    function dumpTargetRefToLabel(targetRef) {
+      const normalized = normalizeDumpTargetRef(targetRef);
+      if (normalized.kind === 'actual') return 'Actual';
+      return 'Slot ' + (normalized.value + 1);
+    }
+
+    function cloneBytesOrNull(bytes) {
+      if (!(bytes instanceof Uint8Array)) return null;
+      return bytes.slice(0);
     }
 
     function writeU32LE(value) {
@@ -939,9 +1033,16 @@
       let declaredLength = null;
       let payloadWords = [];
       if (decodedPayload.length >= 8) {
-        opcode = readU32LEFromBytes(decodedPayload, 0);
-        declaredLength = readU32LEFromBytes(decodedPayload, 4);
-        payloadWords = sliceU32LEWords(decodedPayload, 8, warnings);
+        const firstWord = readU32LEFromBytes(decodedPayload, 0);
+        // Continuation frames in multi-frame dumps can start with arbitrary payload words.
+        // Only treat word#0 as opcode when it matches known THR opcode range.
+        if (firstWord <= 0x0f) {
+          opcode = firstWord;
+          declaredLength = readU32LEFromBytes(decodedPayload, 4);
+          payloadWords = sliceU32LEWords(decodedPayload, 8, warnings);
+        } else if (header.pc === 0) {
+          warnings.push('Decoded payload does not start with THR opcode: 0x' + firstWord.toString(16));
+        }
       } else {
         warnings.push('Decoded payload shorter than opcode+length.');
       }
@@ -1034,8 +1135,93 @@
       ].join('|');
     }
 
+    function findIncomingSeriesForContinuation(parsed) {
+      const candidates = Object.values(thrIncomingParser.series.incomingByKey).filter(series => {
+        if (series.source !== parsed.source) return false;
+        if (series.group !== parsed.header.group) return false;
+        if (series.bytes.length >= series.expectedLength) return false;
+        return true;
+      });
+      if (!candidates.length) return null;
+
+      candidates.sort((a, b) => (b.touchedAtMs || 0) - (a.touchedAtMs || 0));
+      const op1 = candidates.find(series => (Number(series.opcode) >>> 0) === 0x01);
+      return op1 || candidates[0];
+    }
+
+    function appendIncomingSeriesChunk(series, parsed, chunkBytes, nowMs, events) {
+      const chunkIndex = series.nextChunkIndex;
+      series.nextChunkIndex += 1;
+      series.touchedAtMs = nowMs;
+      series.lastCounter = parsed.header.counter;
+      series.lastPc = parsed.header.pc;
+
+      const chunkHex = toHex(chunkBytes);
+      series.chunks.push({
+        index: chunkIndex,
+        byteLength: chunkBytes.length,
+        hex: chunkHex
+      });
+      for (let i = 0; i < chunkBytes.length; i += 1) {
+        series.bytes.push(chunkBytes[i]);
+      }
+
+      const assembledLength = series.bytes.length;
+      events.push({
+        kind: 'dump_chunk',
+        source: parsed.source,
+        group: parsed.header.group,
+        counter: parsed.header.counter,
+        opcode: Number(series.opcode) >>> 0,
+        expectedLength: series.expectedLength,
+        assembledLength,
+        chunkIndex,
+        chunkLength: chunkBytes.length,
+        chunkHex
+      });
+
+      if (assembledLength >= series.expectedLength) {
+        const complete = Uint8Array.from(series.bytes.slice(0, series.expectedLength));
+        const completeHex = toHex(complete);
+        const u32Words = [];
+        for (let p = 0; (p + 4) <= complete.length; p += 4) {
+          u32Words.push(readU32LEFromBytes(complete, p));
+        }
+
+        events.push({
+          kind: 'dump_complete',
+          source: parsed.source,
+          group: parsed.header.group,
+          counter: parsed.header.counter,
+          opcode: Number(series.opcode) >>> 0,
+          expectedLength: series.expectedLength,
+          assembledLength: complete.length,
+          chunkCount: series.chunks.length,
+          payloadBytes: complete,
+          payloadHex: completeHex,
+          payloadWords: u32Words
+        });
+
+        delete thrIncomingParser.series.incomingByKey[series.key];
+      }
+    }
+
     function consumeIncomingSeriesFrame(parsed) {
       const events = [];
+
+      const now = Date.now();
+      if ((parsed.header.pc >>> 0) > 0) {
+        const continuationSeries = findIncomingSeriesForContinuation(parsed);
+        if (!continuationSeries) {
+          cleanupStaleIncomingSeries(now);
+          return events;
+        }
+
+        appendIncomingSeriesChunk(continuationSeries, parsed, parsed.decodedPayload, now, events);
+        cleanupStaleIncomingSeries(now);
+        return events;
+      }
+
       if (parsed.opcode == null || parsed.declaredLength == null) {
         return events;
       }
@@ -1053,7 +1239,6 @@
       }
 
       const key = makeIncomingSeriesKey(parsed);
-      const now = Date.now();
       let series = thrIncomingParser.series.incomingByKey[key];
       if (!series) {
         series = {
@@ -1067,6 +1252,10 @@
           bytes: [],
           startedAtMs: now,
           touchedAtMs: now,
+          startCounter: parsed.header.counter,
+          startPc: parsed.header.pc,
+          lastCounter: parsed.header.counter,
+          lastPc: parsed.header.pc,
           nextChunkIndex: 0
         };
         thrIncomingParser.series.incomingByKey[key] = series;
@@ -1076,57 +1265,7 @@
         series.expectedLength = expectedLength;
       }
 
-      const chunkIndex = series.nextChunkIndex;
-      series.nextChunkIndex += 1;
-      series.touchedAtMs = now;
-
-      const chunkHex = toHex(bodyChunk);
-      series.chunks.push({
-        index: chunkIndex,
-        byteLength: bodyChunk.length,
-        hex: chunkHex
-      });
-      for (let i = 0; i < bodyChunk.length; i += 1) {
-        series.bytes.push(bodyChunk[i]);
-      }
-
-      const assembledLength = series.bytes.length;
-      events.push({
-        kind: 'dump_chunk',
-        source: parsed.source,
-        group: parsed.header.group,
-        counter: parsed.header.counter,
-        opcode,
-        expectedLength: series.expectedLength,
-        assembledLength,
-        chunkIndex,
-        chunkLength: bodyChunk.length,
-        chunkHex
-      });
-
-      if (assembledLength >= series.expectedLength) {
-        const complete = Uint8Array.from(series.bytes.slice(0, series.expectedLength));
-        const completeHex = toHex(complete);
-        const u32Words = [];
-        for (let p = 0; (p + 4) <= complete.length; p += 4) {
-          u32Words.push(readU32LEFromBytes(complete, p));
-        }
-
-        events.push({
-          kind: 'dump_complete',
-          source: parsed.source,
-          group: parsed.header.group,
-          counter: parsed.header.counter,
-          opcode,
-          expectedLength: series.expectedLength,
-          assembledLength: complete.length,
-          chunkCount: series.chunks.length,
-          payloadHex: completeHex,
-          payloadWords: u32Words
-        });
-
-        delete thrIncomingParser.series.incomingByKey[key];
-      }
+      appendIncomingSeriesChunk(series, parsed, bodyChunk, now, events);
 
       cleanupStaleIncomingSeries(now);
       return events;
@@ -1141,6 +1280,59 @@
         if ((nowMs - series.touchedAtMs) > timeoutMs) {
           delete thrIncomingParser.series.incomingByKey[key];
         }
+      });
+    }
+
+    function deriveDumpLifecycleEvents(events) {
+      const derived = [];
+
+      events.forEach(event => {
+        if (event.kind !== 'dump_complete') return;
+        if ((Number(event.opcode) >>> 0) !== 0x01) return;
+        if ((Number(event.group) >>> 0) !== 0x01) return;
+
+        const payloadBytes = event.payloadBytes instanceof Uint8Array
+          ? event.payloadBytes
+          : Uint8Array.from([]);
+        const leadingWordCount = Math.min(4, Math.floor(payloadBytes.length / 4));
+        const leadingWords = [];
+        for (let i = 0; i < leadingWordCount; i += 1) {
+          leadingWords.push(readU32LEFromBytes(payloadBytes, i * 4));
+        }
+
+        const patchOffset = Math.min(payloadBytes.length, 16);
+        const patchRaw = payloadBytes.slice(patchOffset);
+        const active = getActiveDumpSession();
+
+        derived.push({
+          kind: 'settings_dump_download_complete',
+          sessionId: active && active.direction === 'download' ? active.id : null,
+          targetRef: active && active.direction === 'download' ? active.targetRef : null,
+          group: event.group,
+          counter: event.counter,
+          opcode: event.opcode,
+          expectedLength: event.expectedLength,
+          assembledLength: event.assembledLength,
+          chunkCount: event.chunkCount,
+          payloadRaw: payloadBytes,
+          leadingWords,
+          patchRaw
+        });
+      });
+
+      return derived;
+    }
+
+    function cleanupStaleDumpSessions(nowMs = Date.now()) {
+      const store = getDumpSessionStore();
+      const timeoutMs = thrIncomingParser.dumpSessionTimeoutMs;
+      const activeStatuses = new Set(['started', 'waiting_frames', 'awaiting_report', 'uploading']);
+
+      Object.values(store.byId).forEach(session => {
+        if (!session) return;
+        if (!activeStatuses.has(session.status)) return;
+        if ((nowMs - (session.updatedAtMs || session.createdAtMs || nowMs)) <= timeoutMs) return;
+        failDumpSession(session.id, 'Timeout while waiting for dump completion/report.');
       });
     }
 
@@ -1266,6 +1458,38 @@
         return events;
       }
 
+      if (parsed.opcode === 0x02) {
+        const words = parsed.payloadWords.slice();
+        const report = {
+          rawWords: words,
+          baseSlotIndex: words.length >= 1 ? (words[0] >>> 0) : null,
+          requestTargetRaw: words.length >= 2 ? (words[1] >>> 0) : null,
+          typeCode: words.length >= 3 ? (words[2] >>> 0) : null,
+          directionEnum: words.length >= 4 ? (words[3] >>> 0) : null
+        };
+
+        let direction = null;
+        if (report.directionEnum === 0x00000001) direction = 'download';
+        if (report.directionEnum === 0x00000000) direction = 'upload';
+
+        const active = getActiveDumpSession();
+        let sessionId = null;
+        if (active && (!direction || active.direction === direction || active.status === 'awaiting_report')) {
+          sessionId = active.id;
+        }
+
+        events.push({
+          kind: 'settings_dump_report',
+          group: parsed.header.group,
+          counter: parsed.header.counter,
+          opcode: parsed.opcode,
+          direction,
+          report,
+          sessionId
+        });
+        return events;
+      }
+
       events.push({
         kind: 'unknown_opcode',
         group: parsed.header.group,
@@ -1299,10 +1523,478 @@
           chunkCount: 0,
           lastComplete: null
         },
+        dumpSessions: {
+          nextId: 1,
+          activeId: null,
+          byId: {}
+        },
+        dumpCache: {
+          actual: null,
+          slots: [null, null, null, null, null]
+        },
+        dumpDomain: {
+          lastPatch: null
+        },
         symbols: {
           source: 'pending'
         }
       };
+    }
+
+    function getDumpSessionStore() {
+      return thrIncomingParser.state.dumpSessions;
+    }
+
+    function createDumpSession(direction, targetRef, meta = {}) {
+      const store = getDumpSessionStore();
+      const normalizedTarget = normalizeDumpTargetRef(targetRef);
+      const id = 'dump-' + store.nextId;
+      store.nextId += 1;
+
+      return {
+        id,
+        direction: direction === 'upload' ? 'upload' : 'download',
+        status: 'started',
+        targetRef: normalizedTarget,
+        targetU32: dumpTargetRefToU32(normalizedTarget),
+        targetLabel: dumpTargetRefToLabel(normalizedTarget),
+        createdAtMs: Date.now(),
+        updatedAtMs: Date.now(),
+        txMeta: {
+          group: meta.group == null ? 0x01 : (Number(meta.group) >>> 0),
+          counter: meta.counter == null ? null : (Number(meta.counter) >>> 0),
+          frameCount: 0,
+          bytesSent: 0
+        },
+        rxMeta: {
+          frameCount: 0,
+          bytesReceived: 0,
+          expectedLength: 0
+        },
+        payloadRaw: null,
+        leadingWords: [],
+        patchRaw: null,
+        report: null,
+        warnings: [],
+        errors: []
+      };
+    }
+
+    function startDumpSession(direction, targetRef, meta = {}) {
+      const store = getDumpSessionStore();
+      const session = createDumpSession(direction, targetRef, meta);
+      store.byId[session.id] = session;
+      store.activeId = session.id;
+      return session;
+    }
+
+    function getDumpSession(sessionId) {
+      const store = getDumpSessionStore();
+      return store.byId[sessionId] || null;
+    }
+
+    function getActiveDumpSession() {
+      const store = getDumpSessionStore();
+      if (!store.activeId) return null;
+      return getDumpSession(store.activeId);
+    }
+
+    function updateDumpSession(sessionId, patch = {}) {
+      const store = getDumpSessionStore();
+      const session = store.byId[sessionId];
+      if (!session) return null;
+
+      Object.assign(session, patch);
+      session.updatedAtMs = Date.now();
+      return session;
+    }
+
+    function failDumpSession(sessionId, reason) {
+      const store = getDumpSessionStore();
+      const session = store.byId[sessionId];
+      if (!session) return null;
+
+      session.status = 'failed';
+      if (reason) {
+        session.errors.push(String(reason));
+      }
+      session.updatedAtMs = Date.now();
+
+      if (store.activeId === sessionId) {
+        store.activeId = null;
+      }
+      return session;
+    }
+
+    function finalizeDumpSession(sessionId, patch = {}) {
+      const store = getDumpSessionStore();
+      const session = store.byId[sessionId];
+      if (!session) return null;
+
+      Object.assign(session, patch);
+      session.status = patch.status || 'complete';
+      session.updatedAtMs = Date.now();
+
+      if (store.activeId === sessionId) {
+        store.activeId = null;
+      }
+      return session;
+    }
+
+    function cacheDumpPayload(targetRef, payloadRaw, patchRaw = null, leadingWords = []) {
+      const normalized = normalizeDumpTargetRef(targetRef);
+      const cacheEntry = {
+        updatedAtMs: Date.now(),
+        targetRef: normalized,
+        payloadRaw: cloneBytesOrNull(payloadRaw),
+        patchRaw: cloneBytesOrNull(patchRaw),
+        leadingWords: Array.isArray(leadingWords) ? leadingWords.map(w => Number(w) >>> 0) : []
+      };
+
+      if (normalized.kind === 'actual') {
+        thrIncomingParser.state.dumpCache.actual = cacheEntry;
+      } else {
+        thrIncomingParser.state.dumpCache.slots[normalized.value] = cacheEntry;
+      }
+      return cacheEntry;
+    }
+
+    function decodeDumpTypeCode(rawTypeWord) {
+      const word = Number(rawTypeWord) >>> 0;
+      if (word >= 1 && word <= 6) return word;
+      const low = word & 0xffff;
+      if (low >= 1 && low <= 6) return low;
+      const hi = (word >>> 16) & 0xffff;
+      if (hi >= 1 && hi <= 6) return hi;
+      return null;
+    }
+
+    function readDumpTypeCodeFromBytes(bytes, offset = 0) {
+      if ((offset + 4) > bytes.length) return null;
+
+      const b0 = bytes[offset] >>> 0;
+      const b1 = bytes[offset + 1] >>> 0;
+      const b2 = bytes[offset + 2] >>> 0;
+      const b3 = bytes[offset + 3] >>> 0;
+
+      // Canonical dump type token: 00 00 TT 00.
+      if (b0 === 0x00 && b1 === 0x00 && b2 >= 1 && b2 <= 6 && b3 === 0x00) {
+        return b2;
+      }
+
+      // Rare fallback variant seen in some captures with high-bit decoration.
+      if (b0 === 0x00 && b1 === 0x00 && b2 >= 1 && b2 <= 6 && b3 === 0x80) {
+        return b2;
+      }
+
+      // Rare plain LE marker fallback: TT 00 00 00.
+      if (b0 >= 1 && b0 <= 6 && b1 === 0x00 && b2 === 0x00 && b3 === 0x00) {
+        return b0;
+      }
+
+      return null;
+    }
+
+    function isLikelyDumpPseudoToken(pseudoKey, pseudoValue) {
+      const key = Number(pseudoKey) & 0xffff;
+      const value = Number(pseudoValue) >>> 0;
+      if (key > 4) return false;
+      return value === 0x00008000 || value === 0x00028000 || value === 0x00078000;
+    }
+
+    function isLikelyDumpMarkerValue(rawValueWord) {
+      const raw = Number(rawValueWord) >>> 0;
+      const low16 = raw & 0xffff;
+      const hi16 = (raw >>> 16) & 0xffff;
+      return low16 === 0 && hi16 >= 1 && hi16 <= 7;
+    }
+
+    function isKnownSymbolKey(symbolKey) {
+      if (!thrIncomingParser.symbols || !thrIncomingParser.symbols.ready) {
+        return true;
+      }
+      const key = String(Number(symbolKey) >>> 0);
+      return !!(thrIncomingParser.symbols && thrIncomingParser.symbols.byId && Object.prototype.hasOwnProperty.call(thrIncomingParser.symbols.byId, key));
+    }
+
+    function isStructuralDumpSymbolName(name) {
+      const normalized = String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      return (
+        normalized === 'units' ||
+        normalized === 'data' ||
+        normalized === 'meta' ||
+        normalized === 'tnid' ||
+        normalized === 'psrp' ||
+        normalized === 'trtg'
+      );
+    }
+
+    function decodeDumpTypedValue(typeCode, rawValueWord) {
+      const raw = Number(rawValueWord) >>> 0;
+      if (typeCode === 1) {
+        if (raw === 0x3f800000 || raw === 0x00000001) {
+          return { decodedKind: 'bool', decoded: true };
+        }
+        if (raw === 0x00000000) {
+          return { decodedKind: 'bool', decoded: false };
+        }
+        return { decodedKind: 'bool', decoded: raw !== 0 };
+      }
+      if (typeCode === 2) {
+        return {
+          decodedKind: 'enum_u32',
+          decoded: raw
+        };
+      }
+      if (typeCode === 3) {
+        const asFloat = readF32LEFromU32(raw);
+        if (Number.isFinite(asFloat)) {
+          return { decodedKind: 'float32', decoded: asFloat };
+        }
+        return { decodedKind: 'u32', decoded: raw };
+      }
+      if (typeCode === 4) {
+        const bytes = writeU32LE(raw);
+        try {
+          const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes).replace(/\u0000+$/g, '').trim();
+          return { decodedKind: 'string', decoded };
+        } catch (_) {
+          return { decodedKind: 'u32', decoded: raw };
+        }
+      }
+      return {
+        decodedKind: 'u32',
+        decoded: raw
+      };
+    }
+
+    function extractPatchNameFromDumpBytes(patchRaw) {
+      if (!(patchRaw instanceof Uint8Array) || !patchRaw.length) return null;
+
+      const token = [0x50, 0x53, 0x52, 0x50];
+      for (let i = 0; i <= patchRaw.length - token.length; i += 1) {
+        if (
+          patchRaw[i] !== token[0] ||
+          patchRaw[i + 1] !== token[1] ||
+          patchRaw[i + 2] !== token[2] ||
+          patchRaw[i + 3] !== token[3]
+        ) {
+          continue;
+        }
+
+        for (let p = i + 4; p + 8 < patchRaw.length && p < (i + 140); p += 1) {
+          const typeWord = readU32LEFromBytes(patchRaw, p);
+          const lenWord = readU32LEFromBytes(patchRaw, p + 4);
+          if (decodeDumpTypeCode(typeWord) !== 4) continue;
+          const strLen = Number(lenWord) >>> 0;
+          if (!strLen || strLen > 96) continue;
+          const strStart = p + 8;
+          const strEnd = strStart + strLen;
+          if (strEnd > patchRaw.length) continue;
+
+          const bytes = patchRaw.slice(strStart, strEnd);
+          const zeroIdx = bytes.indexOf(0x00);
+          const textBytes = zeroIdx >= 0 ? bytes.slice(0, zeroIdx) : bytes;
+          try {
+            const decoded = new TextDecoder('utf-8', { fatal: false }).decode(textBytes).trim();
+            if (decoded) return decoded;
+          } catch (_) {
+            // ignore invalid UTF-8 and keep scanning
+          }
+        }
+      }
+
+      return null;
+    }
+
+    function parseDumpPatchDomain(patchRaw, context = {}) {
+      const raw = patchRaw instanceof Uint8Array ? patchRaw : Uint8Array.from([]);
+      const knownUnits = new Set([
+        Number(thrKeys.unit.guitarProc) >>> 0,
+        Number(thrKeys.unit.fx1) >>> 0,
+        Number(thrKeys.unit.amp) >>> 0,
+        Number(thrKeys.unit.fx2) >>> 0,
+        Number(thrKeys.unit.fx3) >>> 0,
+        Number(thrKeys.unit.fx4) >>> 0,
+        Number(thrKeys.unit.global) >>> 0
+      ]);
+
+      const entries = [];
+      let currentUnitKey = null;
+      let sawDataSection = false;
+      let structuralTokenCount = 0;
+      let suspiciousValueCount = 0;
+
+      for (let p = 0; p + 2 <= raw.length;) {
+        if ((p + 4) <= raw.length) {
+          const a = raw[p] >>> 0;
+          const b = raw[p + 1] >>> 0;
+          const c = raw[p + 2] >>> 0;
+          const d = raw[p + 3] >>> 0;
+          if (a === 0x54 && b === 0x52 && c === 0x54 && d === 0x47) {
+            // "TRTG" marks the beginning of the data section.
+            sawDataSection = true;
+            p += 4;
+            continue;
+          }
+        }
+
+        if ((p + 6) <= raw.length) {
+          const keyU16 = ((raw[p] >>> 0) | ((raw[p + 1] >>> 0) << 8)) >>> 0;
+          const typeCode = readDumpTypeCodeFromBytes(raw, p + 2);
+
+          if (typeCode === 5) {
+            if ((p + 24) <= raw.length) {
+              const pseudo1 = readU32LEFromBytes(raw, p + 6);
+              const unitTypeKey = ((raw[p + 10] >>> 0) | ((raw[p + 11] >>> 0) << 8)) >>> 0;
+              const type6 = readDumpTypeCodeFromBytes(raw, p + 12);
+              const pseudo2 = readU32LEFromBytes(raw, p + 16);
+              const isBlockHeader =
+                type6 === 6 &&
+                (pseudo1 === 0x00078000 || pseudo1 === 0x00008000) &&
+                (pseudo2 === 0x00028000 || pseudo2 === 0x00008000);
+
+              if (isBlockHeader) {
+                if (knownUnits.has(keyU16)) {
+                  currentUnitKey = keyU16 >>> 0;
+                  if (unitTypeKey > 0x7f && unitTypeKey < 0x00020000) {
+                    entries.push({
+                      kind: 'unit_type',
+                      byteOffset: p,
+                      unitKey: currentUnitKey,
+                      unitTypeKey: unitTypeKey >>> 0
+                    });
+                  }
+                }
+                p += 24;
+                continue;
+              }
+            }
+          }
+
+          if (typeCode === 4) {
+            if ((p + 10) <= raw.length) {
+              const byteLen = Number(readU32LEFromBytes(raw, p + 6)) >>> 0;
+              const payloadStart = p + 10;
+              const remaining = raw.length - payloadStart;
+              if (byteLen <= remaining && byteLen <= 512) {
+                const valueBytes = raw.slice(payloadStart, payloadStart + byteLen);
+                if (valueBytes.length >= 4 &&
+                    valueBytes[0] === 0x54 && valueBytes[1] === 0x52 && valueBytes[2] === 0x54 && valueBytes[3] === 0x47) {
+                  sawDataSection = true;
+                }
+                p += 10 + byteLen;
+                continue;
+              }
+            }
+          }
+
+          if (typeCode === 1 || typeCode === 2 || typeCode === 3) {
+            if ((p + 10) <= raw.length) {
+              const pKey = keyU16 >>> 0;
+              const rawValue = readU32LEFromBytes(raw, p + 6);
+
+              if (isLikelyDumpMarkerValue(rawValue)) {
+                suspiciousValueCount += 1;
+              }
+
+              const canProject = currentUnitKey != null || sawDataSection;
+              if (canProject && pKey !== 0 && isKnownSymbolKey(pKey)) {
+                const pResolved = resolveSymbol(pKey);
+                if (pResolved && pResolved.name && !isStructuralDumpSymbolName(pResolved.name) && currentUnitKey != null) {
+                  entries.push({
+                    kind: 'parameter',
+                    byteOffset: p,
+                    valueByteOffset: p + 6,
+                    unitKey: Number(currentUnitKey) >>> 0,
+                    pKey,
+                    typeCode,
+                    rawValue,
+                    value: decodeDumpTypedValue(typeCode, rawValue)
+                  });
+                }
+              }
+
+              p += 10;
+              continue;
+            }
+            break;
+          }
+
+          const pseudoValue = readU32LEFromBytes(raw, p + 2);
+          if (isLikelyDumpPseudoToken(keyU16, pseudoValue)) {
+            structuralTokenCount += 1;
+            if (keyU16 === 4 && pseudoValue === 0x00008000) {
+              // End-of-block marker; next scalar values should not inherit old unit context.
+              currentUnitKey = null;
+            }
+            p += 6;
+            continue;
+          }
+        }
+
+        p += 1;
+      }
+
+      const parameterCount = entries.filter(e => e.kind === 'parameter').length;
+      const unitTypeCount = entries.filter(e => e.kind === 'unit_type').length;
+
+      return {
+        parsedAtMs: Date.now(),
+        targetRef: context.targetRef || null,
+        sourcePatchRaw: raw.slice(0),
+        bytes: raw.length,
+        wordCount: Math.floor(raw.length / 4),
+        byteAlignment: null,
+        patchName: extractPatchNameFromDumpBytes(raw),
+        entries,
+        parameterCount,
+        unitTypeCount,
+        structuralTokenCount,
+        suspiciousValueCount
+      };
+    }
+
+    function projectDumpDomainToShadowState(domain, source) {
+      if (!domain || !Array.isArray(domain.entries)) return;
+
+      domain.entries.forEach(entry => {
+        if (entry.kind === 'unit_type') {
+          const unit = ensureShadowUnit(entry.unitKey, resolveSymbol(entry.unitKey).name);
+          unit.typeKey = Number(entry.unitTypeKey) >>> 0;
+          const typeResolved = resolveSymbol(unit.typeKey);
+          unit.typeName = typeResolved && typeResolved.name ? typeResolved.name : ('v#' + unit.typeKey);
+          return;
+        }
+
+        if (entry.kind !== 'parameter') return;
+
+        const unitKey = Number(entry.unitKey) >>> 0;
+        const pKey = Number(entry.pKey) >>> 0;
+        const unitResolved = resolveSymbol(unitKey);
+        const paramResolved = resolveSymbol(pKey);
+        const unit = ensureShadowUnit(unitKey, unitResolved && unitResolved.name ? unitResolved.name : null);
+        const paramKey = String(pKey);
+        const nowMs = Date.now();
+
+        unit.parameters[paramKey] = {
+          id: pKey,
+          name: paramResolved && paramResolved.name ? paramResolved.name : ('p#' + paramKey),
+          typeCode: Number(entry.typeCode) >>> 0,
+          decodedKind: entry.value ? entry.value.decodedKind : 'u32',
+          rawU32: Number(entry.rawValue) >>> 0,
+          value: entry.value ? entry.value.decoded : null,
+          updatedAtMs: nowMs
+        };
+
+        thrIncomingParser.state.lastParameterChange = {
+          source,
+          unitName: unit.name,
+          paramName: unit.parameters[paramKey].name,
+          value: unit.parameters[paramKey].value,
+          updatedAtMs: nowMs
+        };
+      });
     }
 
     function ensureShadowUnit(uKey, unitName) {
@@ -1472,12 +2164,24 @@
     function syncControlsFromShadowState() {
       clearControlSyncMarkers();
 
-      const cabinet = readShadowParamByName('SpkSimType');
+      const cabinet = readShadowParamByName('SpkSimType') || readShadowParamByName('SpkSimTypeState');
       if (cabinet && cabinet.param) {
         const select = document.getElementById('cabPreset');
         const v = Number(cabinet.param.value);
+        let selectedCab = null;
         if (Number.isFinite(v) && v >= 0 && v <= 16) {
-          select.value = String(Math.round(v));
+          selectedCab = Math.round(v);
+        } else if (Number.isFinite(v)) {
+          const mapped = thrKeys && thrKeys.enumValue && thrKeys.enumValue.cabinetSymbolToIndex
+            ? Number(thrKeys.enumValue.cabinetSymbolToIndex[String(v >>> 0)])
+            : NaN;
+          if (Number.isFinite(mapped) && mapped >= 0 && mapped <= 16) {
+            selectedCab = mapped;
+          }
+        }
+
+        if (selectedCab != null) {
+          select.value = String(selectedCab);
           markControlFromAmp('#cabPreset');
         } else {
           markControlFromAmp('#cabPreset', '#cabPreset');
@@ -1637,6 +2341,95 @@
           chunks: Number(event.chunkCount) >>> 0,
           completedAtMs: Date.now()
         };
+        return;
+      }
+
+      if (event.kind === 'settings_dump_download_complete') {
+        const domain = parseDumpPatchDomain(event.patchRaw, {
+          targetRef: event.targetRef || null
+        });
+
+        // Replace prior dump-projected units to avoid keeping stale/incorrect leftovers.
+        state.units = {};
+        state.dumpDomain.lastPatch = domain;
+        projectDumpDomainToShadowState(domain, source);
+
+        if (event.sessionId) {
+          const session = getDumpSession(event.sessionId);
+          if (session) {
+            updateDumpSession(session.id, {
+              status: 'awaiting_report',
+              payloadRaw: cloneBytesOrNull(event.payloadRaw),
+              leadingWords: Array.isArray(event.leadingWords) ? event.leadingWords.slice() : [],
+              patchRaw: cloneBytesOrNull(event.patchRaw),
+              patchDomain: domain,
+              rxMeta: {
+                frameCount: Number(event.chunkCount) >>> 0,
+                bytesReceived: Number(event.assembledLength) >>> 0,
+                expectedLength: Number(event.expectedLength) >>> 0
+              }
+            });
+            cacheDumpPayload(
+              session.targetRef,
+              event.payloadRaw,
+              event.patchRaw,
+              event.leadingWords
+            );
+          }
+        }
+
+        addMirrorRecentChange({
+          timeMs: Date.now(),
+          module: 'Dump',
+          name: 'DownloadComplete',
+          value: Number(event.assembledLength) + ' bytes, ' + domain.parameterCount + ' params, unitTypes=' + Number(domain.unitTypeCount || 0) + ', structural=' + Number(domain.structuralTokenCount || 0) + ', suspicious=' + Number(domain.suspiciousValueCount || 0) + (domain.patchName ? (', name="' + domain.patchName + '"') : ''),
+          sourceKind: 'settings_dump_download_complete'
+        });
+        return;
+      }
+
+      if (event.kind === 'settings_dump_report') {
+        const reportDirection = event.direction || 'unknown';
+        const reportWords = event.report && Array.isArray(event.report.rawWords)
+          ? event.report.rawWords
+          : [];
+
+        let targetSession = null;
+        if (event.sessionId) {
+          targetSession = getDumpSession(event.sessionId);
+        }
+        if (!targetSession) {
+          const active = getActiveDumpSession();
+          if (active && (!event.direction || active.direction === event.direction || active.status === 'awaiting_report')) {
+            targetSession = active;
+          }
+        }
+
+        if (targetSession) {
+          const patch = {
+            report: {
+              direction: reportDirection,
+              ...event.report
+            },
+            status: 'complete'
+          };
+
+          if (event.direction && targetSession.direction !== event.direction) {
+            patch.status = 'complete_with_warning';
+            patch.warnings = (targetSession.warnings || []).concat([
+              'Report direction mismatch: expected ' + targetSession.direction + ', got ' + event.direction + '.'
+            ]);
+          }
+          finalizeDumpSession(targetSession.id, patch);
+        }
+
+        addMirrorRecentChange({
+          timeMs: Date.now(),
+          module: 'Dump',
+          name: 'Report',
+          value: reportDirection + ' [' + reportWords.map(v => '0x' + (Number(v) >>> 0).toString(16)).join(', ') + ']',
+          sourceKind: 'settings_dump_report'
+        });
       }
     }
 
@@ -1705,6 +2498,7 @@
         incomingByKey: {},
         staleTimeoutMs: 8000
       },
+      dumpSessionTimeoutMs: 12000,
       symbols: {
         ready: false,
         loadingPromise: null,
@@ -1753,8 +2547,8 @@
         title: 'Amp',
         baseType: 'Amp',
         unitName: 'Amp',
-        enabledParam: null,
-        placeholderParams: ['Gain', 'Master', 'Bass', 'Mid', 'Treble'],
+        enabledParam: 'AmpEnableState',
+        placeholderParams: ['AmpEnableState', 'Gain', 'Master', 'Bass', 'Mid', 'Treble'],
         selectableSubtype: true,
         typeFamily: 'amp'
       },
@@ -1763,8 +2557,8 @@
         title: 'Cabinet',
         baseType: 'SpkSim',
         unitName: 'GuitarProc',
-        enabledParam: null,
-        placeholderParams: ['SpkSimType'],
+        enabledParam: 'SpkSimEnableState',
+        placeholderParams: ['SpkSimEnableState', 'SpkSimType'],
         selectableSubtype: false,
         typeFamily: null
       },
@@ -1848,6 +2642,36 @@
       if (!param) return 'n/a';
       if (param.decodedKind === 'enum_u32' && Number.isFinite(Number(param.value))) {
         const enumValue = Number(param.value) >>> 0;
+
+        const normalizedParamName = String(param.name || '').toLowerCase().replace(/\s+/g, '');
+        if (normalizedParamName === 'spksimtype' || normalizedParamName === 'spksimtypestate') {
+          const map = thrKeys && thrKeys.enumValue && thrKeys.enumValue.cabinetSymbolToIndex
+            ? thrKeys.enumValue.cabinetSymbolToIndex
+            : {};
+          if (Object.prototype.hasOwnProperty.call(map, String(enumValue))) {
+            const mapped = Number(map[String(enumValue)]);
+            if (Number.isFinite(mapped)) {
+              return 'Cabinet ' + mapped + ' (symbol ' + enumValue + ')';
+            }
+          }
+          if (enumValue <= 16) {
+            return 'Cabinet ' + enumValue;
+          }
+          return String(enumValue);
+        }
+
+        if (
+          normalizedParamName.includes('mixtype') ||
+          normalizedParamName === 'syncselect' ||
+          normalizedParamName === 'syncselectstate' ||
+          normalizedParamName === 'note' ||
+          normalizedParamName === 'periodstate' ||
+          normalizedParamName === 'referencestate' ||
+          normalizedParamName === 'enablestate'
+        ) {
+          return String(enumValue);
+        }
+
         const resolved = resolveSymbol(enumValue);
         if (resolved && resolved.name) {
           return resolved.name + ' (' + enumValue + ')';
@@ -1968,17 +2792,28 @@
       const normalized = raw.toLowerCase().replace(/\s+/g, '');
 
       if (typeFamily === 'effect') {
-        if (normalized === 'freq') return 'Speed';
-        if (normalized === 'pre' || normalized === 'predelay' || normalized === 'prestate') return 'Pre Delay';
+        if (normalized === 'freq' || normalized === 'freqstate' || normalized === 'speedstate') return 'Speed';
+        if (normalized === 'depthstate') return 'Depth';
+        if (normalized === 'feedbackstate') return 'Feedback';
+        if (normalized === 'pre' || normalized === 'predelay' || normalized === 'predelaystate' || normalized === 'prestate') return 'Pre Delay';
+        if (normalized === 'mixstate') return 'Mix';
       }
 
       if (typeFamily === 'echo') {
-        if (normalized === 'delay' || normalized === 'delaytime') return 'Time';
+        if (normalized === 'delay' || normalized === 'delaytime' || normalized === 'time' || normalized === 'timestate') return 'Time';
+        if (normalized === 'feedbackstate') return 'Feedback';
+        if (normalized === 'bassstate') return 'Bass';
+        if (normalized === 'treblestate') return 'Treble';
+        if (normalized === 'mixstate') return 'Mix';
         if (normalized === 'tap' || normalized === 'syncselect' || normalized === 'syncselectstate' || normalized === 'note') return 'TAP';
       }
 
       if (typeFamily === 'reverb') {
-        if (normalized === 'predelay') return 'Pre Delay';
+        if (normalized === 'predelay' || normalized === 'predelaystate') return 'Pre Delay';
+        if (normalized === 'decaystate') return 'Decay';
+        if (normalized === 'tonestate') return 'Tone';
+        if (normalized === 'dwellstate') return 'Reverb';
+        if (normalized === 'mixstate') return 'Mix';
       }
 
       return raw;
@@ -2042,10 +2877,12 @@
       if (unitName === 'FX2' || /^FX2/.test(paramName)) return 'effect';
       if (unitName === 'FX3' || /^FX3/.test(paramName)) return 'echo';
       if (unitName === 'FX4' || /^FX4/.test(paramName)) return 'reverb';
+      if (unitName === 'Gate') return 'gate';
       if (paramName === 'GateEnableState' || /^Gate/.test(paramName)) return 'gate';
       if ((unitId === (thrKeys.unit.guitarProc >>> 0) || unitId === (thrKeys.unit.global >>> 0) || unitName === 'GuitarProc' || unitName === 'Global') && (normalized === 'thresh' || normalized === 'threshstate' || normalized === 'threshold' || normalized === 'thresholdstate' || normalized === 'gatethreshold' || normalized === 'gatethresholdstate' || normalized === 'decay' || normalized === 'decaystate' || normalized === 'gatedecay' || normalized === 'gatedecaystate')) return 'gate';
       if (unitName === 'Amp') return 'amp';
-      if (paramName === 'SpkSimType') return 'cabinet';
+      if (normalized === 'spksimtype' || normalized === 'spksimtypestate' || normalized === 'spksimenable' || normalized === 'spksimenablestate') return 'cabinet';
+      if (normalized === 'ampenable' || normalized === 'ampenablestate') return 'amp';
       if (unitName === 'Global' || unitName === 'GuitarProc') return 'global';
 
       return 'global';
@@ -2063,12 +2900,28 @@
 
       if (schema && schema.id === 'amp') {
         if (normalized === 'drive' || normalized === 'drivestate') return 'Gain';
+        if (normalized === 'masterstate') return 'Master';
+        if (normalized === 'bassstate') return 'Bass';
+        if (normalized === 'midstate') return 'Mid';
+        if (normalized === 'treblestate') return 'Treble';
+        if (normalized === 'ampenable' || normalized === 'ampenablestate') return 'AmpEnableState';
+      }
+
+      if (schema && schema.id === 'cabinet') {
+        if (normalized === 'spksimtype' || normalized === 'spksimtypestate') return 'SpkSimType';
+        if (normalized === 'spksimenable' || normalized === 'spksimenablestate') return 'SpkSimEnableState';
+      }
+
+      if (schema && schema.id === 'compressor') {
+        if (normalized === 'sustainstate') return 'Sustain';
+        if (normalized === 'levelstate') return 'Level';
       }
 
       if (schema && schema.id === 'effect') {
         if (normalized === 'fx2enable' || normalized === 'fx2enablestate') return 'FX2EnableState';
         if (normalized === 'fx2mix' || normalized === 'fx2mixstate') return 'Mix';
         if (normalized === 'fx2mixtype' || normalized === 'fx2mixtypestate') return 'FX2MixTypeState';
+        if (normalized === 'syncselectstate') return 'TAP';
       }
 
       if (schema && schema.id === 'echo') {
@@ -2184,7 +3037,7 @@
             return;
           }
 
-          card.rowsByName[canonicalName] = {
+          const nextRow = {
             name: canonicalName,
             valueText: getMirrorValueText(entry.param),
             typeText: getMirrorTypeText(entry.param),
@@ -2192,10 +3045,25 @@
             rawValue: entry.param.value,
             placeholder: false
           };
+          const existingRow = card.rowsByName[canonicalName] || null;
+          const existingUpdatedAt = existingRow && Number.isFinite(existingRow.updatedAtMs)
+            ? Number(existingRow.updatedAtMs)
+            : 0;
+          const nextUpdatedAt = Number.isFinite(nextRow.updatedAtMs)
+            ? Number(nextRow.updatedAtMs)
+            : 0;
+
+          // Several symbols can canonicalize to the same row (e.g. Thresh/ThreshState).
+          // Keep the freshest value so live hardware changes are not overwritten by older state keys.
+          const shouldReplace = !existingRow || existingRow.placeholder || nextUpdatedAt >= existingUpdatedAt;
+          if (shouldReplace) {
+            card.rowsByName[canonicalName] = nextRow;
+          }
+
           if (!schema.selectableSubtype && !orderedNames.includes(canonicalName)) {
             orderedNames.push(canonicalName);
           }
-          card.latestMs = Math.max(card.latestMs, entry.param.updatedAtMs || 0);
+          card.latestMs = Math.max(card.latestMs, nextUpdatedAt);
         });
 
         card.orderedNames = orderedNames;
@@ -2370,6 +3238,24 @@
     }
 
     window.thrIncomingParser = thrIncomingParser;
+    window.thrDumpState = {
+      normalizeDumpTargetRef,
+      dumpTargetRefToU32,
+      dumpTargetRefToLabel,
+      parseDumpPatchDomain,
+      projectDumpDomainToShadowState,
+      serializePatchForUpload,
+      compareUint8Arrays,
+      startDumpSession,
+      getDumpSession,
+      getActiveDumpSession,
+      updateDumpSession,
+      failDumpSession,
+      finalizeDumpSession,
+      cacheDumpPayload,
+      requestSettingsDump,
+      uploadSettingsDump
+    };
 
     function pushParserHistory(entry) {
       thrIncomingParser.history.push(entry);
@@ -2466,6 +3352,23 @@
         return;
       }
 
+      if (event.kind === 'settings_dump_download_complete') {
+        const sid = event.sessionId ? (' session=' + event.sessionId) : '';
+        log(
+          'RX ' + source + ' event: settings_dump_download_complete' + sid +
+          ' bytes=' + event.assembledLength +
+          ' leadingWords=' + (event.leadingWords || []).length
+        );
+        return;
+      }
+
+      if (event.kind === 'settings_dump_report') {
+        const dir = event.direction || 'unknown';
+        const sid = event.sessionId ? (' session=' + event.sessionId) : '';
+        log('RX ' + source + ' event: settings_dump_report direction=' + dir + sid);
+        return;
+      }
+
       log('RX ' + source + ' event: ' + event.kind + ' op=0x' + event.opcode.toString(16) + corr);
     }
 
@@ -2489,14 +3392,17 @@
 
           const assemblyEvents = consumeIncomingSeriesFrame(parsed);
           const semanticEvents = decodeIncomingSemanticEvents(parsed);
-          const events = assemblyEvents.concat(semanticEvents);
+          const derivedEvents = deriveDumpLifecycleEvents(assemblyEvents.concat(semanticEvents));
+          const events = assemblyEvents.concat(semanticEvents, derivedEvents);
           events.forEach(event => {
             pushParserEvent(event);
             applyParserEventToShadowState(event, source);
             logParserEvent(event, source);
           });
+          cleanupStaleDumpSessions();
           syncControlsFromShadowState();
           updateParserDiagnosticsView();
+          updateDumpUiStatus();
           renderParserMirrorView();
         } catch (err) {
           log('RX ' + source + ' parser error: ' + err.message);
@@ -2508,6 +3414,61 @@
     ensureParserSymbolsLoaded().catch(() => {
       // Symbols are optional for parser correctness and fallback map remains active.
     });
+
+    function getLatestDumpSession() {
+      const store = thrIncomingParser.state.dumpSessions;
+      const sessions = Object.values(store.byId || {});
+      if (!sessions.length) return null;
+      sessions.sort((a, b) => (b.updatedAtMs || b.createdAtMs || 0) - (a.updatedAtMs || a.createdAtMs || 0));
+      return sessions[0];
+    }
+
+    function getDisplayDumpSession() {
+      return getActiveDumpSession() || getLatestDumpSession();
+    }
+
+    function updateDumpUiStatus() {
+      const session = getDisplayDumpSession();
+      const state = thrIncomingParser.state;
+      const patchDomain = state.dumpDomain && state.dumpDomain.lastPatch ? state.dumpDomain.lastPatch : null;
+
+      const set = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+      };
+
+      if (!session) {
+        set('dumpUiActive', 'Session: idle');
+        set('dumpUiStatus', 'Status: idle');
+        set('dumpUiTarget', 'Target: n/a');
+        set('dumpUiBytes', 'Bytes: n/a');
+        set('dumpUiName', 'Patch name: ' + (patchDomain && patchDomain.patchName ? patchDomain.patchName : '(unknown)'));
+        set('dumpUiWarning', 'Warnings: none');
+        return;
+      }
+
+      const bytesRx = session.rxMeta && Number.isFinite(session.rxMeta.bytesReceived) ? session.rxMeta.bytesReceived : 0;
+      const bytesTx = session.txMeta && Number.isFinite(session.txMeta.bytesSent) ? session.txMeta.bytesSent : 0;
+      const byteText = session.direction === 'download'
+        ? ('RX ' + bytesRx)
+        : ('TX ' + bytesTx);
+
+      const patchName =
+        (session.patchDomain && session.patchDomain.patchName) ||
+        (patchDomain && patchDomain.patchName) ||
+        '(unknown)';
+
+      const warnings = Array.isArray(session.warnings) && session.warnings.length
+        ? session.warnings.join(' | ')
+        : 'none';
+
+      set('dumpUiActive', 'Session: ' + session.id + ' (' + session.direction + ')');
+      set('dumpUiStatus', 'Status: ' + session.status);
+      set('dumpUiTarget', 'Target: ' + (session.targetLabel || 'n/a'));
+      set('dumpUiBytes', 'Bytes: ' + byteText);
+      set('dumpUiName', 'Patch name: ' + patchName);
+      set('dumpUiWarning', 'Warnings: ' + warnings);
+    }
 
     function setStatus() {
       const names = [];
@@ -2527,6 +3488,8 @@
       document.querySelectorAll('.btnAmpModel').forEach(btn => { btn.disabled = !connected; });
       document.querySelectorAll('.btnAmpCollection').forEach(btn => { btn.disabled = !connected; });
       document.querySelectorAll('.builderControl').forEach(el => { el.disabled = !connected; });
+      document.querySelectorAll('.dumpControl').forEach(el => { el.disabled = !connected; });
+      updateDumpUiStatus();
       renderParserMirrorView();
     }
 
@@ -2801,6 +3764,7 @@
     function buildCommandFrameFromRawPayload(rawPayload, options = {}) {
       const group = options.group || 0;
       const counter = options.counter == null ? nextCommandCounter() : options.counter;
+      const pc = options.pc == null ? 0 : options.pc;
       const lastValidIndex = options.lastValidIndex == null ? Math.max(0, rawPayload.length - 1) : options.lastValidIndex;
       const encoded = encodeBitBucket7Padded(rawPayload);
 
@@ -2814,7 +3778,7 @@
       frame[6] = 0x4d;
       frame[7] = group & 0x7f;
       frame[8] = counter & 0x7f;
-      frame[9] = 0x00;
+      frame[9] = pc & 0x7f;
       frame[10] = (lastValidIndex >> 4) & 0x0f;
       frame[11] = lastValidIndex & 0x0f;
       frame.set(encoded, 12);
@@ -2828,6 +3792,7 @@
       return buildCommandFrameFromRawPayload(concatBytes(opcodeRaw, followingRaw), {
         group: args.group || 0,
         counter: args.counter,
+        pc: args.pc,
         lastValidIndex: 7
       });
     }
@@ -2836,8 +3801,110 @@
       return buildCommandFrameFromRawPayload(args.bodyRawPayload, {
         group: args.group || 0,
         counter: args.counter,
+        pc: args.pc,
         lastValidIndex: Math.max(0, args.bodyRawPayload.length - 1)
       });
+    }
+
+    function buildRequestUserSettingsDump(targetRef, options = {}) {
+      const targetU32 = dumpTargetRefToU32(targetRef);
+      const payload = concatBytes(
+        writeU32LE(thrOpcode.requestUserSettingsDump),
+        writeU32LE(4),
+        writeU32LE(targetU32)
+      );
+
+      return buildCommandFrameFromRawPayload(payload, {
+        group: options.group == null ? 0x01 : options.group,
+        counter: options.counter,
+        pc: options.pc,
+        lastValidIndex: 11
+      });
+    }
+
+    function buildUploadUserSettingsHeader(uploadArgs = {}, options = {}) {
+      const targetU32 = dumpTargetRefToU32(uploadArgs.targetRef);
+      const patchRawLength = uploadArgs.patchRawLength == null ? 0 : (Number(uploadArgs.patchRawLength) >>> 0);
+      const payloadLengthMinus8 = uploadArgs.payloadLengthMinus8 == null
+        ? ((patchRawLength + 12) >>> 0)
+        : (Number(uploadArgs.payloadLengthMinus8) >>> 0);
+      const payloadLengthTotal = uploadArgs.payloadLengthTotal == null
+        ? ((payloadLengthMinus8 + 8) >>> 0)
+        : (Number(uploadArgs.payloadLengthTotal) >>> 0);
+
+      const tailWords = Array.isArray(uploadArgs.constantsTailWords) && uploadArgs.constantsTailWords.length
+        ? uploadArgs.constantsTailWords
+        : thrDumpProtocol.defaultUploadTailWords;
+
+      const parameterWords = [payloadLengthTotal, targetU32, payloadLengthMinus8]
+        .concat(tailWords.map(v => Number(v) >>> 0));
+      const parameterPayload = concatBytes(...parameterWords.map(writeU32LE));
+      const payload = concatBytes(
+        writeU32LE(thrOpcode.uploadUserSettingsDump),
+        writeU32LE(parameterPayload.length),
+        parameterPayload
+      );
+
+      return buildCommandFrameFromRawPayload(payload, {
+        group: options.group == null ? 0x01 : options.group,
+        counter: options.counter,
+        pc: options.pc,
+        lastValidIndex: Math.max(0, payload.length - 1)
+      });
+    }
+
+    function buildUploadUserSettingsBodyFrames(patchRaw, options = {}) {
+      const bytes = patchRaw instanceof Uint8Array ? patchRaw : Uint8Array.from(patchRaw || []);
+      if (!bytes.length) return [];
+
+      const chunkSize = Math.max(
+        1,
+        Number(options.frameChunkDecodedSize || thrDumpProtocol.defaultUploadChunkDecodedSize) | 0
+      );
+      const group = options.group == null ? 0x01 : options.group;
+      const baseCounter = options.counter == null ? nextCommandCounter() : options.counter;
+      const pcStart = options.pcStart == null ? 0 : (options.pcStart & 0x7f);
+      const incrementCounter = !!options.incrementCounter;
+
+      const frames = [];
+      for (let offset = 0, idx = 0; offset < bytes.length; offset += chunkSize, idx += 1) {
+        const chunk = bytes.slice(offset, offset + chunkSize);
+        const frameCounter = incrementCounter ? ((baseCounter + idx) & 0x7f) : (baseCounter & 0x7f);
+        const framePc = (pcStart + idx) & 0x7f;
+
+        frames.push(buildBodyFrame({
+          group,
+          counter: frameCounter,
+          pc: framePc,
+          bodyRawPayload: chunk
+        }));
+      }
+      return frames;
+    }
+
+    function buildUploadUserSettingsFrames(uploadArgs = {}, patchRaw, options = {}) {
+      const patchBytes = patchRaw instanceof Uint8Array ? patchRaw : Uint8Array.from(patchRaw || []);
+      const header = buildUploadUserSettingsHeader({
+        targetRef: uploadArgs.targetRef,
+        patchRawLength: patchBytes.length,
+        payloadLengthTotal: uploadArgs.payloadLengthTotal,
+        payloadLengthMinus8: uploadArgs.payloadLengthMinus8,
+        constantsTailWords: uploadArgs.constantsTailWords
+      }, {
+        group: options.group,
+        counter: options.headerCounter,
+        pc: options.headerPc
+      });
+
+      const bodyFrames = buildUploadUserSettingsBodyFrames(patchBytes, {
+        group: options.group,
+        counter: options.bodyCounter,
+        incrementCounter: options.incrementBodyCounter,
+        frameChunkDecodedSize: options.frameChunkDecodedSize,
+        pcStart: options.bodyPcStart
+      });
+
+      return [header, ...bodyFrames];
     }
 
     function buildSetParameter(uKey, pKey, typeCode, valueRawU32, options = {}) {
@@ -2968,6 +4035,10 @@
     const thrProtocolBuilders = {
       buildHeaderFrame,
       buildBodyFrame,
+      buildRequestUserSettingsDump,
+      buildUploadUserSettingsHeader,
+      buildUploadUserSettingsBodyFrames,
+      buildUploadUserSettingsFrames,
       buildSetParameter,
       buildAskGlobalParameter,
       buildSelectAmp,
@@ -2977,6 +4048,14 @@
       buildSelectEcho,
       buildSelectReverb,
       buildSetModuleParameter,
+      normalizeDumpTargetRef,
+      dumpTargetRefToU32,
+      dumpTargetRefToLabel,
+      dumpProtocol: thrDumpProtocol,
+      opcode: thrOpcode,
+      serializePatchForUpload,
+      requestSettingsDump,
+      uploadSettingsDump,
       keys: thrKeys
     };
 
@@ -3020,6 +4099,359 @@
       for (let i = 0; i < frames.length; i += 1) {
         await sendAndLog(frames[i], label + ' ' + (i + 1) + '/' + frames.length);
       }
+    }
+
+    function getBestCachedDumpPayload() {
+      const cache = thrIncomingParser.state.dumpCache;
+      if (cache.actual && cache.actual.patchRaw instanceof Uint8Array && cache.actual.patchRaw.length) {
+        return cache.actual.patchRaw;
+      }
+      for (let i = 0; i < cache.slots.length; i += 1) {
+        const entry = cache.slots[i];
+        if (entry && entry.patchRaw instanceof Uint8Array && entry.patchRaw.length) {
+          return entry.patchRaw;
+        }
+      }
+      return null;
+    }
+
+    function getCachedDumpEntry(targetRef) {
+      const cache = thrIncomingParser.state.dumpCache;
+      if (targetRef == null) {
+        if (cache.actual && cache.actual.patchRaw instanceof Uint8Array && cache.actual.patchRaw.length) {
+          return cache.actual;
+        }
+        for (let i = 0; i < cache.slots.length; i += 1) {
+          const entry = cache.slots[i];
+          if (entry && entry.patchRaw instanceof Uint8Array && entry.patchRaw.length) {
+            return entry;
+          }
+        }
+        return null;
+      }
+
+      const normalized = normalizeDumpTargetRef(targetRef);
+      if (normalized.kind === 'actual') {
+        return cache.actual;
+      }
+      return cache.slots[normalized.value] || null;
+    }
+
+    function buildShadowParameterIndex() {
+      const out = new Map();
+      const units = Object.values(thrIncomingParser.state.units || {});
+      units.forEach(unit => {
+        const unitKey = Number(unit.id) >>> 0;
+        Object.values(unit.parameters || {}).forEach(param => {
+          const pKey = Number(param.id) >>> 0;
+          const mapKey = unitKey + ':' + pKey;
+          out.set(mapKey, {
+            unitKey,
+            pKey,
+            typeCode: Number(param.typeCode) >>> 0,
+            rawU32: Number(param.rawU32) >>> 0,
+            decodedKind: param.decodedKind || null,
+            value: param.value
+          });
+        });
+      });
+      return out;
+    }
+
+    function encodeDumpValueToRawU32(typeCode, shadowParam) {
+      const code = Number(typeCode) >>> 0;
+      if (!shadowParam) return null;
+
+      if (code === 3) {
+        const n = Number(shadowParam.value);
+        if (!Number.isFinite(n)) return shadowParam.rawU32 >>> 0;
+        return new DataView(writeF32LE(n).buffer).getUint32(0, true) >>> 0;
+      }
+
+      if (code === 2) {
+        const n = Number(shadowParam.value);
+        if (Number.isFinite(n)) return n >>> 0;
+        return shadowParam.rawU32 >>> 0;
+      }
+
+      if (code === 1) {
+        if (typeof shadowParam.value === 'boolean') {
+          return shadowParam.value ? 0x3f800000 : 0x00000000;
+        }
+        const n = Number(shadowParam.value);
+        if (Number.isFinite(n)) {
+          return n >= 0.5 ? 0x3f800000 : 0x00000000;
+        }
+        return shadowParam.rawU32 >>> 0;
+      }
+
+      if (code === 4) {
+        // Strings are copied through from base raw payload unless explicitly overridden.
+        return shadowParam.rawU32 >>> 0;
+      }
+
+      const fallback = Number(shadowParam.rawU32);
+      if (Number.isFinite(fallback)) return fallback >>> 0;
+      const n = Number(shadowParam.value);
+      if (Number.isFinite(n)) return n >>> 0;
+      return null;
+    }
+
+    function compareUint8Arrays(a, b) {
+      if (!(a instanceof Uint8Array) || !(b instanceof Uint8Array)) return false;
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i += 1) {
+        if (a[i] !== b[i]) return false;
+      }
+      return true;
+    }
+
+    function serializePatchForUpload(domainOrShadow = null, options = {}) {
+      const warnings = [];
+      const explicitBase = options.basePatchRaw instanceof Uint8Array
+        ? options.basePatchRaw
+        : null;
+
+      const cachedEntry = getCachedDumpEntry(options.targetRef);
+      const baseRaw = explicitBase ||
+        (cachedEntry && cachedEntry.patchRaw instanceof Uint8Array ? cachedEntry.patchRaw : null) ||
+        getBestCachedDumpPayload();
+
+      if (!(baseRaw instanceof Uint8Array) || !baseRaw.length) {
+        throw new Error('No base dump payload available for serialization.');
+      }
+
+      const domain = (domainOrShadow && Array.isArray(domainOrShadow.entries))
+        ? domainOrShadow
+        : (thrIncomingParser.state.dumpDomain && thrIncomingParser.state.dumpDomain.lastPatch
+          ? thrIncomingParser.state.dumpDomain.lastPatch
+          : parseDumpPatchDomain(baseRaw, { targetRef: options.targetRef || null }));
+
+      const out = baseRaw.slice(0);
+      const shadowIndex = buildShadowParameterIndex();
+      let changedWordCount = 0;
+
+      if (domain && Array.isArray(domain.entries)) {
+        domain.entries.forEach(entry => {
+          if (entry.kind !== 'parameter') return;
+          const mapKey = (Number(entry.unitKey) >>> 0) + ':' + (Number(entry.pKey) >>> 0);
+          const shadowParam = shadowIndex.get(mapKey);
+          if (!shadowParam) return;
+
+          let valueOffset = null;
+          const explicitByteOffset = Number(entry.valueByteOffset);
+          if (Number.isFinite(explicitByteOffset)) {
+            valueOffset = explicitByteOffset | 0;
+          } else {
+            const wordIndex = Number(entry.wordIndex);
+            if (!Number.isFinite(wordIndex)) return;
+            valueOffset = ((wordIndex | 0) + 2) * 4;
+          }
+          if ((valueOffset + 4) > out.length) return;
+
+          const encodedRaw = encodeDumpValueToRawU32(entry.typeCode, shadowParam);
+          if (encodedRaw == null) return;
+
+          const currentRaw = readU32LEFromBytes(out, valueOffset);
+          if ((currentRaw >>> 0) === (encodedRaw >>> 0)) return;
+
+          out.set(writeU32LE(encodedRaw >>> 0), valueOffset);
+          changedWordCount += 1;
+        });
+      }
+
+      const byteIdenticalToBase = compareUint8Arrays(baseRaw, out);
+      if (!byteIdenticalToBase) {
+        warnings.push('Serialized payload differs from source dump payload (' + changedWordCount + ' word updates).');
+      }
+
+      return {
+        patchRaw: out,
+        sourceKind: changedWordCount > 0 ? 'shadow_domain_overlay' : 'cached_raw_passthrough',
+        byteIdenticalToBase,
+        changedWordCount,
+        warnings,
+        baseBytes: baseRaw.length,
+        serializedBytes: out.length
+      };
+    }
+
+    async function waitForDumpSession(sessionId, timeoutMs, tickMs = 60) {
+      const startMs = Date.now();
+      while ((Date.now() - startMs) <= timeoutMs) {
+        const session = getDumpSession(sessionId);
+        if (!session) return null;
+        if (session.status === 'failed') return session;
+        if (session.status === 'complete' || session.status === 'complete_with_warning') return session;
+        await sleep(tickMs);
+      }
+      return getDumpSession(sessionId);
+    }
+
+    async function requestSettingsDump(targetRef, options = {}) {
+      if (!anyConnected()) throw new Error('Connect USB or BLE first.');
+
+      const normalizedTarget = normalizeDumpTargetRef(targetRef);
+      const session = startDumpSession('download', normalizedTarget, {
+        group: options.group == null ? 0x01 : options.group
+      });
+      updateDumpSession(session.id, { status: 'waiting_frames' });
+
+      const frame = buildRequestUserSettingsDump(normalizedTarget, {
+        group: options.group,
+        counter: options.counter,
+        pc: options.pc
+      });
+      await sendAndLog(frame, 'TX settings dump request ' + dumpTargetRefToLabel(normalizedTarget));
+
+      const maxWaitMs = Number(options.timeoutMs || 16000);
+      const reportGraceMs = Number(options.reportGraceMs || 2500);
+
+      const waited = await waitForDumpSession(session.id, maxWaitMs);
+      if (!waited) {
+        throw new Error('Dump session vanished before completion.');
+      }
+      if (waited.status === 'failed') {
+        throw new Error(waited.errors && waited.errors.length ? waited.errors[waited.errors.length - 1] : 'Settings dump failed.');
+      }
+      if (waited.status === 'complete' || waited.status === 'complete_with_warning') {
+        return waited;
+      }
+
+      const refreshed = getDumpSession(session.id);
+      if (refreshed && refreshed.status === 'awaiting_report') {
+        const postGrace = await waitForDumpSession(session.id, reportGraceMs);
+        if (!postGrace) {
+          throw new Error('Dump session vanished while waiting for report.');
+        }
+        if (postGrace.status === 'failed') {
+          throw new Error(postGrace.errors && postGrace.errors.length ? postGrace.errors[postGrace.errors.length - 1] : 'Settings dump failed.');
+        }
+        if (postGrace.status === 'complete' || postGrace.status === 'complete_with_warning') {
+          return postGrace;
+        }
+        return finalizeDumpSession(session.id, {
+          status: 'complete_with_warning',
+          warnings: (postGrace.warnings || []).concat([
+            'Dump payload received but report opcode 0x02 was not observed in time.'
+          ])
+        });
+      }
+
+      if (refreshed && refreshed.status === 'waiting_frames') {
+        failDumpSession(session.id, 'Timeout waiting for dump payload frames.');
+        throw new Error('Timeout waiting for dump payload frames.');
+      }
+
+      return getDumpSession(session.id);
+    }
+
+    async function uploadSettingsDump(targetRef, patchRaw, options = {}) {
+      if (!anyConnected()) throw new Error('Connect USB or BLE first.');
+
+      const normalizedTarget = normalizeDumpTargetRef(targetRef);
+      let serialized = null;
+      if (patchRaw instanceof Uint8Array) {
+        serialized = {
+          patchRaw: patchRaw,
+          sourceKind: 'explicit_raw',
+          byteIdenticalToBase: true,
+          changedWordCount: 0,
+          warnings: []
+        };
+      } else if (Array.isArray(patchRaw)) {
+        serialized = {
+          patchRaw: Uint8Array.from(patchRaw),
+          sourceKind: 'explicit_raw',
+          byteIdenticalToBase: true,
+          changedWordCount: 0,
+          warnings: []
+        };
+      } else {
+        serialized = serializePatchForUpload(null, {
+          targetRef: normalizedTarget
+        });
+      }
+
+      const sourcePatch = serialized.patchRaw;
+      if (!(sourcePatch instanceof Uint8Array) || !sourcePatch.length) {
+        throw new Error('No upload payload available. Provide patchRaw or download/cache one first.');
+      }
+
+      const session = startDumpSession('upload', normalizedTarget, {
+        group: options.group == null ? 0x01 : options.group
+      });
+      updateDumpSession(session.id, {
+        status: 'uploading',
+        patchRaw: sourcePatch.slice(0),
+        serializer: {
+          sourceKind: serialized.sourceKind,
+          byteIdenticalToBase: !!serialized.byteIdenticalToBase,
+          changedWordCount: Number(serialized.changedWordCount || 0) >>> 0
+        },
+        warnings: (serialized.warnings || []).slice()
+      });
+
+      if (Array.isArray(serialized.warnings) && serialized.warnings.length) {
+        log('Upload serializer warnings: ' + serialized.warnings.join(' | '));
+      }
+
+      const frames = buildUploadUserSettingsFrames({
+        targetRef: normalizedTarget,
+        patchRawLength: sourcePatch.length,
+        payloadLengthTotal: options.payloadLengthTotal,
+        payloadLengthMinus8: options.payloadLengthMinus8,
+        constantsTailWords: options.constantsTailWords
+      }, sourcePatch, {
+        group: options.group,
+        headerCounter: options.headerCounter,
+        headerPc: options.headerPc,
+        bodyCounter: options.bodyCounter,
+        bodyPcStart: options.bodyPcStart,
+        incrementBodyCounter: options.incrementBodyCounter,
+        frameChunkDecodedSize: options.frameChunkDecodedSize
+      });
+
+      const paceMs = Math.max(0, Number(options.paceMs == null ? 18 : options.paceMs));
+      for (let i = 0; i < frames.length; i += 1) {
+        const frame = frames[i];
+        await sendAndLog(frame, 'TX settings upload ' + (i + 1) + '/' + frames.length);
+        const current = getDumpSession(session.id);
+        if (current) {
+          updateDumpSession(session.id, {
+            status: 'uploading',
+            txMeta: {
+              group: current.txMeta && current.txMeta.group != null ? current.txMeta.group : 0x01,
+              counter: current.txMeta ? current.txMeta.counter : null,
+              frameCount: (current.txMeta && current.txMeta.frameCount ? current.txMeta.frameCount : 0) + 1,
+              bytesSent: (current.txMeta && current.txMeta.bytesSent ? current.txMeta.bytesSent : 0) + frame.length
+            }
+          });
+        }
+        if (paceMs > 0 && i < (frames.length - 1)) {
+          await sleep(paceMs);
+        }
+      }
+
+      updateDumpSession(session.id, { status: 'awaiting_report' });
+      const waited = await waitForDumpSession(session.id, Number(options.reportTimeoutMs || 5000));
+      if (!waited) {
+        throw new Error('Upload session vanished before completion.');
+      }
+      if (waited.status === 'failed') {
+        throw new Error(waited.errors && waited.errors.length ? waited.errors[waited.errors.length - 1] : 'Settings upload failed.');
+      }
+      if (waited.status === 'complete' || waited.status === 'complete_with_warning') {
+        return waited;
+      }
+
+      const current = getDumpSession(session.id);
+      return finalizeDumpSession(session.id, {
+        status: 'complete_with_warning',
+        warnings: (current && current.warnings ? current.warnings : []).concat([
+          'Upload frames sent but report opcode 0x02 was not observed in time. Verify with readback.'
+        ])
+      });
     }
 
     async function sendBuilderControl(btn) {
@@ -3104,7 +4536,23 @@
         await fn();
       } catch (err) {
         log('Error: ' + err.message);
+      } finally {
+        updateDumpUiStatus();
       }
+    }
+
+    function getDumpTargetRefFromElement(el) {
+      const kind = el.dataset.targetKind;
+      if (kind === 'actual') {
+        return { kind: 'actual', value: 0xffffffff };
+      }
+      if (kind === 'slot') {
+        return {
+          kind: 'slot',
+          value: Number(el.dataset.targetValue || 0) | 0
+        };
+      }
+      throw new Error('Invalid dump target from control.');
     }
 
     document.getElementById('btnConnect').addEventListener('click', () => safeRun(onConnect));
@@ -3132,6 +4580,34 @@
       btn.addEventListener('click', () => safeRun(() => sendBuilderControl(btn)));
     });
 
+    document.querySelectorAll('.btnDumpDownload').forEach(btn => {
+      btn.addEventListener('click', () => {
+        safeRun(async () => {
+          const targetRef = getDumpTargetRefFromElement(btn);
+          const targetLabel = dumpTargetRefToLabel(targetRef);
+          log('Starting settings dump download: ' + targetLabel);
+          updateDumpUiStatus();
+          const session = await requestSettingsDump(targetRef);
+          updateDumpUiStatus();
+          log('Settings dump download finished: ' + (session && session.status ? session.status : 'n/a'));
+        });
+      });
+    });
+
+    document.querySelectorAll('.btnDumpUpload').forEach(btn => {
+      btn.addEventListener('click', () => {
+        safeRun(async () => {
+          const targetRef = getDumpTargetRefFromElement(btn);
+          const targetLabel = dumpTargetRefToLabel(targetRef);
+          log('Starting settings dump upload: ' + targetLabel);
+          updateDumpUiStatus();
+          const session = await uploadSettingsDump(targetRef, null);
+          updateDumpUiStatus();
+          log('Settings dump upload finished: ' + (session && session.status ? session.status : 'n/a'));
+        });
+      });
+    });
+
     document.getElementById('mirrorCards').addEventListener('change', e => {
       const target = e.target;
       if (!(target instanceof HTMLSelectElement)) return;
@@ -3147,6 +4623,7 @@
 
     renderAmpCollections();
     updateParserDiagnosticsView();
+    updateDumpUiStatus();
     setActiveTab('controls');
     renderParserMirrorView();
     setStatus();
