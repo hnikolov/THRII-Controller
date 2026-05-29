@@ -156,8 +156,155 @@
       background: #f8f3e4;
     }
 
+    .tabRow {
+      display: flex;
+      gap: 0.5rem;
+      margin: 0.2rem 0 0.9rem;
+    }
+
+    .tabBtn {
+      background: rgba(255, 255, 255, 0.62);
+    }
+
+    .tabBtn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .viewPanel {
+      display: none;
+    }
+
+    .viewPanel.active {
+      display: block;
+    }
+
+    .mirrorSessionBar {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.58);
+      padding: 0.55rem;
+      display: grid;
+      gap: 0.35rem;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 0.9rem;
+    }
+
+    .mirrorTicker {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.58);
+      min-height: 56px;
+      max-height: 220px;
+      overflow: auto;
+      padding: 0.45rem;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 0.86rem;
+    }
+
+    .mirrorTickerRow {
+      padding: 0.22rem 0;
+      border-bottom: 1px solid rgba(140, 122, 85, 0.26);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .mirrorTickerRow:last-child {
+      border-bottom: 0;
+    }
+
+    .mirrorCards {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.65rem;
+    }
+
+    .mirrorCard {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.55);
+      padding: 0.5rem;
+    }
+
+    .mirrorCardHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.4rem;
+      margin-bottom: 0.35rem;
+      font-weight: 600;
+    }
+
+    .mirrorCardHeaderRight {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.25rem;
+      min-width: 128px;
+      font-size: 0.82rem;
+      font-weight: 500;
+    }
+
+    .mirrorSubtypeSelect {
+      width: 100%;
+      max-width: 190px;
+      padding: 0.2rem 0.35rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.82);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.8rem;
+    }
+
+    .mirrorSubtypeSelect:disabled {
+      opacity: 0.8;
+      cursor: not-allowed;
+    }
+
+    .mirrorCardMeta {
+      margin: 0 0 0.4rem;
+      font-size: 0.8rem;
+      opacity: 0.86;
+    }
+
+    .mirrorParamTable {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 0.82rem;
+    }
+
+    .mirrorParamTable th,
+    .mirrorParamTable td {
+      text-align: left;
+      padding: 0.2rem 0.15rem;
+      border-bottom: 1px solid rgba(140, 122, 85, 0.2);
+      vertical-align: top;
+    }
+
+    .mirrorParamTable tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .mirrorUnresolved {
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.45);
+      padding: 0.55rem;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 0.84rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
     @media (max-width: 820px) {
       .amp-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .mirrorCards {
         grid-template-columns: 1fr;
       }
     }
@@ -166,6 +313,13 @@
 <body>
   <main>
     <h1>Yamaha THR-II Controller</h1>
+
+    <div class="tabRow" role="tablist" aria-label="Primary Views">
+      <button id="tabControls" class="tabBtn active" role="tab" aria-selected="true" aria-controls="viewControls">Controls</button>
+      <button id="tabMirror" class="tabBtn" role="tab" aria-selected="false" aria-controls="viewMirror">Parser Mirror</button>
+    </div>
+
+    <section id="viewControls" class="viewPanel active" role="tabpanel" aria-labelledby="tabControls">
 
     <fieldset>
       <legend>Connection</legend>
@@ -289,6 +443,37 @@
       </div>
       <div id="log"></div>
     </fieldset>
+
+    </section>
+
+    <section id="viewMirror" class="viewPanel" role="tabpanel" aria-labelledby="tabMirror" aria-hidden="true">
+      <fieldset>
+        <legend>Mirror Session</legend>
+        <div class="mirrorSessionBar" id="mirrorSessionBar">
+          <div class="mirrorSessionLine" id="mirrorSessionConnection">Transport: Not connected</div>
+          <div class="mirrorSessionLine" id="mirrorSessionStats">Frames RX: 0 | Events: 0 | Errors: 0</div>
+          <div class="mirrorSessionLine" id="mirrorSessionMeta">Last RX: n/a | Freeze: OFF</div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Live Changes</legend>
+        <div id="mirrorTicker" class="mirrorTicker"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Signal Chain Modules</legend>
+        <div id="mirrorCards" class="mirrorCards"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Unresolved Inspector</legend>
+        <details id="mirrorUnresolvedDetails">
+          <summary>Show unresolved units and parameters</summary>
+          <div id="mirrorUnresolved" class="mirrorUnresolved"></div>
+        </details>
+      </fieldset>
+    </section>
   </main>
 
   <script src="doc/thr10ii_w_symbol_table_1_44_0_a.js"></script>
@@ -1206,10 +1391,82 @@
       return units[0];
     }
 
+    function getLatestShadowUnitById(unitId) {
+      const key = Number(unitId) >>> 0;
+      const units = Object.values(thrIncomingParser.state.units || {}).filter(u => (Number(u.id) >>> 0) === key);
+      if (!units.length) return null;
+      units.sort((a, b) => {
+        const aTime = Math.max(0, ...Object.values(a.parameters || {}).map(p => p.updatedAtMs || 0));
+        const bTime = Math.max(0, ...Object.values(b.parameters || {}).map(p => p.updatedAtMs || 0));
+        return bTime - aTime;
+      });
+      return units[0];
+    }
+
     function normalizeOnOff(value) {
       if (typeof value === 'boolean') return value;
       if (typeof value === 'number') return value >= 0.5;
       return null;
+    }
+
+    function isGateLikeParamName(name) {
+      const normalized = String(name || '').toLowerCase().replace(/\s+/g, '');
+      return (
+        normalized === 'gateenable' ||
+        normalized === 'gateenablestate' ||
+        normalized === 'thresh' ||
+        normalized === 'threshstate' ||
+        normalized === 'threshold' ||
+        normalized === 'thresholdstate' ||
+        normalized === 'gatethreshold' ||
+        normalized === 'gatethresholdstate' ||
+        normalized === 'decay' ||
+        normalized === 'decaystate' ||
+        normalized === 'gatedecay' ||
+        normalized === 'gatedecaystate'
+      );
+    }
+
+    function shouldRetainParamAcrossSubtypeSwitch(unitId, paramName) {
+      const normalized = String(paramName || '').toLowerCase().replace(/\s+/g, '');
+      const key = Number(unitId) >>> 0;
+
+      if (key === (thrKeys.unit.fx2 >>> 0)) {
+        return (
+          normalized === 'fx2enable' ||
+          normalized === 'fx2enablestate' ||
+          normalized === 'fx2mix' ||
+          normalized === 'fx2mixstate' ||
+          normalized === 'fx2mixtype' ||
+          normalized === 'fx2mixtypestate'
+        );
+      }
+
+      if (key === (thrKeys.unit.fx3 >>> 0)) {
+        return (
+          normalized === 'fx3enable' ||
+          normalized === 'fx3enablestate' ||
+          normalized === 'fx3mix' ||
+          normalized === 'fx3mixstate' ||
+          normalized === 'fx3mixtype' ||
+          normalized === 'fx3mixtypestate'
+        );
+      }
+
+      if (key === (thrKeys.unit.fx4 >>> 0)) {
+        return (
+          normalized === 'fx4enable' ||
+          normalized === 'fx4enablestate' ||
+          normalized === 'fx4mix' ||
+          normalized === 'fx4mixstate' ||
+          normalized === 'fx4mixtype' ||
+          normalized === 'fx4mixtypestate' ||
+          normalized === 'fx4wetsend' ||
+          normalized === 'fx4wetsendstate'
+        );
+      }
+
+      return true;
     }
 
     function syncControlsFromShadowState() {
@@ -1296,6 +1553,7 @@
         const unit = ensureShadowUnit(event.uKey, unitName);
         const paramKey = String(Number(event.pKey) >>> 0);
         const decoded = event.value ? event.value.decoded : null;
+        const nowMs = Date.now();
 
         unit.parameters[paramKey] = {
           id: Number(event.pKey) >>> 0,
@@ -1304,7 +1562,7 @@
           decodedKind: event.value ? event.value.decodedKind : null,
           rawU32: Number(event.valueRaw) >>> 0,
           value: decoded,
-          updatedAtMs: Date.now()
+          updatedAtMs: nowMs
         };
 
         state.lastParameterChange = {
@@ -1312,8 +1570,16 @@
           unitName: unit.name,
           paramName: unit.parameters[paramKey].name,
           value: decoded,
-          updatedAtMs: Date.now()
+          updatedAtMs: nowMs
         };
+
+        addMirrorRecentChange({
+          timeMs: nowMs,
+          module: unit.name,
+          name: unit.parameters[paramKey].name,
+          value: getMirrorValueText(unit.parameters[paramKey]),
+          sourceKind: 'parameter_change'
+        });
         return;
       }
 
@@ -1322,6 +1588,30 @@
         const unit = ensureShadowUnit(event.uKey, unitName);
         unit.typeKey = Number(event.unitTypeKey) >>> 0;
         unit.typeName = event.names && event.names.unitType && event.names.unitType.name ? event.names.unitType.name : ('v#' + unit.typeKey);
+
+        const unitId = Number(unit.id) >>> 0;
+        if (unitId === (thrKeys.unit.fx2 >>> 0) || unitId === (thrKeys.unit.fx3 >>> 0) || unitId === (thrKeys.unit.fx4 >>> 0)) {
+          const retained = {};
+          Object.entries(unit.parameters || {}).forEach(([key, param]) => {
+            if (shouldRetainParamAcrossSubtypeSwitch(unitId, param && param.name ? param.name : '')) {
+              retained[key] = param;
+            }
+          });
+          unit.parameters = retained;
+        }
+
+        const cardId = getCardIdForUnitName(unit.name);
+        if (cardId && Object.prototype.hasOwnProperty.call(mirrorUiState.previewSubtypeByCard, cardId)) {
+          delete mirrorUiState.previewSubtypeByCard[cardId];
+        }
+
+        addMirrorRecentChange({
+          timeMs: Date.now(),
+          module: unit.name,
+          name: 'UnitType',
+          value: unit.typeName,
+          sourceKind: 'unit_type_change'
+        });
         return;
       }
 
@@ -1430,6 +1720,655 @@
       }
     };
 
+    const mirrorUiState = {
+      activeTab: 'controls',
+      freezeCards: false,
+      recentChanges: [],
+      previewSubtypeByCard: {}
+    };
+
+    const mirrorModuleSchemas = [
+      {
+        id: 'compressor',
+        title: 'Compressor',
+        baseType: 'FX1',
+        unitName: 'FX1',
+        enabledParam: 'FX1EnableState',
+        placeholderParams: ['FX1EnableState', 'Sustain', 'Level'],
+        selectableSubtype: false,
+        typeFamily: null
+      },
+      {
+        id: 'gate',
+        title: 'Gate',
+        baseType: 'Gate',
+        unitName: 'GuitarProc',
+        enabledParam: 'GateEnableState',
+        placeholderParams: ['GateEnableState', 'Threshold', 'Decay'],
+        selectableSubtype: false,
+        typeFamily: null
+      },
+      {
+        id: 'amp',
+        title: 'Amp',
+        baseType: 'Amp',
+        unitName: 'Amp',
+        enabledParam: null,
+        placeholderParams: ['Gain', 'Master', 'Bass', 'Mid', 'Treble'],
+        selectableSubtype: true,
+        typeFamily: 'amp'
+      },
+      {
+        id: 'cabinet',
+        title: 'Cabinet',
+        baseType: 'SpkSim',
+        unitName: 'GuitarProc',
+        enabledParam: null,
+        placeholderParams: ['SpkSimType'],
+        selectableSubtype: false,
+        typeFamily: null
+      },
+      {
+        id: 'effect',
+        title: 'Effect',
+        baseType: 'FX2',
+        unitName: 'FX2',
+        enabledParam: 'FX2EnableState',
+        placeholderParams: [],
+        commonParams: ['FX2EnableState', 'FX2MixTypeState'],
+        subtypeParams: {
+          chorus: ['Speed', 'Depth', 'Pre Delay', 'Feedback', 'Mix'],
+          flanger: ['Speed', 'Depth', 'Mix'],
+          phaser: ['Speed', 'Feedback', 'Mix'],
+          tremolo: ['Speed', 'Depth', 'Mix']
+        },
+        selectableSubtype: true,
+        typeFamily: 'effect'
+      },
+      {
+        id: 'echo',
+        title: 'Echo',
+        baseType: 'FX3',
+        unitName: 'FX3',
+        enabledParam: 'FX3EnableState',
+        placeholderParams: [],
+        commonParams: ['FX3EnableState', 'FX3MixTypeState'],
+        subtypeParams: {
+          tapeEcho: ['Time', 'Feedback', 'Bass', 'Treble', 'Mix', 'TAP'],
+          digitalDelay: ['Time', 'Feedback', 'Bass', 'Treble', 'Mix', 'TAP']
+        },
+        selectableSubtype: true,
+        typeFamily: 'echo'
+      },
+      {
+        id: 'reverb',
+        title: 'Reverb',
+        baseType: 'FX4',
+        unitName: 'FX4',
+        enabledParam: 'FX4EnableState',
+        placeholderParams: [],
+        commonParams: ['FX4EnableState', 'FX4MixTypeState'],
+        subtypeParams: {
+          spring: ['Reverb', 'Tone', 'Mix'],
+          plate: ['Decay', 'Pre Delay', 'Tone', 'Mix'],
+          room: ['Decay', 'Pre Delay', 'Tone', 'Mix'],
+          hall: ['Decay', 'Pre Delay', 'Tone', 'Mix']
+        },
+        selectableSubtype: true,
+        typeFamily: 'reverb'
+      },
+      {
+        id: 'global',
+        title: 'Global',
+        baseType: 'Global',
+        unitName: 'Global',
+        enabledParam: null,
+        placeholderParams: ['GuitarVolume', 'AudioVolume'],
+        selectableSubtype: false,
+        typeFamily: null
+      }
+    ];
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function getMirrorTypeText(param) {
+      if (!param || !param.decodedKind) return 'u32';
+      if (param.decodedKind === 'enum_u32') return 'enum';
+      return param.decodedKind;
+    }
+
+    function getMirrorValueText(param) {
+      if (!param) return 'n/a';
+      if (param.decodedKind === 'enum_u32' && Number.isFinite(Number(param.value))) {
+        const enumValue = Number(param.value) >>> 0;
+        const resolved = resolveSymbol(enumValue);
+        if (resolved && resolved.name) {
+          return resolved.name + ' (' + enumValue + ')';
+        }
+        return String(enumValue);
+      }
+      return formatParserValue(param.value);
+    }
+
+    function getMirrorTransportText() {
+      const names = [];
+      if (midiOut) names.push('USB');
+      if (bleDevice && bleMidiChar) names.push('BLE');
+      return names.length ? names.join('+') : 'Not connected';
+    }
+
+    function addMirrorRecentChange(entry) {
+      mirrorUiState.recentChanges.unshift(entry);
+      if (mirrorUiState.recentChanges.length > 80) {
+        mirrorUiState.recentChanges.length = 80;
+      }
+    }
+
+    function toTitleCaseToken(raw) {
+      const text = String(raw || '');
+      if (!text) return '';
+      return text
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function getMirrorSubtypeOptions(typeFamily) {
+      if (typeFamily === 'effect') {
+        return Object.keys(thrKeys.enumValue.effect).map(key => ({ value: key, label: toTitleCaseToken(key) }));
+      }
+      if (typeFamily === 'echo') {
+        return Object.keys(thrKeys.enumValue.echo).map(key => ({ value: key, label: toTitleCaseToken(key) }));
+      }
+      if (typeFamily === 'reverb') {
+        return Object.keys(thrKeys.enumValue.reverb).map(key => ({ value: key, label: toTitleCaseToken(key) }));
+      }
+      if (typeFamily === 'amp') {
+        const seen = new Set();
+        const out = [];
+        Object.values(ampCollections).forEach(collection => {
+          collection.amps.forEach(amp => {
+            if (seen.has(amp.symbol)) return;
+            seen.add(amp.symbol);
+            out.push({
+              value: amp.symbol,
+              label: collection.label + ' / ' + amp.slot + ' - ' + amp.symbol
+            });
+          });
+        });
+        return out;
+      }
+      return [];
+    }
+
+    function resolveSubtypeKey(typeFamily, typeName, typeKey) {
+      const raw = String(typeName || '');
+      const normalized = raw.toLowerCase();
+
+      const numericTypeKey = Number(typeKey);
+
+      if (typeFamily === 'effect') {
+        if (Number.isFinite(numericTypeKey)) {
+          const hitByKey = Object.entries(thrKeys.enumValue.effect).find(([, value]) => Number(value) === (numericTypeKey >>> 0));
+          if (hitByKey) return hitByKey[0];
+        }
+        if (normalized.includes('chorus')) return 'chorus';
+        if (normalized.includes('flanger')) return 'flanger';
+        if (normalized.includes('phaser')) return 'phaser';
+        if (normalized.includes('tremolo')) return 'tremolo';
+        return null;
+      }
+
+      if (typeFamily === 'echo') {
+        if (Number.isFinite(numericTypeKey)) {
+          const hitByKey = Object.entries(thrKeys.enumValue.echo).find(([, value]) => Number(value) === (numericTypeKey >>> 0));
+          if (hitByKey) return hitByKey[0];
+        }
+        if (normalized.includes('digital')) return 'digitalDelay';
+        if (normalized.includes('tape')) return 'tapeEcho';
+        return null;
+      }
+
+      if (typeFamily === 'reverb') {
+        if (Number.isFinite(numericTypeKey)) {
+          const hitByKey = Object.entries(thrKeys.enumValue.reverb).find(([, value]) => Number(value) === (numericTypeKey >>> 0));
+          if (hitByKey) return hitByKey[0];
+        }
+        if (normalized.includes('spring')) return 'spring';
+        if (normalized.includes('plate')) return 'plate';
+        if (normalized.includes('room')) return 'room';
+        if (normalized.includes('hall')) return 'hall';
+        return null;
+      }
+
+      if (typeFamily === 'amp') {
+        const symbol = raw.trim();
+        if (!symbol) return null;
+        const options = getMirrorSubtypeOptions('amp');
+        if (options.some(opt => opt.value === symbol)) {
+          return symbol;
+        }
+        return null;
+      }
+
+      return null;
+    }
+
+    function canonicalizeSubtypeParamName(typeFamily, name) {
+      const raw = String(name || '');
+      const normalized = raw.toLowerCase().replace(/\s+/g, '');
+
+      if (typeFamily === 'effect') {
+        if (normalized === 'freq') return 'Speed';
+        if (normalized === 'pre' || normalized === 'predelay' || normalized === 'prestate') return 'Pre Delay';
+      }
+
+      if (typeFamily === 'echo') {
+        if (normalized === 'delay' || normalized === 'delaytime') return 'Time';
+        if (normalized === 'tap' || normalized === 'syncselect' || normalized === 'syncselectstate' || normalized === 'note') return 'TAP';
+      }
+
+      if (typeFamily === 'reverb') {
+        if (normalized === 'predelay') return 'Pre Delay';
+      }
+
+      return raw;
+    }
+
+    function getExpectedSubtypeRows(schema, resolvedSubtypeKey) {
+      const rows = [];
+      const common = Array.isArray(schema.commonParams) ? schema.commonParams : [];
+      common.forEach(name => rows.push(name));
+
+      if (!schema.subtypeParams || typeof schema.subtypeParams !== 'object') {
+        return rows;
+      }
+
+      const subtypeKey = resolvedSubtypeKey || Object.keys(schema.subtypeParams)[0] || null;
+      if (subtypeKey && Array.isArray(schema.subtypeParams[subtypeKey])) {
+        schema.subtypeParams[subtypeKey].forEach(name => rows.push(name));
+      }
+
+      return rows;
+    }
+
+    function getCardIdForUnitName(unitName) {
+      if (unitName === 'FX2') return 'effect';
+      if (unitName === 'FX3') return 'echo';
+      if (unitName === 'FX4') return 'reverb';
+      if (unitName === 'Amp') return 'amp';
+      return null;
+    }
+
+    function getMirrorUnitEntries() {
+      const entries = [];
+      const units = Object.values(thrIncomingParser.state.units || {});
+      units.forEach(unit => {
+        Object.values(unit.parameters || {}).forEach(param => {
+          entries.push({
+            unit,
+            param,
+            unitId: Number(unit.id) >>> 0,
+            paramId: Number(param.id) >>> 0,
+            entryKey: (Number(unit.id) >>> 0) + ':' + (Number(param.id) >>> 0)
+          });
+        });
+      });
+      return entries;
+    }
+
+    function getMirrorCardIdForEntry(entry) {
+      const unitName = entry.unit && entry.unit.name ? entry.unit.name : '';
+      const unitId = entry.unit ? (Number(entry.unit.id) >>> 0) : null;
+      const paramName = entry.param && entry.param.name ? entry.param.name : '';
+      const normalized = String(paramName).toLowerCase().replace(/\s+/g, '');
+
+      if (unitId === (thrKeys.unit.fx1 >>> 0)) return 'compressor';
+      if (unitId === (thrKeys.unit.fx2 >>> 0)) return 'effect';
+      if (unitId === (thrKeys.unit.fx3 >>> 0)) return 'echo';
+      if (unitId === (thrKeys.unit.fx4 >>> 0)) return 'reverb';
+      if (unitId === (thrKeys.unit.amp >>> 0)) return 'amp';
+
+      if (unitName === 'FX1' || paramName === 'FX1EnableState' || /^FX1/.test(paramName)) return 'compressor';
+      if (unitName === 'FX2' || /^FX2/.test(paramName)) return 'effect';
+      if (unitName === 'FX3' || /^FX3/.test(paramName)) return 'echo';
+      if (unitName === 'FX4' || /^FX4/.test(paramName)) return 'reverb';
+      if (paramName === 'GateEnableState' || /^Gate/.test(paramName)) return 'gate';
+      if ((unitId === (thrKeys.unit.guitarProc >>> 0) || unitId === (thrKeys.unit.global >>> 0) || unitName === 'GuitarProc' || unitName === 'Global') && (normalized === 'thresh' || normalized === 'threshstate' || normalized === 'threshold' || normalized === 'thresholdstate' || normalized === 'gatethreshold' || normalized === 'gatethresholdstate' || normalized === 'decay' || normalized === 'decaystate' || normalized === 'gatedecay' || normalized === 'gatedecaystate')) return 'gate';
+      if (unitName === 'Amp') return 'amp';
+      if (paramName === 'SpkSimType') return 'cabinet';
+      if (unitName === 'Global' || unitName === 'GuitarProc') return 'global';
+
+      return 'global';
+    }
+
+    function canonicalizeCardParamName(schema, name) {
+      const raw = String(name || '');
+      const normalized = raw.toLowerCase().replace(/\s+/g, '');
+
+      if (schema && schema.id === 'gate') {
+        if (normalized === 'gateenable' || normalized === 'gateenablestate') return 'GateEnableState';
+        if (normalized === 'thresh' || normalized === 'threshstate' || normalized === 'gatethreshold' || normalized === 'gatethresholdstate' || normalized === 'threshold' || normalized === 'thresholdstate') return 'Threshold';
+        if (normalized === 'gatedecay' || normalized === 'gatedecaystate' || normalized === 'decay' || normalized === 'decaystate') return 'Decay';
+      }
+
+      if (schema && schema.id === 'amp') {
+        if (normalized === 'drive' || normalized === 'drivestate') return 'Gain';
+      }
+
+      if (schema && schema.id === 'effect') {
+        if (normalized === 'fx2enable' || normalized === 'fx2enablestate') return 'FX2EnableState';
+        if (normalized === 'fx2mix' || normalized === 'fx2mixstate') return 'Mix';
+        if (normalized === 'fx2mixtype' || normalized === 'fx2mixtypestate') return 'FX2MixTypeState';
+      }
+
+      if (schema && schema.id === 'echo') {
+        if (normalized === 'fx3enable' || normalized === 'fx3enablestate') return 'FX3EnableState';
+        if (normalized === 'fx3mix' || normalized === 'fx3mixstate') return 'Mix';
+        if (normalized === 'fx3mixtype' || normalized === 'fx3mixtypestate') return 'FX3MixTypeState';
+      }
+
+      if (schema && schema.id === 'reverb') {
+        if (normalized === 'fx4enable' || normalized === 'fx4enablestate') return 'FX4EnableState';
+        if (normalized === 'fx4mix' || normalized === 'fx4mixstate' || normalized === 'fx4wetsend' || normalized === 'fx4wetsendstate') return 'Mix';
+        if (normalized === 'fx4mixtype' || normalized === 'fx4mixtypestate') return 'FX4MixTypeState';
+      }
+
+      return canonicalizeSubtypeParamName(schema ? schema.typeFamily : null, raw);
+    }
+
+    function getEnabledTextForCard(card) {
+      if (!card.schema.enabledParam) return 'n/a';
+      const hit = card.rows.find(row => row.name === card.schema.enabledParam);
+      if (!hit) return 'n/a';
+      const normalized = normalizeOnOff(hit.rawValue);
+      if (normalized == null) return 'n/a';
+      return normalized ? 'ON' : 'OFF';
+    }
+
+    function createPermanentMirrorCards(entries) {
+      const cardsById = {};
+      const entriesByCard = {};
+
+      mirrorModuleSchemas.forEach(schema => {
+        cardsById[schema.id] = {
+          id: schema.id,
+          schema,
+          title: schema.title,
+          typeName: schema.baseType,
+          typeKey: null,
+          subtypeOptions: schema.selectableSubtype ? getMirrorSubtypeOptions(schema.typeFamily) : [],
+          rowsByName: {},
+          latestMs: 0
+        };
+        entriesByCard[schema.id] = [];
+      });
+
+      entries.forEach(entry => {
+        const cardId = getMirrorCardIdForEntry(entry);
+        const targetCardId = Object.prototype.hasOwnProperty.call(entriesByCard, cardId) ? cardId : 'global';
+        entriesByCard[targetCardId].push(entry);
+      });
+
+      if (entriesByCard.gate && entriesByCard.global) {
+        const nextGlobal = [];
+        entriesByCard.global.forEach(entry => {
+          const rawName = entry && entry.param && entry.param.name ? entry.param.name : ('p#' + (entry ? entry.paramId : ''));
+          const gateCanonical = canonicalizeCardParamName({ id: 'gate', typeFamily: null }, rawName);
+          if (isGateLikeParamName(rawName) || gateCanonical === 'GateEnableState' || gateCanonical === 'Threshold' || gateCanonical === 'Decay') {
+            entriesByCard.gate.push(entry);
+            return;
+          }
+          nextGlobal.push(entry);
+        });
+        entriesByCard.global = nextGlobal;
+      }
+
+      const typeCards = [
+        { id: 'amp', unitId: thrKeys.unit.amp, unitName: 'Amp' },
+        { id: 'effect', unitId: thrKeys.unit.fx2, unitName: 'FX2' },
+        { id: 'echo', unitId: thrKeys.unit.fx3, unitName: 'FX3' },
+        { id: 'reverb', unitId: thrKeys.unit.fx4, unitName: 'FX4' }
+      ];
+      typeCards.forEach(item => {
+        const unit = getLatestShadowUnitById(item.unitId) || getLatestShadowUnitByName(item.unitName);
+        const card = cardsById[item.id];
+        if (!card) return;
+        if (unit && unit.typeName) {
+          card.typeName = unit.typeName;
+        }
+        if (unit && unit.typeKey != null) {
+          card.typeKey = Number(unit.typeKey) >>> 0;
+        }
+      });
+
+      mirrorModuleSchemas.forEach(schema => {
+        const card = cardsById[schema.id];
+        const parserSubtypeKey = resolveSubtypeKey(schema.typeFamily, card.typeName, card.typeKey);
+        const previewSubtypeKey = mirrorUiState.previewSubtypeByCard[schema.id] || null;
+        const resolvedSubtypeKey = parserSubtypeKey || previewSubtypeKey;
+        const expectedRows = getExpectedSubtypeRows(schema, resolvedSubtypeKey);
+        const fallbackRows = Array.isArray(schema.placeholderParams) ? schema.placeholderParams : [];
+        const initialRows = expectedRows.length ? expectedRows : fallbackRows;
+        const orderedNames = [];
+
+        initialRows.forEach(name => {
+          const canonicalName = canonicalizeCardParamName(schema, name);
+          if (!orderedNames.includes(canonicalName)) {
+            orderedNames.push(canonicalName);
+          }
+          card.rowsByName[canonicalName] = {
+            name: canonicalName,
+            valueText: '--',
+            typeText: '--',
+            updatedAtMs: 0,
+            rawValue: null,
+            placeholder: true
+          };
+        });
+
+        entriesByCard[schema.id].forEach(entry => {
+          const rawName = entry.param.name || ('p#' + entry.paramId);
+          const canonicalName = canonicalizeCardParamName(schema, rawName);
+
+          if (schema.selectableSubtype && !orderedNames.includes(canonicalName)) {
+            return;
+          }
+
+          card.rowsByName[canonicalName] = {
+            name: canonicalName,
+            valueText: getMirrorValueText(entry.param),
+            typeText: getMirrorTypeText(entry.param),
+            updatedAtMs: entry.param.updatedAtMs || 0,
+            rawValue: entry.param.value,
+            placeholder: false
+          };
+          if (!schema.selectableSubtype && !orderedNames.includes(canonicalName)) {
+            orderedNames.push(canonicalName);
+          }
+          card.latestMs = Math.max(card.latestMs, entry.param.updatedAtMs || 0);
+        });
+
+        card.orderedNames = orderedNames;
+        card.effectiveSubtypeKey = resolvedSubtypeKey;
+      });
+
+      return mirrorModuleSchemas.map(schema => {
+        const card = cardsById[schema.id];
+        const orderedRows = [];
+        (card.orderedNames || []).forEach(name => {
+          if (Object.prototype.hasOwnProperty.call(card.rowsByName, name)) {
+            orderedRows.push(card.rowsByName[name]);
+          }
+        });
+
+        let rows = orderedRows;
+        if (!schema.selectableSubtype) {
+          const extraRows = Object.values(card.rowsByName)
+            .filter(row => !(card.orderedNames || []).includes(row.name))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          rows = orderedRows.concat(extraRows);
+        }
+
+        return {
+          id: card.id,
+          title: card.title,
+          typeName: card.typeName,
+          enabledText: getEnabledTextForCard({ schema, rows }),
+          latestMs: card.latestMs,
+          subtypeOptions: card.subtypeOptions,
+          effectiveSubtypeKey: card.effectiveSubtypeKey,
+          selectableSubtype: schema.selectableSubtype,
+          rows
+        };
+      });
+    }
+
+    function renderMirrorSessionBar() {
+      const stats = thrIncomingParser.state.stats;
+      const conn = document.getElementById('mirrorSessionConnection');
+      const counters = document.getElementById('mirrorSessionStats');
+      const meta = document.getElementById('mirrorSessionMeta');
+      if (!conn || !counters || !meta) return;
+
+      conn.textContent = 'Transport: ' + getMirrorTransportText();
+      counters.textContent =
+        'Frames RX: ' + stats.framesRx +
+        ' | Events: ' + stats.eventsRx +
+        ' | Errors: ' + stats.parserErrors;
+
+      const rxTime = stats.lastEventAtMs ? new Date(stats.lastEventAtMs).toLocaleTimeString() : 'n/a';
+      const warning = stats.lastError && stats.lastError !== 'none' ? (' | Warning: ' + stats.lastError) : '';
+      meta.textContent = 'Last RX: ' + rxTime + ' | Freeze: ' + (mirrorUiState.freezeCards ? 'ON' : 'OFF') + warning;
+    }
+
+    function renderMirrorTicker() {
+      const container = document.getElementById('mirrorTicker');
+      if (!container) return;
+      if (!mirrorUiState.recentChanges.length) {
+        container.innerHTML = '<div class="mirrorTickerRow">No parser events yet.</div>';
+        return;
+      }
+
+      container.innerHTML = mirrorUiState.recentChanges.slice(0, 40).map(item => {
+        const timeText = item.timeMs ? new Date(item.timeMs).toLocaleTimeString() : 'n/a';
+        return '<div class="mirrorTickerRow">' +
+          escapeHtml(timeText + '  ' + item.module + '  ' + item.name + '  ' + item.value + '  ' + item.sourceKind) +
+          '</div>';
+      }).join('');
+    }
+
+    function renderMirrorCards() {
+      if (mirrorUiState.freezeCards) return;
+      const container = document.getElementById('mirrorCards');
+      if (!container) return;
+
+      const entries = getMirrorUnitEntries();
+      const cards = createPermanentMirrorCards(entries);
+      if (!cards.length) {
+        container.innerHTML = '<div class="mirrorCard">No module data received yet.</div>';
+        return;
+      }
+
+      container.innerHTML = cards.map(card => {
+        const updatedText = card.latestMs ? new Date(card.latestMs).toLocaleTimeString() : 'n/a';
+        const canPreviewSelect = card.id === 'amp' || card.id === 'effect' || card.id === 'echo' || card.id === 'reverb';
+        const selectorHtml = (card.selectableSubtype && canPreviewSelect)
+          ? '<select class="mirrorSubtypeSelect" data-card-id="' + escapeHtml(card.id) + '">' +
+            card.subtypeOptions.map(opt => {
+              const selected = card.effectiveSubtypeKey === opt.value ? ' selected' : '';
+              return '<option' + selected + ' value="' + escapeHtml(opt.value) + '">' + escapeHtml(opt.label) + '</option>';
+            }).join('') +
+            '</select>'
+          : '';
+
+        const rows = card.rows.map(row => {
+          const valueText = row.placeholder ? '--' : row.valueText;
+          const typeText = row.placeholder ? '--' : row.typeText;
+          return '<tr>' +
+            '<td>' + escapeHtml(row.name) + '</td>' +
+            '<td>' + escapeHtml(valueText) + '</td>' +
+            '<td>' + escapeHtml(typeText) + '</td>' +
+            '</tr>';
+        }).join('');
+
+        return '<article class="mirrorCard">' +
+          '<div class="mirrorCardHeader"><span>' + escapeHtml(card.title) + '</span><div class="mirrorCardHeaderRight"><span>Type: ' + escapeHtml(card.typeName || 'n/a') + ' | ' + escapeHtml(card.enabledText) + '</span>' + selectorHtml + '</div></div>' +
+          '<div class="mirrorCardMeta">Last updated: ' + escapeHtml(updatedText) + ' | Rows: ' + card.rows.length + '</div>' +
+          '<table class="mirrorParamTable"><thead><tr><th>Param Name</th><th>Value</th><th>Type</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+          '</article>';
+      }).join('');
+    }
+
+    function renderMirrorUnresolved() {
+      const container = document.getElementById('mirrorUnresolved');
+      if (!container) return;
+
+      const lines = [];
+      const units = Object.values(thrIncomingParser.state.units || {});
+      units.forEach(unit => {
+        const unitUnresolved = !unit.name || /^u#/.test(unit.name);
+        if (unitUnresolved) {
+          lines.push('unit unresolved: uKey=' + (Number(unit.id) >>> 0));
+        }
+        Object.values(unit.parameters || {}).forEach(param => {
+          const paramUnresolved = !param.name || /^p#/.test(param.name);
+          if (!unitUnresolved && !paramUnresolved) return;
+          const valueText = getMirrorValueText(param);
+          lines.push(
+            'uKey=' + (Number(unit.id) >>> 0) +
+            ' pKey=' + (Number(param.id) >>> 0) +
+            ' name=' + (param.name || 'n/a') +
+            ' type=' + getMirrorTypeText(param) +
+            ' value=' + valueText
+          );
+        });
+      });
+
+      container.textContent = lines.length ? lines.join('\n') : 'No unresolved keys currently visible.';
+    }
+
+    function renderParserMirrorView() {
+      renderMirrorSessionBar();
+      renderMirrorTicker();
+      renderMirrorCards();
+      renderMirrorUnresolved();
+    }
+
+    function setActiveTab(tabName) {
+      mirrorUiState.activeTab = tabName === 'mirror' ? 'mirror' : 'controls';
+      const controlsActive = mirrorUiState.activeTab === 'controls';
+
+      const btnControls = document.getElementById('tabControls');
+      const btnMirror = document.getElementById('tabMirror');
+      const viewControls = document.getElementById('viewControls');
+      const viewMirror = document.getElementById('viewMirror');
+      if (!btnControls || !btnMirror || !viewControls || !viewMirror) return;
+
+      btnControls.classList.toggle('active', controlsActive);
+      btnMirror.classList.toggle('active', !controlsActive);
+      btnControls.setAttribute('aria-selected', controlsActive ? 'true' : 'false');
+      btnMirror.setAttribute('aria-selected', controlsActive ? 'false' : 'true');
+
+      viewControls.classList.toggle('active', controlsActive);
+      viewMirror.classList.toggle('active', !controlsActive);
+      viewControls.setAttribute('aria-hidden', controlsActive ? 'false' : 'true');
+      viewMirror.setAttribute('aria-hidden', controlsActive ? 'true' : 'false');
+
+      if (!controlsActive) {
+        renderParserMirrorView();
+      }
+    }
+
     window.thrIncomingParser = thrIncomingParser;
 
     function pushParserHistory(entry) {
@@ -1450,6 +2389,7 @@
       thrIncomingParser.state.stats.parserErrors += 1;
       thrIncomingParser.state.stats.lastError = source + ': ' + err.message;
       updateParserDiagnosticsView();
+      renderParserMirrorView();
     }
 
     function registerOutgoingForParser(bytes, label) {
@@ -1557,6 +2497,7 @@
           });
           syncControlsFromShadowState();
           updateParserDiagnosticsView();
+          renderParserMirrorView();
         } catch (err) {
           log('RX ' + source + ' parser error: ' + err.message);
           onParserError(source, err);
@@ -1586,6 +2527,7 @@
       document.querySelectorAll('.btnAmpModel').forEach(btn => { btn.disabled = !connected; });
       document.querySelectorAll('.btnAmpCollection').forEach(btn => { btn.disabled = !connected; });
       document.querySelectorAll('.builderControl').forEach(el => { el.disabled = !connected; });
+      renderParserMirrorView();
     }
 
     function anyConnected() {
@@ -2190,8 +3132,23 @@
       btn.addEventListener('click', () => safeRun(() => sendBuilderControl(btn)));
     });
 
+    document.getElementById('mirrorCards').addEventListener('change', e => {
+      const target = e.target;
+      if (!(target instanceof HTMLSelectElement)) return;
+      if (!target.classList.contains('mirrorSubtypeSelect')) return;
+      const cardId = target.dataset.cardId;
+      if (!cardId) return;
+      mirrorUiState.previewSubtypeByCard[cardId] = target.value;
+      renderMirrorCards();
+    });
+
+    document.getElementById('tabControls').addEventListener('click', () => setActiveTab('controls'));
+    document.getElementById('tabMirror').addEventListener('click', () => setActiveTab('mirror'));
+
     renderAmpCollections();
     updateParserDiagnosticsView();
+    setActiveTab('controls');
+    renderParserMirrorView();
     setStatus();
   </script>
 </body>
