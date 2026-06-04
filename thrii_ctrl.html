@@ -390,6 +390,14 @@
     </fieldset>
 
     <fieldset>
+      <legend>Preset Library</legend>
+      <div class="row">
+        <button id="btnExportPreset">Export current preset (.thrl6p)</button>
+      </div>
+      <small>Exports the current parser shadow state as a THR-II preset JSON file.</small>
+    </fieldset>
+
+    <fieldset>
       <legend>THR-II Amps</legend>
       <div id="ampCollections" class="amp-grid"></div>
       <small>Each collection includes 8 amp models. Buttons send generated 2-message SysEx commands.</small>
@@ -661,6 +669,14 @@
       defaultUploadTailWords: [0x00000000, 0x00000001, 0x00000000, 0x00000000]
     };
 
+    const thrL6PresetFormat = {
+      schema: 'L6Preset',
+      version: 5,
+      defaultMeta: { original: 0, pbn: 0, premium: 0 },
+      defaultDevice: 2359298,
+      defaultDeviceVersion: 20971617
+    };
+
     let bleDevice = null;
     let bleServer = null;
     let bleMidiChar = null;
@@ -895,6 +911,25 @@
       const key = Number(symbolKey) >>> 0;
       const name = getResolvedSymbolName(key);
       return { id: key, name: name || null };
+    }
+
+    function resolveSymbolKeyByName(names) {
+      const candidates = Array.isArray(names) ? names : [names];
+      for (let i = 0; i < candidates.length; i += 1) {
+        const name = String(candidates[i] || '').trim();
+        if (!name) continue;
+        const byName = thrIncomingParser && thrIncomingParser.symbols ? thrIncomingParser.symbols.byName : null;
+        if (byName && Object.prototype.hasOwnProperty.call(byName, name)) {
+          const key = Number(byName[name]);
+          if (Number.isFinite(key)) return key >>> 0;
+        }
+      }
+
+      if (candidates.some(name => String(name || '').trim() === 'GuitarAmp')) {
+        return 98;
+      }
+
+      return null;
     }
 
     async function ensureParserSymbolsLoaded() {
@@ -1857,7 +1892,9 @@
               if (isBlockHeader) {
                 if (knownUnits.has(keyU16)) {
                   currentUnitKey = keyU16 >>> 0;
-                  if (unitTypeKey > 0x7f && unitTypeKey < 0x00020000) {
+                  // Valid amp/effect type symbols include low IDs (e.g. THR10C_Deluxe = 74).
+                  // Do not discard <0x80 values here; keep non-zero plausible symbol IDs.
+                  if (unitTypeKey > 0 && unitTypeKey < 0x00020000) {
                     entries.push({
                       kind: 'unit_type',
                       byteOffset: p,
@@ -1955,6 +1992,55 @@
       };
     }
 
+    function findFirstDumpParamValueByKey(rawDumpBytes, targetParamKey) {
+      const raw = rawDumpBytes instanceof Uint8Array ? rawDumpBytes : Uint8Array.from([]);
+      if (!raw.length) return null;
+      const wanted = Number(targetParamKey) & 0xffff;
+      if (!Number.isFinite(wanted)) return null;
+
+      for (let p = 0; p + 2 <= raw.length;) {
+        if ((p + 6) <= raw.length) {
+          const keyU16 = ((raw[p] >>> 0) | ((raw[p + 1] >>> 0) << 8)) >>> 0;
+          const typeCode = readDumpTypeCodeFromBytes(raw, p + 2);
+
+          if ((typeCode === 1 || typeCode === 2 || typeCode === 3) && (p + 10) <= raw.length) {
+            if ((keyU16 & 0xffff) === wanted) {
+              const rawValue = readU32LEFromBytes(raw, p + 6);
+              const decoded = decodeDumpTypedValue(typeCode, rawValue);
+              return {
+                key: keyU16 >>> 0,
+                typeCode,
+                rawValue: rawValue >>> 0,
+                value: decoded
+              };
+            }
+            p += 10;
+            continue;
+          }
+
+          if (typeCode === 4 && (p + 10) <= raw.length) {
+            const byteLen = Number(readU32LEFromBytes(raw, p + 6)) >>> 0;
+            const payloadStart = p + 10;
+            const remaining = raw.length - payloadStart;
+            if (byteLen <= remaining && byteLen <= 512) {
+              p += 10 + byteLen;
+              continue;
+            }
+          }
+
+          const pseudoValue = readU32LEFromBytes(raw, p + 2);
+          if (isLikelyDumpPseudoToken(keyU16, pseudoValue)) {
+            p += 6;
+            continue;
+          }
+        }
+
+        p += 1;
+      }
+
+      return null;
+    }
+
     function projectDumpDomainToShadowState(domain, source) {
       if (!domain || !Array.isArray(domain.entries)) return;
 
@@ -1995,6 +2081,51 @@
           updatedAtMs: nowMs
         };
       });
+
+      const ampUnitKey = Number(thrKeys.unit.amp) >>> 0;
+      const ampUnit = ensureShadowUnit(ampUnitKey, resolveSymbol(ampUnitKey).name);
+      const resolvedAmpSubtype = resolveSubtypeKey('amp', ampUnit.typeName, ampUnit.typeKey);
+      if (!resolvedAmpSubtype) {
+        let ampModelKey = null;
+
+        const fromShadow = resolveParamFromUnitThenGlobal(ampUnit, ['GuitarAmp']);
+        ampModelKey = resolveNumericParamValue(fromShadow, null);
+
+        if (ampModelKey == null && domain.sourcePatchRaw instanceof Uint8Array) {
+          const guitarAmpKey = resolveSymbolKeyByName(['GuitarAmp']);
+          if (guitarAmpKey != null) {
+            const hit = findFirstDumpParamValueByKey(domain.sourcePatchRaw, guitarAmpKey);
+            if (hit && hit.value) {
+              const decodedNum = Number(hit.value.decoded);
+              if (Number.isFinite(decodedNum)) {
+                ampModelKey = decodedNum;
+              }
+            }
+          }
+        }
+
+        if (ampModelKey != null) {
+          const normalizedAmpModelKey = Math.round(Number(ampModelKey)) >>> 0;
+          const normalizedAmpSubtype = resolveSubtypeKey('amp', '', normalizedAmpModelKey);
+          const ampTypeResolved = resolveSymbol(normalizedAmpModelKey);
+          if (normalizedAmpSubtype) {
+            ampUnit.typeKey = normalizedAmpModelKey;
+            ampUnit.typeName = normalizedAmpSubtype;
+          } else if (ampTypeResolved && ampTypeResolved.name) {
+            ampUnit.typeKey = normalizedAmpModelKey;
+            ampUnit.typeName = ampTypeResolved.name;
+          }
+        }
+      }
+
+      if (!resolveSubtypeKey('amp', ampUnit.typeName, ampUnit.typeKey)) {
+        const ampTypeName = String(ampUnit.typeName || 'n/a');
+        const ampTypeKey = ampUnit.typeKey == null ? 'n/a' : String(Number(ampUnit.typeKey) >>> 0);
+        const gAmp = resolveParamFromUnitThenGlobal(ampUnit, ['GuitarAmp']);
+        const gAmpRaw = gAmp ? String(Number(gAmp.rawU32) >>> 0) : 'n/a';
+        const gAmpVal = gAmp ? String(gAmp.value) : 'n/a';
+        log('Dump amp subtype unresolved: typeName=' + ampTypeName + ' typeKey=' + ampTypeKey + ' GuitarAmp(raw=' + gAmpRaw + ',val=' + gAmpVal + ')');
+      }
     }
 
     function ensureShadowUnit(uKey, unitName) {
@@ -2304,7 +2435,14 @@
           unit.parameters = retained;
         }
 
-        const cardId = getCardIdForUnitName(unit.name);
+        let cardId = null;
+        if (unitId === (thrKeys.unit.amp >>> 0)) cardId = 'amp';
+        else if (unitId === (thrKeys.unit.fx2 >>> 0)) cardId = 'effect';
+        else if (unitId === (thrKeys.unit.fx3 >>> 0)) cardId = 'echo';
+        else if (unitId === (thrKeys.unit.fx4 >>> 0)) cardId = 'reverb';
+        if (!cardId) {
+          cardId = getCardIdForUnitName(unit.name);
+        }
         if (cardId && Object.prototype.hasOwnProperty.call(mirrorUiState.previewSubtypeByCard, cardId)) {
           delete mirrorUiState.previewSubtypeByCard[cardId];
         }
@@ -2775,6 +2913,16 @@
       }
 
       if (typeFamily === 'amp') {
+        if (Number.isFinite(numericTypeKey)) {
+          const asKey = numericTypeKey >>> 0;
+          const byHex = Object.values(ampCollections)
+            .flatMap(collection => collection.amps || [])
+            .find(amp => (Number(amp.hex) >>> 0) === asKey);
+          if (byHex && byHex.symbol) {
+            return String(byHex.symbol);
+          }
+        }
+
         const symbol = raw.trim();
         if (!symbol) return null;
         const options = getMirrorSubtypeOptions('amp');
@@ -2841,6 +2989,10 @@
       if (unitName === 'FX3') return 'echo';
       if (unitName === 'FX4') return 'reverb';
       if (unitName === 'Amp') return 'amp';
+      if (unitName === 'THRGroupFX2') return 'effect';
+      if (unitName === 'THRGroupFX3') return 'echo';
+      if (unitName === 'THRGroupFX4') return 'reverb';
+      if (unitName === 'THRGroupAmp') return 'amp';
       return null;
     }
 
@@ -3002,6 +3154,23 @@
         if (unit && unit.typeKey != null) {
           card.typeKey = Number(unit.typeKey) >>> 0;
         }
+        if (item.id === 'amp') {
+          let resolvedAmp = resolveSubtypeKey('amp', card.typeName, card.typeKey);
+          if (!resolvedAmp && unit) {
+            const ampModelParam = resolveParamFromUnitThenGlobal(unit, ['GuitarAmp']);
+            const ampModelValue = resolveNumericParamValue(ampModelParam, null);
+            if (ampModelValue != null) {
+              const ampResolved = resolveSymbol(Math.round(ampModelValue) >>> 0);
+              const ampSymbol = ampResolved && ampResolved.name ? String(ampResolved.name).trim() : '';
+              if (ampSymbol && getMirrorSubtypeOptions('amp').some(opt => opt.value === ampSymbol)) {
+                resolvedAmp = ampSymbol;
+              }
+            }
+          }
+          if (resolvedAmp) {
+            card.typeName = resolvedAmp;
+          }
+        }
       });
 
       mirrorModuleSchemas.forEach(schema => {
@@ -3150,14 +3319,23 @@
       container.innerHTML = cards.map(card => {
         const updatedText = card.latestMs ? new Date(card.latestMs).toLocaleTimeString() : 'n/a';
         const canPreviewSelect = card.id === 'amp' || card.id === 'effect' || card.id === 'echo' || card.id === 'reverb';
+        const hasSelectedSubtype = !!(card.effectiveSubtypeKey && card.subtypeOptions.some(opt => opt.value === card.effectiveSubtypeKey));
+        const unresolvedOptionHtml = (card.selectableSubtype && canPreviewSelect && !hasSelectedSubtype)
+          ? '<option selected value="">Unknown subtype</option>'
+          : '';
         const selectorHtml = (card.selectableSubtype && canPreviewSelect)
           ? '<select class="mirrorSubtypeSelect" data-card-id="' + escapeHtml(card.id) + '">' +
+            unresolvedOptionHtml +
             card.subtypeOptions.map(opt => {
               const selected = card.effectiveSubtypeKey === opt.value ? ' selected' : '';
               return '<option' + selected + ' value="' + escapeHtml(opt.value) + '">' + escapeHtml(opt.label) + '</option>';
             }).join('') +
             '</select>'
           : '';
+
+        const displayTypeName = (card.selectableSubtype && hasSelectedSubtype)
+          ? card.effectiveSubtypeKey
+          : (card.typeName || 'n/a');
 
         const rows = card.rows.map(row => {
           const valueText = row.placeholder ? '--' : row.valueText;
@@ -3170,7 +3348,7 @@
         }).join('');
 
         return '<article class="mirrorCard">' +
-          '<div class="mirrorCardHeader"><span>' + escapeHtml(card.title) + '</span><div class="mirrorCardHeaderRight"><span>Type: ' + escapeHtml(card.typeName || 'n/a') + ' | ' + escapeHtml(card.enabledText) + '</span>' + selectorHtml + '</div></div>' +
+          '<div class="mirrorCardHeader"><span>' + escapeHtml(card.title) + '</span><div class="mirrorCardHeaderRight"><span>Type: ' + escapeHtml(displayTypeName) + ' | ' + escapeHtml(card.enabledText) + '</span>' + selectorHtml + '</div></div>' +
           '<div class="mirrorCardMeta">Last updated: ' + escapeHtml(updatedText) + ' | Rows: ' + card.rows.length + '</div>' +
           '<table class="mirrorParamTable"><thead><tr><th>Param Name</th><th>Value</th><th>Type</th></tr></thead><tbody>' + rows + '</tbody></table>' +
           '</article>';
@@ -4555,12 +4733,496 @@
       throw new Error('Invalid dump target from control.');
     }
 
+    // Utility functions for shadow preset parameter handling and preset building.
+    function toFiniteNumber(value, fallback = null) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return fallback;
+      return n;
+    }
+
+    function toBooleanLike(value, fallback = false) {
+      const normalized = normalizeOnOff(value);
+      if (normalized == null) return !!fallback;
+      return !!normalized;
+    }
+
+    function getUnitForExport(unitName, unitId) {
+      return getLatestShadowUnitById(unitId) || getLatestShadowUnitByName(unitName);
+    }
+
+    function toCanonicalParamName(rawName) {
+      const name = String(rawName || '').trim();
+      if (!name) return '';
+      if (name.endsWith('State') && name.length > 5) {
+        return name.slice(0, -5);
+      }
+      return name;
+    }
+
+    function collectCanonicalUnitParams(unit) {
+      const out = new Map();
+      if (!unit || !unit.parameters) return out;
+
+      Object.values(unit.parameters).forEach(param => {
+        const rawName = String(param && param.name ? param.name : '').trim();
+        const canonical = toCanonicalParamName(rawName);
+        if (!canonical) return;
+
+        const current = out.get(canonical) || null;
+        const currentTs = current && Number.isFinite(Number(current.updatedAtMs)) ? Number(current.updatedAtMs) : -1;
+        const nextTs = Number.isFinite(Number(param.updatedAtMs)) ? Number(param.updatedAtMs) : -1;
+        if (!current || nextTs >= currentTs) {
+          out.set(canonical, param);
+        }
+      });
+
+      return out;
+    }
+
+    function findShadowParamByCandidates(unit, candidateNames = [], options = {}) {
+      const candidates = Array.isArray(candidateNames) ? candidateNames : [];
+      if (!candidates.length) return null;
+      const allowGlobalFallback = options.allowGlobalFallback !== false;
+
+      const canonicalMap = collectCanonicalUnitParams(unit);
+      for (let i = 0; i < candidates.length; i += 1) {
+        const candidate = toCanonicalParamName(candidates[i]);
+        if (!candidate) continue;
+        if (canonicalMap.has(candidate)) {
+          return canonicalMap.get(candidate);
+        }
+      }
+
+      if (!allowGlobalFallback) {
+        return null;
+      }
+
+      for (let i = 0; i < candidates.length; i += 1) {
+        const exact = readShadowParamByName(String(candidates[i] || '').trim());
+        if (exact && exact.param) return exact.param;
+      }
+
+      for (let i = 0; i < candidates.length; i += 1) {
+        const base = toCanonicalParamName(candidates[i]);
+        if (!base) continue;
+        const withState = readShadowParamByName(base + 'State');
+        if (withState && withState.param) return withState.param;
+      }
+
+      return null;
+    }
+
+    function resolveParamFromUnitThenGlobal(unit, candidateNames = []) {
+      const candidates = Array.isArray(candidateNames) ? candidateNames : [];
+      if (!candidates.length) return null;
+
+      const local = findShadowParamByCandidates(unit, candidates, { allowGlobalFallback: false });
+      if (local) return local;
+
+      const tried = new Set();
+      for (let i = 0; i < candidates.length; i += 1) {
+        const raw = String(candidates[i] || '').trim();
+        if (!raw) continue;
+
+        const namesToTry = [raw];
+        const canonical = toCanonicalParamName(raw);
+        if (canonical && canonical !== raw) {
+          namesToTry.push(canonical);
+        }
+        if (canonical) {
+          namesToTry.push(canonical + 'State');
+        }
+
+        for (let j = 0; j < namesToTry.length; j += 1) {
+          const name = namesToTry[j];
+          if (!name || tried.has(name)) continue;
+          tried.add(name);
+          const hit = readShadowParamByName(name);
+          if (hit && hit.param) {
+            return hit.param;
+          }
+        }
+      }
+
+      return null;
+    }
+
+    function resolveNumericParamValue(param, fallback = null) {
+      if (!param) return fallback;
+      const valueNum = Number(param.value);
+      if (Number.isFinite(valueNum)) return valueNum;
+      const rawNum = Number(param.rawU32);
+      if (Number.isFinite(rawNum)) return rawNum;
+      return fallback;
+    }
+
+    function findLatestDumpUnitTypeKey(unitId) {
+      const key = Number(unitId) >>> 0;
+      const patch = thrIncomingParser && thrIncomingParser.state && thrIncomingParser.state.dumpDomain
+        ? thrIncomingParser.state.dumpDomain.lastPatch
+        : null;
+      if (!patch || !Array.isArray(patch.entries)) return null;
+
+      for (let i = patch.entries.length - 1; i >= 0; i -= 1) {
+        const entry = patch.entries[i];
+        if (!entry || entry.kind !== 'unit_type') continue;
+        if ((Number(entry.unitKey) >>> 0) !== key) continue;
+        const unitTypeKey = Number(entry.unitTypeKey);
+        if (Number.isFinite(unitTypeKey)) {
+          return unitTypeKey >>> 0;
+        }
+      }
+
+      return null;
+    }
+
+    function isInvalidExportAssetName(asset, unitName = '') {
+      const v = String(asset || '').trim();
+      if (!v) return true;
+      if (v === String(unitName || '').trim()) return true;
+      if (/^Y2.*Flow$/i.test(v)) return true;
+      if (/^(GuitarAmp|AmpCategory|Cabinet|Gate)$/i.test(v)) return true;
+      if (/^(7BandSpkEq|Dynamic_EQ)$/i.test(v)) return true;
+      if (/^AUDIOBLOCK_/i.test(v)) return true;
+      if (/^SPKSIM_/i.test(v)) return true;
+      if (/^(Amp|Cabinet|FX1|FX2|FX3|FX4|Global|GuitarProc)$/i.test(v)) return true;
+      return false;
+    }
+
+    function isValidAssetForFamily(asset, typeFamily) {
+      const name = String(asset || '').trim();
+      if (!name) return false;
+
+      if (typeFamily === 'amp') {
+        if (getMirrorSubtypeOptions('amp').some(opt => opt.value === name)) return true;
+        if (/^THR/i.test(name)) return true;
+        if (/Amp$/i.test(name)) return true;
+        if (/Flat/i.test(name)) return true;
+        return false;
+      }
+
+      if (typeFamily === 'effect' || typeFamily === 'echo' || typeFamily === 'reverb') {
+        if (resolveSubtypeKey(typeFamily, name, null) != null) return true;
+        if (/^[A-Za-z0-9_]+$/.test(name) && !/(State|Enable|Mix(Type)?|Flow|Category)$/i.test(name)) {
+          return true;
+        }
+        return false;
+      }
+
+      return true;
+    }
+
+    function getUnitAssetName(unit, options = {}) {
+      if (!unit) {
+        throw new Error('Cannot resolve asset: unit is missing for ' + (options.groupName || 'group'));
+      }
+
+      const typeFamily = options.typeFamily || null;
+      const valueCandidates = Array.isArray(options.valueCandidates) ? options.valueCandidates : [];
+      const preferValueCandidates = !!options.preferValueCandidates;
+      const unitId = Number(options.unitId);
+
+      const pickCandidate = (candidate) => {
+        const name = String(candidate || '').trim();
+        if (isInvalidExportAssetName(name, unit.name)) return null;
+        if (typeFamily && !isValidAssetForFamily(name, typeFamily)) return null;
+        return name;
+      };
+
+      const pickFromValueCandidates = () => {
+        for (let i = 0; i < valueCandidates.length; i += 1) {
+          const valueParam = resolveParamFromUnitThenGlobal(unit, [valueCandidates[i]]);
+          const valueNumeric = resolveNumericParamValue(valueParam, null);
+          if (valueNumeric == null) continue;
+          const resolved = resolveSymbol(Math.round(valueNumeric) >>> 0);
+          const fromValueKey = resolved && resolved.name ? String(resolved.name).trim() : '';
+          const pickedValueKey = pickCandidate(fromValueKey);
+          if (pickedValueKey) {
+            return pickedValueKey;
+          }
+        }
+        return null;
+      };
+
+      if (preferValueCandidates) {
+        const fromValueFirst = pickFromValueCandidates();
+        if (fromValueFirst) return fromValueFirst;
+      }
+
+      const fromTypeName = String(unit.typeName || '').trim();
+      const pickedTypeName = pickCandidate(fromTypeName);
+      if (pickedTypeName) {
+        return pickedTypeName;
+      }
+
+      const typeKey = Number(unit.typeKey);
+      if (Number.isFinite(typeKey)) {
+        const resolved = resolveSymbol(typeKey >>> 0);
+        const fromTypeKey = resolved && resolved.name ? String(resolved.name).trim() : '';
+        const pickedTypeKey = pickCandidate(fromTypeKey);
+        if (pickedTypeKey) {
+          return pickedTypeKey;
+        }
+      }
+
+      if (Number.isFinite(unitId)) {
+        const dumpTypeKey = findLatestDumpUnitTypeKey(unitId >>> 0);
+        if (dumpTypeKey != null) {
+          const resolved = resolveSymbol(dumpTypeKey >>> 0);
+          const fromDumpType = resolved && resolved.name ? String(resolved.name).trim() : '';
+          const pickedDumpType = pickCandidate(fromDumpType);
+          if (pickedDumpType) {
+            return pickedDumpType;
+          }
+        }
+      }
+
+      const fromValue = pickFromValueCandidates();
+      if (fromValue) return fromValue;
+
+      const group = options.groupName || 'group';
+      throw new Error('Cannot resolve asset name for ' + group + '. Download/sync a full dump first.');
+    }
+
+    function buildGroupNumericParams(unit, options = {}) {
+      const out = {};
+      const canonicalMap = collectCanonicalUnitParams(unit);
+      const skip = new Set((options.skipCanonicalNames || []).map(name => toCanonicalParamName(name)).filter(Boolean));
+      const allow = options.allowCanonicalNames
+        ? new Set(options.allowCanonicalNames.map(name => toCanonicalParamName(name)).filter(Boolean))
+        : null;
+
+      canonicalMap.forEach((param, canonicalName) => {
+        if (allow && !allow.has(canonicalName)) return;
+        if (skip.has(canonicalName)) return;
+        const n = toFiniteNumber(param && param.value, null);
+        if (n == null) return;
+        out[canonicalName] = n;
+      });
+
+      return out;
+    }
+
+    function sanitizePresetFileName(name) {
+      const base = String(name || 'My Preset').trim() || 'My Preset';
+      const cleaned = base.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/\s+/g, ' ').trim();
+      return (cleaned || 'My Preset') + '.thrl6p';
+    }
+
+    function getDefaultExportPresetName() {
+      const patchDomain = thrIncomingParser.state.dumpDomain && thrIncomingParser.state.dumpDomain.lastPatch
+        ? thrIncomingParser.state.dumpDomain.lastPatch
+        : null;
+      const fromDump = patchDomain && typeof patchDomain.patchName === 'string'
+        ? patchDomain.patchName.trim()
+        : '';
+      return fromDump || 'My Preset';
+    }
+
+    function hasShadowAmpData() {
+      const amp = getUnitForExport('Amp', thrKeys.unit.amp);
+      if (!amp || !amp.parameters) return false;
+      return Object.keys(amp.parameters).length > 0;
+    }
+
+    function resolveCabinetIndex(ampUnit, guitarProcUnit) {
+      const spkParam = resolveParamFromUnitThenGlobal(guitarProcUnit, ['SpkSimType', 'SpkSimTypeState']) ||
+        resolveParamFromUnitThenGlobal(ampUnit, ['SpkSimType', 'SpkSimTypeState']) ||
+        resolveParamFromUnitThenGlobal(null, ['SpkSimType', 'SpkSimTypeState']);
+      const raw = resolveNumericParamValue(spkParam, 0);
+      const rounded = Math.round(raw);
+      const map = (thrKeys && thrKeys.enumValue && thrKeys.enumValue.cabinetSymbolToIndex)
+        ? thrKeys.enumValue.cabinetSymbolToIndex
+        : {};
+      if (Object.prototype.hasOwnProperty.call(map, String(rounded))) {
+        const mapped = Number(map[String(rounded)]);
+        if (Number.isFinite(mapped)) {
+          return Math.max(0, Math.min(16, Math.round(mapped)));
+        }
+      }
+      return Math.max(0, Math.min(16, rounded));
+    }
+
+    function resolveTempoValue(globalUnit) {
+      const tempoParam = resolveParamFromUnitThenGlobal(globalUnit, ['THRPresetParamTempo']);
+      const tempoRaw = resolveNumericParamValue(tempoParam, null);
+      if (!Number.isFinite(tempoRaw)) return 110;
+      if (tempoRaw < 30 || tempoRaw > 300) return 110;
+      return Math.round(tempoRaw);
+    }
+
+    function resolveEnabledValue(unit, groupPrefix, fallbackUnit = null) {
+      const candidates = [
+        groupPrefix + 'EnableState',
+        groupPrefix + 'Enable'
+      ];
+      const hit = resolveParamFromUnitThenGlobal(null, candidates) ||
+        resolveParamFromUnitThenGlobal(unit, candidates) ||
+        (fallbackUnit ? resolveParamFromUnitThenGlobal(fallbackUnit, candidates) : null);
+      return toBooleanLike(hit ? hit.value : null, false);
+    }
+
+    function resolveWetDryValue(unit, groupPrefix, fallbackUnit = null) {
+      const byGroup = {
+        FX2: ['FX2Mix', 'FX2MixState', 'WetDry', 'ModWetDry', 'MixState', 'Mix', 'mix'],
+        FX3: ['FX3Mix', 'FX3MixState', 'WetDry', 'ModWetDry', 'MixState', 'Mix', 'mix'],
+        FX4: ['FX4WetSend', 'FX4WetSendState', 'FX4Mix', 'FX4MixState', 'WetDry', 'MixState', 'Mix', 'mix']
+      };
+      const candidates = byGroup[groupPrefix] || ['WetDry', 'MixState', 'Mix', 'mix'];
+      const hit = resolveParamFromUnitThenGlobal(null, candidates) ||
+        resolveParamFromUnitThenGlobal(unit, candidates) ||
+        (fallbackUnit ? resolveParamFromUnitThenGlobal(fallbackUnit, candidates) : null);
+      return clamp01(resolveNumericParamValue(hit, 0));
+    }
+
+    function buildThrL6PresetFromShadow(presetName) {
+      const ampUnit = getUnitForExport('Amp', thrKeys.unit.amp);
+      if (!ampUnit || !ampUnit.parameters || !Object.keys(ampUnit.parameters).length) {
+        throw new Error('No shadow preset data available. Download a settings dump first.');
+      }
+
+      const fx1Unit = getUnitForExport('FX1', thrKeys.unit.fx1);
+      const fx2Unit = getUnitForExport('FX2', thrKeys.unit.fx2);
+      const fx3Unit = getUnitForExport('FX3', thrKeys.unit.fx3);
+      const fx4Unit = getUnitForExport('FX4', thrKeys.unit.fx4);
+      const gateUnit = getUnitForExport('GuitarProc', thrKeys.unit.guitarProc);
+      const globalUnit = getUnitForExport('Global', thrKeys.unit.global);
+
+      const cabValue = resolveCabinetIndex(ampUnit, gateUnit);
+      const tempoValue = resolveTempoValue(globalUnit);
+      const ampSubtypeKey = resolveSubtypeKey('amp', ampUnit.typeName, ampUnit.typeKey);
+      const ampAsset = ampSubtypeKey || getUnitAssetName(ampUnit, {
+        groupName: 'THRGroupAmp',
+        typeFamily: 'amp',
+        valueCandidates: ['GuitarAmp'],
+        preferValueCandidates: true,
+        unitId: thrKeys.unit.amp
+      });
+
+      const tone = {
+        THRGroupAmp: Object.assign(
+          { '@asset': ampAsset },
+          buildGroupNumericParams(ampUnit, {
+            skipCanonicalNames: ['SpkSimType', 'AmpEnable']
+          })
+        ),
+        THRGroupCab: {
+          '@asset': 'speakerSimulator',
+          SpkSimType: Math.max(0, Math.round(cabValue))
+        },
+        THRGroupFX1Compressor: Object.assign(
+          {
+            '@asset': getUnitAssetName(fx1Unit, { groupName: 'THRGroupFX1Compressor' }),
+            '@enabled': resolveEnabledValue(fx1Unit, 'FX1', gateUnit)
+          },
+          buildGroupNumericParams(fx1Unit, {
+            skipCanonicalNames: ['FX1Enable', 'Enable', 'WetDry', 'Mix', 'FX1Mix', 'FX1MixType']
+          })
+        ),
+        THRGroupFX2Effect: Object.assign(
+          {
+            '@asset': getUnitAssetName(fx2Unit, { groupName: 'THRGroupFX2Effect', typeFamily: 'effect' }),
+            '@enabled': resolveEnabledValue(fx2Unit, 'FX2', gateUnit),
+            '@wetDry': resolveWetDryValue(fx2Unit, 'FX2', gateUnit)
+          },
+          buildGroupNumericParams(fx2Unit, {
+            skipCanonicalNames: ['FX2Enable', 'Enable', 'WetDry', 'Mix', 'FX2Mix', 'FX2MixType']
+          })
+        ),
+        THRGroupFX3EffectEcho: Object.assign(
+          {
+            '@asset': getUnitAssetName(fx3Unit, { groupName: 'THRGroupFX3EffectEcho', typeFamily: 'echo' }),
+            '@enabled': resolveEnabledValue(fx3Unit, 'FX3', gateUnit),
+            '@wetDry': resolveWetDryValue(fx3Unit, 'FX3', gateUnit)
+          },
+          buildGroupNumericParams(fx3Unit, {
+            skipCanonicalNames: ['FX3Enable', 'Enable', 'WetDry', 'Mix', 'FX3Mix', 'FX3MixType']
+          })
+        ),
+        THRGroupFX4EffectReverb: Object.assign(
+          {
+            '@asset': getUnitAssetName(fx4Unit, { groupName: 'THRGroupFX4EffectReverb', typeFamily: 'reverb' }),
+            '@enabled': resolveEnabledValue(fx4Unit, 'FX4', gateUnit),
+            '@wetDry': resolveWetDryValue(fx4Unit, 'FX4', gateUnit)
+          },
+          buildGroupNumericParams(fx4Unit, {
+            skipCanonicalNames: ['FX4Enable', 'Enable', 'WetDry', 'Mix', 'FX4Mix', 'FX4MixType']
+          })
+        ),
+        THRGroupGate: Object.assign(
+          {
+            '@asset': 'noiseGate',
+            '@enabled': resolveEnabledValue(gateUnit, 'Gate')
+          },
+          buildGroupNumericParams(gateUnit, {
+            allowCanonicalNames: ['Decay', 'Thresh'],
+            skipCanonicalNames: ['GateEnable', 'Enable']
+          })
+        ),
+        global: {
+          THRPresetParamTempo: tempoValue
+        }
+      };
+
+      if (tone.THRGroupGate['@asset'] !== 'noiseGate') {
+        tone.THRGroupGate['@asset'] = 'noiseGate';
+      }
+
+      return {
+        data: {
+          device: thrL6PresetFormat.defaultDevice,
+          device_version: thrL6PresetFormat.defaultDeviceVersion,
+          meta: {
+            name: String(presetName || 'My Preset'),
+            tnid: 0
+          },
+          tone
+        },
+        meta: Object.assign({}, thrL6PresetFormat.defaultMeta),
+        schema: thrL6PresetFormat.schema,
+        version: thrL6PresetFormat.version
+      };
+    }
+
+    function downloadJsonFile(contentObject, fileName) {
+      const pretty = JSON.stringify(contentObject, null, 1);
+      const blob = new Blob([pretty + '\n'], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = sanitizePresetFileName(fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    }
+
+    async function exportCurrentPresetToThrl6p() {
+      await ensureParserSymbolsLoaded();
+      if (!hasShadowAmpData()) {
+        throw new Error('No shadow preset data available. Download a settings dump first.');
+      }
+
+      const defaultName = getDefaultExportPresetName();
+      const enteredName = window.prompt('Preset name for export:', defaultName);
+      if (enteredName == null) {
+        log('Preset export cancelled by user.');
+        return;
+      }
+
+      const presetName = String(enteredName).trim() || defaultName;
+      const preset = buildThrL6PresetFromShadow(presetName);
+      downloadJsonFile(preset, presetName);
+      log('Preset exported: ' + sanitizePresetFileName(presetName));
+    }
+
     document.getElementById('btnConnect').addEventListener('click', () => safeRun(onConnect));
     document.getElementById('btnDisconnect').addEventListener('click', () => safeRun(disconnectAll));
     document.getElementById('btnClearLog').addEventListener('click', () => {
       document.getElementById('log').textContent = '';
     });
     document.getElementById('btnActivate').addEventListener('click', () => safeRun(activateThrII));
+    document.getElementById('btnExportPreset').addEventListener('click', () => safeRun(exportCurrentPresetToThrl6p));
     document.getElementById('btnSendSysEx').addEventListener('click', () => {
       safeRun(async () => {
         const syx = parseSysExHex(document.getElementById('sysexHex').value);
