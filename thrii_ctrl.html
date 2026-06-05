@@ -393,8 +393,10 @@
       <legend>Preset Library</legend>
       <div class="row">
         <button id="btnExportPreset">Export current preset (.thrl6p)</button>
+        <button id="btnImportPreset">Import preset (.thrl6p)</button>
+        <input id="presetImportFile" type="file" accept=".thrl6p,.json,application/json" style="display:none" />
       </div>
-      <small>Exports the current parser shadow state as a THR-II preset JSON file.</small>
+      <small>Export writes current shadow to file. Import updates shadow + refreshes controls/mirror (no upload in this phase).</small>
     </fieldset>
 
     <fieldset>
@@ -913,6 +915,22 @@
       return { id: key, name: name || null };
     }
 
+    function buildByNameFromById(byId) {
+      const out = {};
+      if (!byId || typeof byId !== 'object') return out;
+      Object.keys(byId).forEach(key => {
+        const name = String(byId[key] || '').trim();
+        if (!name) return;
+        if (!Object.prototype.hasOwnProperty.call(out, name)) {
+          const n = Number(key);
+          if (Number.isFinite(n)) {
+            out[name] = n >>> 0;
+          }
+        }
+      });
+      return out;
+    }
+
     function resolveSymbolKeyByName(names) {
       const candidates = Array.isArray(names) ? names : [names];
       for (let i = 0; i < candidates.length; i += 1) {
@@ -945,7 +963,12 @@
           if (window.THR_SYMBOL_TABLE && window.THR_SYMBOL_TABLE.byId) {
             const table = window.THR_SYMBOL_TABLE;
             thrIncomingParser.symbols.byId = table.byId;
-            thrIncomingParser.symbols.byName = table.byName || {};
+            const tableByName = table.byName && typeof table.byName === 'object'
+              ? table.byName
+              : {};
+            thrIncomingParser.symbols.byName = Object.keys(tableByName).length
+              ? tableByName
+              : buildByNameFromById(table.byId);
             thrIncomingParser.symbols.source = 'doc/thr10ii_w_symbol_table_1_44_0_a.js';
             thrIncomingParser.state.symbols.source = thrIncomingParser.symbols.source;
             thrIncomingParser.symbols.ready = true;
@@ -966,7 +989,9 @@
           }
 
           thrIncomingParser.symbols.byId = parsed.byId;
-          thrIncomingParser.symbols.byName = parsed.byName;
+          thrIncomingParser.symbols.byName = parsed.byName && Object.keys(parsed.byName).length
+            ? parsed.byName
+            : buildByNameFromById(parsed.byId);
           thrIncomingParser.symbols.source = 'doc/thr10ii_w_symbol_table_1_44_0_a.json';
           thrIncomingParser.state.symbols.source = thrIncomingParser.symbols.source;
           thrIncomingParser.symbols.ready = true;
@@ -5216,6 +5241,387 @@
       log('Preset exported: ' + sanitizePresetFileName(presetName));
     }
 
+    function expandParamCandidates(names = []) {
+      const out = [];
+      const add = (value) => {
+        const text = String(value || '').trim();
+        if (!text) return;
+        if (!out.includes(text)) out.push(text);
+      };
+
+      (Array.isArray(names) ? names : [names]).forEach(name => {
+        const raw = String(name || '').trim();
+        if (!raw) return;
+        add(raw);
+        const canonical = toCanonicalParamName(raw);
+        if (canonical && canonical !== raw) add(canonical);
+        if (canonical) add(canonical + 'State');
+      });
+
+      return out;
+    }
+
+    function normalizeParamLookupName(name) {
+      const canonical = toCanonicalParamName(name);
+      return String(canonical || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '');
+    }
+
+    function findUnitParamByCandidates(unit, names = []) {
+      if (!unit || !unit.parameters) return null;
+      const candidates = expandParamCandidates(names);
+      if (!candidates.length) return null;
+      const canonicalWanted = new Set(candidates.map(name => toCanonicalParamName(name)).filter(Boolean));
+      const normalizedWanted = new Set(candidates.map(name => normalizeParamLookupName(name)).filter(Boolean));
+
+      let best = null;
+      Object.values(unit.parameters).forEach(param => {
+        const paramName = String(param && param.name ? param.name : '').trim();
+        if (!paramName) return;
+        const canonicalName = toCanonicalParamName(paramName);
+        const normalizedName = normalizeParamLookupName(paramName);
+        if (!canonicalWanted.has(canonicalName) && !normalizedWanted.has(normalizedName)) return;
+        if (!best || Number(param.updatedAtMs || 0) >= Number(best.updatedAtMs || 0)) {
+          best = param;
+        }
+      });
+
+      return best;
+    }
+
+    function resolveSymbolKeyForCandidates(names = []) {
+      const byName = thrIncomingParser && thrIncomingParser.symbols ? thrIncomingParser.symbols.byName : null;
+      if (!byName) return null;
+      const candidates = expandParamCandidates(names);
+      for (let i = 0; i < candidates.length; i += 1) {
+        const name = candidates[i];
+        if (!Object.prototype.hasOwnProperty.call(byName, name)) continue;
+        const n = Number(byName[name]);
+        if (Number.isFinite(n)) return n >>> 0;
+      }
+
+      const wantedNormalized = candidates
+        .map(name => normalizeParamLookupName(name))
+        .filter(Boolean);
+      if (!wantedNormalized.length) return null;
+
+      const wantedSet = new Set(wantedNormalized);
+      const keys = Object.keys(byName);
+      for (let i = 0; i < keys.length; i += 1) {
+        const keyName = keys[i];
+        if (!wantedSet.has(normalizeParamLookupName(keyName))) continue;
+        const n = Number(byName[keyName]);
+        if (Number.isFinite(n)) return n >>> 0;
+      }
+
+      return null;
+    }
+
+    function encodeShadowRawU32(typeCode, value, existingRaw = 0) {
+      const code = Number(typeCode) >>> 0;
+
+      if (code === (thrTypeCode.float32 >>> 0)) {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return Number(existingRaw) >>> 0;
+        return new DataView(writeF32LE(n).buffer).getUint32(0, true) >>> 0;
+      }
+
+      if (code === (thrTypeCode.bool >>> 0)) {
+        const b = normalizeOnOff(value);
+        if (b == null) return Number(existingRaw) >>> 0;
+        return b ? 0x3f800000 : 0x00000000;
+      }
+
+      if (code === (thrTypeCode.enum >>> 0)) {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return Number(existingRaw) >>> 0;
+        return (Math.round(n) >>> 0);
+      }
+
+      const n = Number(value);
+      if (Number.isFinite(n)) return (Math.round(n) >>> 0);
+      return Number(existingRaw) >>> 0;
+    }
+
+    function upsertShadowParam(unit, candidateNames, value, preferredTypeCode, warnings, contextLabel, options = {}) {
+      if (!unit) return false;
+      const hit = findUnitParamByCandidates(unit, candidateNames);
+      const nowMs = Date.now();
+
+      if (hit) {
+        const useType = Number.isFinite(Number(hit.typeCode)) && Number(hit.typeCode) > 0
+          ? (Number(hit.typeCode) >>> 0)
+          : (Number(preferredTypeCode) >>> 0);
+        hit.typeCode = useType;
+        hit.value = value;
+        hit.rawU32 = encodeShadowRawU32(useType, value, hit.rawU32);
+        hit.decodedKind = useType === (thrTypeCode.bool >>> 0)
+          ? 'bool'
+          : (useType === (thrTypeCode.enum >>> 0) ? 'enum_u32' : 'float32');
+        hit.updatedAtMs = nowMs;
+        return true;
+      }
+
+      let pKey = resolveSymbolKeyForCandidates(candidateNames);
+      if (pKey == null && options.allowSyntheticKey) {
+        pKey = Number(options.syntheticKey) >>> 0;
+      }
+      if (pKey == null) {
+        warnings.push('Skipped unknown parameter ' + contextLabel + ' (' + String(candidateNames[0] || 'n/a') + ')');
+        return false;
+      }
+
+      const useType = Number(preferredTypeCode) >>> 0;
+      const resolvedName = resolveSymbol(pKey).name || String(candidateNames[0] || ('p#' + pKey));
+      unit.parameters[String(pKey)] = {
+        id: pKey,
+        name: resolvedName,
+        typeCode: useType,
+        decodedKind: useType === (thrTypeCode.bool >>> 0)
+          ? 'bool'
+          : (useType === (thrTypeCode.enum >>> 0) ? 'enum_u32' : 'float32'),
+        rawU32: encodeShadowRawU32(useType, value, 0),
+        value,
+        updatedAtMs: nowMs
+      };
+      return true;
+    }
+
+    function getImportSubtypeKeyFromAsset(typeFamily, assetName) {
+      const raw = String(assetName || '').trim();
+      if (!raw) return null;
+
+      const directKey = resolveSymbolKeyForCandidates([raw]);
+      if (directKey != null) {
+        return { key: directKey, name: raw };
+      }
+
+      if (typeFamily === 'amp') {
+        const ampHit = Object.values(ampCollections)
+          .flatMap(collection => collection.amps || [])
+          .find(amp => amp.symbol === raw);
+        if (ampHit) {
+          return { key: Number(ampHit.hex) >>> 0, name: raw };
+        }
+        return null;
+      }
+
+      if (typeFamily === 'effect' || typeFamily === 'echo' || typeFamily === 'reverb') {
+        const subtype = resolveSubtypeKey(typeFamily, raw, null);
+        if (!subtype) return null;
+        const map = typeFamily === 'effect'
+          ? thrKeys.enumValue.effect
+          : (typeFamily === 'echo' ? thrKeys.enumValue.echo : thrKeys.enumValue.reverb);
+        if (Object.prototype.hasOwnProperty.call(map, subtype)) {
+          return { key: Number(map[subtype]) >>> 0, name: subtype };
+        }
+      }
+
+      return null;
+    }
+
+    function parseImportedThrl6Preset(json) {
+      if (!json || typeof json !== 'object') {
+        throw new Error('Invalid preset JSON content.');
+      }
+
+      if (json.schema !== 'L6Preset') {
+        throw new Error('Invalid preset schema. Expected L6Preset.');
+      }
+
+      if (json.version != null && Number(json.version) !== 5) {
+        log('Import notice: preset version is ' + json.version + ' (expected 5). Continuing.');
+      }
+
+      const tone = json.data && json.data.tone && typeof json.data.tone === 'object'
+        ? json.data.tone
+        : null;
+      if (!tone || typeof tone.THRGroupAmp !== 'object') {
+        throw new Error('Preset is missing required tone.THRGroupAmp section.');
+      }
+
+      const name = json.data && json.data.meta && typeof json.data.meta.name === 'string'
+        ? json.data.meta.name.trim()
+        : '';
+
+      return {
+        presetName: name || 'Imported Preset',
+        tone
+      };
+    }
+
+    function applyImportedToneToShadow(tone) {
+      const warnings = [];
+      let writeCount = 0;
+      const nowMs = Date.now();
+
+      const specs = [
+        {
+          group: 'THRGroupAmp',
+          unitId: thrKeys.unit.amp,
+          unitName: 'Amp',
+          typeFamily: 'amp',
+          enabledCandidates: ['AmpEnableState', 'AmpEnable']
+        },
+        {
+          group: 'THRGroupCab',
+          unitId: thrKeys.unit.guitarProc,
+          unitName: 'GuitarProc',
+          enabledCandidates: []
+        },
+        {
+          group: 'THRGroupFX1Compressor',
+          unitId: thrKeys.unit.fx1,
+          unitName: 'FX1',
+          enabledCandidates: ['FX1EnableState', 'FX1Enable']
+        },
+        {
+          group: 'THRGroupFX2Effect',
+          unitId: thrKeys.unit.fx2,
+          unitName: 'FX2',
+          typeFamily: 'effect',
+          enabledCandidates: ['FX2EnableState', 'FX2Enable'],
+          wetDryCandidates: ['FX2MixState', 'FX2Mix', 'WetDry', 'MixState', 'Mix']
+        },
+        {
+          group: 'THRGroupFX3EffectEcho',
+          unitId: thrKeys.unit.fx3,
+          unitName: 'FX3',
+          typeFamily: 'echo',
+          enabledCandidates: ['FX3EnableState', 'FX3Enable'],
+          wetDryCandidates: ['FX3MixState', 'FX3Mix', 'WetDry', 'MixState', 'Mix']
+        },
+        {
+          group: 'THRGroupFX4EffectReverb',
+          unitId: thrKeys.unit.fx4,
+          unitName: 'FX4',
+          typeFamily: 'reverb',
+          enabledCandidates: ['FX4EnableState', 'FX4Enable'],
+          wetDryCandidates: ['FX4WetSendState', 'FX4WetSend', 'FX4MixState', 'FX4Mix', 'WetDry', 'MixState', 'Mix']
+        },
+        {
+          group: 'THRGroupGate',
+          unitId: thrKeys.unit.guitarProc,
+          unitName: 'GuitarProc',
+          enabledCandidates: ['GateEnableState', 'GateEnable']
+        },
+        {
+          group: 'global',
+          unitId: thrKeys.unit.global,
+          unitName: 'Global',
+          enabledCandidates: []
+        }
+      ];
+
+      specs.forEach(spec => {
+        const block = tone && typeof tone[spec.group] === 'object' ? tone[spec.group] : null;
+        if (!block) return;
+
+        const unit = ensureShadowUnit(spec.unitId, spec.unitName);
+        unit.updatedAtMs = nowMs;
+
+        if (typeof block['@asset'] === 'string' && spec.typeFamily) {
+          const subtype = getImportSubtypeKeyFromAsset(spec.typeFamily, block['@asset']);
+          if (subtype) {
+            unit.typeKey = Number(subtype.key) >>> 0;
+            unit.typeName = String(subtype.name);
+          } else {
+            warnings.push('Unknown asset for ' + spec.group + ': ' + String(block['@asset']));
+          }
+        }
+
+        if (Object.prototype.hasOwnProperty.call(block, '@enabled') && spec.enabledCandidates && spec.enabledCandidates.length) {
+          const enabled = toBooleanLike(block['@enabled'], false);
+          if (upsertShadowParam(unit, spec.enabledCandidates, enabled, thrTypeCode.bool, warnings, spec.group + '.@enabled')) {
+            writeCount += 1;
+          }
+        }
+
+        if (Object.prototype.hasOwnProperty.call(block, '@wetDry') && spec.wetDryCandidates && spec.wetDryCandidates.length) {
+          const wetDry = clamp01(Number(block['@wetDry']));
+          if (upsertShadowParam(unit, spec.wetDryCandidates, wetDry, thrTypeCode.float32, warnings, spec.group + '.@wetDry')) {
+            writeCount += 1;
+          }
+        }
+
+        Object.entries(block).forEach(([name, rawValue]) => {
+          if (name.startsWith('@')) return;
+          if (typeof rawValue !== 'number' || !Number.isFinite(rawValue)) return;
+
+          let value = rawValue;
+          let typeCode = thrTypeCode.float32;
+          if (name === 'SpkSimType') {
+            value = Math.max(0, Math.round(rawValue));
+            typeCode = thrTypeCode.enum;
+          } else if (name === 'THRPresetParamTempo') {
+            value = Math.max(30, Math.min(300, Math.round(rawValue)));
+            typeCode = thrTypeCode.enum;
+          }
+
+          const allowSyntheticTempo = (spec.group === 'global' && name === 'THRPresetParamTempo');
+          if (upsertShadowParam(
+            unit,
+            [name],
+            value,
+            typeCode,
+            warnings,
+            spec.group + '.' + name,
+            allowSyntheticTempo ? { allowSyntheticKey: true, syntheticKey: 0xFFFFF001 } : {}
+          )) {
+            writeCount += 1;
+          }
+        });
+      });
+
+      mirrorUiState.previewSubtypeByCard = {};
+      syncControlsFromShadowState();
+      updateParserDiagnosticsView();
+      renderParserMirrorView();
+
+      return { writeCount, warnings };
+    }
+
+    function readTextFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Unable to read selected file.'));
+        reader.readAsText(file);
+      });
+    }
+
+    async function importPresetFromFile(file) {
+      await ensureParserSymbolsLoaded();
+      if (!file) {
+        throw new Error('No file selected.');
+      }
+
+      const text = await readTextFile(file);
+      let parsed = null;
+      try {
+        parsed = JSON.parse(text);
+      } catch (_) {
+        throw new Error('Selected file is not valid JSON.');
+      }
+
+      const normalized = parseImportedThrl6Preset(parsed);
+      const result = applyImportedToneToShadow(normalized.tone);
+
+      log('Preset imported to shadow: ' + normalized.presetName + ' (writes=' + result.writeCount + ', warnings=' + result.warnings.length + ')');
+      result.warnings.slice(0, 12).forEach(w => log('Import warning: ' + w));
+      if (result.warnings.length > 12) {
+        log('Import warning: ... and ' + (result.warnings.length - 12) + ' more');
+      }
+    }
+
+    function openImportPresetPicker() {
+      const input = document.getElementById('presetImportFile');
+      if (!(input instanceof HTMLInputElement)) return;
+      input.value = '';
+      input.click();
+    }
+
     document.getElementById('btnConnect').addEventListener('click', () => safeRun(onConnect));
     document.getElementById('btnDisconnect').addEventListener('click', () => safeRun(disconnectAll));
     document.getElementById('btnClearLog').addEventListener('click', () => {
@@ -5223,6 +5629,14 @@
     });
     document.getElementById('btnActivate').addEventListener('click', () => safeRun(activateThrII));
     document.getElementById('btnExportPreset').addEventListener('click', () => safeRun(exportCurrentPresetToThrl6p));
+    document.getElementById('btnImportPreset').addEventListener('click', () => openImportPresetPicker());
+    document.getElementById('presetImportFile').addEventListener('change', () => {
+      const input = document.getElementById('presetImportFile');
+      if (!(input instanceof HTMLInputElement)) return;
+      const file = input.files && input.files[0] ? input.files[0] : null;
+      if (!file) return;
+      safeRun(() => importPresetFromFile(file));
+    });
     document.getElementById('btnSendSysEx').addEventListener('click', () => {
       safeRun(async () => {
         const syx = parseSysExHex(document.getElementById('sysexHex').value);
