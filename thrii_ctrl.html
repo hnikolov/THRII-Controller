@@ -668,7 +668,8 @@
       minSlot: 0,
       maxSlot: 4,
       defaultUploadChunkDecodedSize: 210,
-      defaultUploadTailWords: [0x00000000, 0x00000001, 0x00000000, 0x00000000]
+      // Upload header after the 3 length/target words carries 3 constant words.
+      defaultUploadTailWords: [0x00000000, 0x00000001, 0x00000000]
     };
 
     const thrL6PresetFormat = {
@@ -2404,6 +2405,13 @@
 
       if (event.kind === 'nack') {
         state.stats.nackCount += 1;
+
+        const active = getActiveDumpSession();
+        if (active && active.direction === 'upload' && (active.status === 'uploading' || active.status === 'awaiting_report')) {
+          const opText = event && event.opcode != null ? ('0x' + (Number(event.opcode) >>> 0).toString(16)) : 'n/a';
+          const cntText = event && event.counter != null ? String(Number(event.counter) >>> 0) : 'n/a';
+          failDumpSession(active.id, 'THR-II returned NACK during upload (op=' + opText + ', cnt=' + cntText + ').');
+        }
         return;
       }
 
@@ -4039,14 +4047,12 @@
         ? uploadArgs.constantsTailWords
         : thrDumpProtocol.defaultUploadTailWords;
 
+      // Upload opcode 0x0d uses six parameters directly after opcode.
+      // Do not prepend the generic command "declared length" word here.
       const parameterWords = [payloadLengthTotal, targetU32, payloadLengthMinus8]
         .concat(tailWords.map(v => Number(v) >>> 0));
       const parameterPayload = concatBytes(...parameterWords.map(writeU32LE));
-      const payload = concatBytes(
-        writeU32LE(thrOpcode.uploadUserSettingsDump),
-        writeU32LE(parameterPayload.length),
-        parameterPayload
-      );
+      const payload = concatBytes(writeU32LE(thrOpcode.uploadUserSettingsDump), parameterPayload);
 
       return buildCommandFrameFromRawPayload(payload, {
         group: options.group == null ? 0x01 : options.group,
@@ -4617,10 +4623,18 @@
 
       const paceMs = Math.max(0, Number(options.paceMs == null ? 18 : options.paceMs));
       for (let i = 0; i < frames.length; i += 1) {
+        const beforeSend = getDumpSession(session.id);
+        if (!beforeSend || beforeSend.status === 'failed') {
+          const reason = beforeSend && beforeSend.errors && beforeSend.errors.length
+            ? beforeSend.errors[beforeSend.errors.length - 1]
+            : 'Settings upload failed.';
+          throw new Error(reason);
+        }
+
         const frame = frames[i];
         await sendAndLog(frame, 'TX settings upload ' + (i + 1) + '/' + frames.length);
         const current = getDumpSession(session.id);
-        if (current) {
+        if (current && current.status !== 'failed') {
           updateDumpSession(session.id, {
             status: 'uploading',
             txMeta: {
@@ -4631,6 +4645,15 @@
             }
           });
         }
+
+        const afterSend = getDumpSession(session.id);
+        if (afterSend && afterSend.status === 'failed') {
+          const reason = afterSend.errors && afterSend.errors.length
+            ? afterSend.errors[afterSend.errors.length - 1]
+            : 'Settings upload failed.';
+          throw new Error(reason);
+        }
+
         if (paceMs > 0 && i < (frames.length - 1)) {
           await sleep(paceMs);
         }
