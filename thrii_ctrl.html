@@ -3499,6 +3499,15 @@
       }
     }
 
+    function prunePendingOutbound(maxAgeMs = 12000) {
+      const now = Date.now();
+      thrIncomingParser.pendingOutbound = (thrIncomingParser.pendingOutbound || []).filter(item => {
+        const t = Number(item && item.timeMs);
+        if (!Number.isFinite(t)) return false;
+        return (now - t) <= Math.max(0, Number(maxAgeMs) || 0);
+      });
+    }
+
     function logParsedFrame(parsed) {
       const opText = parsed.opcode == null ? 'n/a' : '0x' + parsed.opcode.toString(16).padStart(8, '0');
       const lenText = parsed.declaredLength == null ? 'n/a' : parsed.declaredLength;
@@ -4346,6 +4355,23 @@
       return cache.slots[normalized.value] || null;
     }
 
+    function getMostRecentCachedDumpEntry() {
+      const cache = thrIncomingParser.state.dumpCache;
+      const candidates = [];
+      if (cache.actual && cache.actual.patchRaw instanceof Uint8Array && cache.actual.patchRaw.length) {
+        candidates.push(cache.actual);
+      }
+      for (let i = 0; i < cache.slots.length; i += 1) {
+        const entry = cache.slots[i];
+        if (entry && entry.patchRaw instanceof Uint8Array && entry.patchRaw.length) {
+          candidates.push(entry);
+        }
+      }
+      if (!candidates.length) return null;
+      candidates.sort((a, b) => (Number(b.updatedAtMs) || 0) - (Number(a.updatedAtMs) || 0));
+      return candidates[0] || null;
+    }
+
     function buildShadowParameterIndex() {
       const out = new Map();
       const units = Object.values(thrIncomingParser.state.units || {});
@@ -4421,7 +4447,19 @@
         ? options.basePatchRaw
         : null;
 
-      const cachedEntry = getCachedDumpEntry(options.targetRef);
+      const normalizedTarget = options.targetRef == null
+        ? null
+        : normalizeDumpTargetRef(options.targetRef);
+
+      let cachedEntry = getCachedDumpEntry(options.targetRef);
+      if (normalizedTarget && normalizedTarget.kind === 'actual') {
+        const freshest = getMostRecentCachedDumpEntry();
+        if (freshest && (!cachedEntry || (Number(freshest.updatedAtMs) || 0) > (Number(cachedEntry.updatedAtMs) || 0))) {
+          cachedEntry = freshest;
+          warnings.push('Using freshest cached dump payload as serialization base for Actual upload.');
+        }
+      }
+
       const baseRaw = explicitBase ||
         (cachedEntry && cachedEntry.patchRaw instanceof Uint8Array ? cachedEntry.patchRaw : null) ||
         getBestCachedDumpPayload();
@@ -4500,6 +4538,8 @@
     async function requestSettingsDump(targetRef, options = {}) {
       if (!anyConnected()) throw new Error('Connect USB or BLE first.');
 
+      prunePendingOutbound();
+
       const normalizedTarget = normalizeDumpTargetRef(targetRef);
       const session = startDumpSession('download', normalizedTarget, {
         group: options.group == null ? 0x01 : options.group
@@ -4558,6 +4598,8 @@
     async function uploadSettingsDump(targetRef, patchRaw, options = {}) {
       if (!anyConnected()) throw new Error('Connect USB or BLE first.');
 
+      prunePendingOutbound();
+
       const normalizedTarget = normalizeDumpTargetRef(targetRef);
       let serialized = null;
       if (patchRaw instanceof Uint8Array) {
@@ -4605,6 +4647,26 @@
         log('Upload serializer warnings: ' + serialized.warnings.join(' | '));
       }
 
+      const headerCounter = options.headerCounter == null
+        ? nextCommandCounter()
+        : (Number(options.headerCounter) & 0x7f);
+      const bodyCounter = options.bodyCounter == null
+        ? ((headerCounter + 1) & 0x7f)
+        : (Number(options.bodyCounter) & 0x7f);
+      const bodyPcStart = options.bodyPcStart == null
+        ? 1
+        : (Number(options.bodyPcStart) & 0x7f);
+      const incrementBodyCounter = options.incrementBodyCounter == null
+        ? true
+        : !!options.incrementBodyCounter;
+
+      log(
+        'Upload sequencing: hdrCnt=' + headerCounter +
+        ' bodyCnt=' + bodyCounter +
+        ' bodyPcStart=' + bodyPcStart +
+        ' bodyCntInc=' + (incrementBodyCounter ? '1' : '0')
+      );
+
       const frames = buildUploadUserSettingsFrames({
         targetRef: normalizedTarget,
         patchRawLength: sourcePatch.length,
@@ -4613,11 +4675,11 @@
         constantsTailWords: options.constantsTailWords
       }, sourcePatch, {
         group: options.group,
-        headerCounter: options.headerCounter,
-        headerPc: options.headerPc,
-        bodyCounter: options.bodyCounter,
-        bodyPcStart: options.bodyPcStart,
-        incrementBodyCounter: options.incrementBodyCounter,
+        headerCounter,
+        headerPc: options.headerPc == null ? 0 : (Number(options.headerPc) & 0x7f),
+        bodyCounter,
+        bodyPcStart,
+        incrementBodyCounter,
         frameChunkDecodedSize: options.frameChunkDecodedSize
       });
 
