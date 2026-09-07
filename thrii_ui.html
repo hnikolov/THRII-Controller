@@ -1,0 +1,1886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#ede6d2" />
+  <title>Yamaha THRII UI - Refined Initial Version</title>
+  <style>
+    :root {   
+      --ui-font-family: Arial, Helvetica, sans-serif;
+      --ui-font-size: 11px;
+      --ui-font-weight: 700;
+      --ui-letter-spacing: 0.02em;
+      color-scheme: light;
+      --shell: #e8e0c8;
+      --paper: #ede6d2;
+      --ink: #141414;
+      --line: #3d3525;
+      --gold: #9a6f08;
+      --gold-light: #b88c18;
+      --knob-accent: #7a6244;
+      --knob-track: #d8cdb6;
+      --muted: #5f553f;
+      --focus: rgba(154, 111, 8, 0.18);
+      --shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+      --app-width: 390px;
+      --header-height: 28px;
+      --label-gap: 0px;
+      --label-offset-y: -2px;
+      --knob-size: 72px;
+      --knob-font-size: 11px;
+      --center-font-size: 13px;
+      --led-size: 15px;
+      --track-stroke: 2px;
+      --active-stroke: 4px;
+      --pointer-stroke: 4px;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      min-height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      background: linear-gradient(180deg, #111 0%, #1b1b1b 100%);
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+    }
+
+    #app {
+      width: 100%;
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+    }
+
+    .thr-app {
+      width: min(100%, var(--app-width));
+      background: var(--shell);
+      border: 1px solid #59451a;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      user-select: none;
+      -webkit-user-select: none; /* Safari */
+      -ms-user-select: none;     /* Old Edge */
+    }
+
+    .top-strip,
+    .footer-strip {
+      background: linear-gradient(180deg, var(--gold-light) 0%, var(--gold) 100%);
+      color: #fff6da;
+      min-height: var(--header-height);
+      display: grid;
+      align-items: center;
+      font-family: var(--ui-font-family);
+      font-size: var(--ui-font-size);
+      font-weight: var(--ui-font-weight);
+      letter-spacing: var(--ui-letter-spacing);
+      text-transform: uppercase;
+    }
+
+    .top-strip {
+      grid-template-columns: auto auto 1fr auto;
+      gap: 14px;
+      padding: 0 8px;
+    }
+
+    .footer-strip {
+      grid-template-columns: repeat(5, 1fr);
+      text-align: center;
+    }
+
+    .strip-item {
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      min-height: var(--header-height);
+      white-space: nowrap;
+    }
+
+    .strip-item.center {
+      justify-content: center;
+    }
+
+    .strip-item.editable-memory {
+      justify-content: center;
+      min-width: 0;
+    }
+
+    .strip-editable-input {
+      width: 100%;
+      max-width: 160px;
+      min-height: calc(var(--header-height) - 8px);
+      border: 0;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      letter-spacing: inherit;
+      text-transform: inherit;
+      text-align: center;
+      outline: none;
+      user-select: text;
+      -webkit-user-select: text;
+      -ms-user-select: text;
+    }
+
+    .strip-editable-input:focus {
+      background: rgba(255, 246, 218, 0.14);
+    }
+
+    .strip-editable-input::selection {
+      background: rgba(255, 246, 218, 0.32);
+      color: inherit;
+    }
+
+    .footer-strip .strip-item {
+      justify-content: center;
+      border-left: 1px solid rgba(255, 255, 255, 0.10);
+      padding: 0;
+    }
+
+    .footer-strip .strip-item:first-child {
+      border-left: 0;
+    }
+
+    .footer-memory-button {
+      width: 100%;
+      min-height: var(--header-height);
+      border: 0;
+      margin: 0;
+      padding: 0 8px;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      letter-spacing: inherit;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background-color 0.16s ease, color 0.16s ease;
+    }
+
+    .footer-memory-button:hover,
+    .footer-memory-button:focus-visible {
+      outline: none;
+      background: rgba(255, 246, 218, 0.08);
+    }
+
+    .footer-memory-button.is-selected {
+      background: var(--paper);
+      color: var(--ink);
+    }
+
+    .ui-body {
+      background: var(--paper);
+      width: 100%;
+    }
+
+    .amp-head {
+      border-bottom: 1px solid var(--line);
+      padding: 6px 6px 0;
+      background: rgba(255, 255, 255, 0.15);
+      position: relative;
+      z-index: 30;
+    }
+
+    .amp-head-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      align-items: center;
+      margin-bottom: 4px;
+      min-height: 24px;
+      position: relative;
+      z-index: 31;
+    }
+
+    .amp-name,
+    .amp-cab {
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      position: relative;
+      z-index: 0;
+    }
+
+    .amp-name {
+      text-transform: uppercase;
+      justify-self: start;
+    }
+
+    .amp-cab {
+      text-transform: none;
+      justify-self: end;
+      text-align: right;
+    }
+
+    .amp-knobs,
+    .module-knobs {
+      display: grid;
+      align-items: start;
+      gap: 0;
+      padding-bottom: 8px;
+    }
+
+    .amp-knobs {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .module-row {
+      border-bottom: 1px solid var(--line);
+    }
+
+    .module-row.dual {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .module-row.dual .module-section:first-child {
+      border-right: 1px solid var(--line);
+    }
+
+    .module-section {
+      min-width: 0;
+      background: var(--paper);
+    }
+
+    .module-head {
+      min-height: 26px;
+      padding: 4px 6px 2px;
+      position: relative;
+    }
+
+    .module-head-inner {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 6px;
+      min-height: 20px;
+    }
+
+    .module-head-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      position: relative;
+      z-index: 0;
+    }
+
+    .module-title,
+    .module-mode {
+      font-family: var(--ui-font-family);
+      font-size: var(--ui-font-size);
+      font-weight: var(--ui-font-weight);
+      letter-spacing: var(--ui-letter-spacing);
+      text-transform: uppercase;
+      white-space: nowrap;
+      min-width: 0;
+      position: relative;
+      z-index: 0;
+    }
+
+    .module-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .module-mode {
+      justify-self: end;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-align: right;
+      font-weight: 800;
+    }
+
+    .module-badge {
+      background: var(--gold);
+      color: #fff8dd;
+      padding: 1px 6px;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1.5;
+      text-transform: uppercase;
+      flex: 0 0 auto;
+      position: relative;
+      z-index: 0;
+    }
+
+    .module-led-slot {
+      display: grid;
+      place-items: center;
+      min-width: 24px;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .module-led-slot > * {
+      pointer-events: auto;
+    }
+
+    .module-section.compact .module-head-inner {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .module-section.compact .module-title {
+      justify-self: start;
+      font-weight: 700;
+    }
+
+    .module-section.compact .module-knobs {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      padding-inline: 4px;
+    }
+
+    .module-section.preserve-five-slots .module-knobs {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .knob-module {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .knob-placeholder {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: var(--knob-size) auto;
+      gap: var(--label-gap);
+    }
+
+    .knob-placeholder::after {
+      content: '';
+      display: block;
+      min-height: 18px;
+      margin-top: var(--label-offset-y);
+    }
+
+    .knob {
+      width: var(--knob-size);
+      display: grid;
+      grid-template-rows: var(--knob-size) auto;
+      place-items: center;
+      gap: var(--label-gap);
+      border: 0;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      color: var(--ink);
+      user-select: none;
+      touch-action: none;
+      cursor: ns-resize;
+      border-radius: 12px;
+      outline: none;
+    }
+
+    .knob:focus-visible {
+      background: var(--focus);
+    }
+
+    .dial {
+      position: relative;
+      width: var(--knob-size);
+      height: var(--knob-size);
+      display: grid;
+      place-items: center;
+    }
+
+    .dial svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: hidden;
+    }
+
+    .track-path,
+    .active-path,
+    .pointer-line {
+      fill: none;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .track-path {
+      stroke: var(--knob-track);
+      stroke-width: var(--track-stroke);
+      stroke-linecap: round;
+    }
+
+    .active-path,
+    .pointer-line {
+      stroke: var(--knob-accent);
+      stroke-width: var(--active-stroke);
+      stroke-linecap: square;
+    }
+
+    .pointer-line {
+      stroke-width: var(--pointer-stroke);
+      stroke-linecap: butt;
+    }
+
+    .center-value {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      font-size: var(--center-font-size);
+      line-height: 1;
+      font-weight: 500;
+      color: var(--ink);
+      pointer-events: none;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .label {
+      min-height: 18px;
+      margin-top: var(--label-offset-y);
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      font-size: var(--knob-font-size);
+      font-weight: 500;
+      color: var(--muted);
+      line-height: 1.1;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    .led-bezel {
+      width: var(--led-size);
+      height: var(--led-size);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #b8b8b8 0%, #595959 100%);
+      box-shadow:
+        inset 0 calc(var(--led-size) * 0.033) calc(var(--led-size) * 0.05) rgba(255, 255, 255, 0.6),
+        0 calc(var(--led-size) * 0.05) calc(var(--led-size) * 0.08) rgba(0, 0, 0, 0.45);
+      cursor: pointer;
+      transition: transform 0.12s ease;
+      border: 0;
+      padding: 0;
+    }
+
+    .led-bezel:active {
+      transform: scale(0.95);
+    }
+
+    .led-bezel:disabled {
+      cursor: default;
+    }
+
+    .led-bezel:disabled:active {
+      transform: none;
+    }
+
+    .led-inner-ring {
+      width: calc(var(--led-size) * 0.8);
+      height: calc(var(--led-size) * 0.8);
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: #202020;
+      box-shadow: inset 0 calc(var(--led-size) * 0.05) calc(var(--led-size) * 0.083) rgba(0, 0, 0, 0.8);
+    }
+
+    .led-lens {
+      width: calc(var(--led-size) * 0.666);
+      height: calc(var(--led-size) * 0.666);
+      border-radius: 50%;
+      position: relative;
+      transition: all 0.2s ease-in-out;
+    }
+
+    .led-lens::after {
+      content: '';
+      position: absolute;
+      top: calc(var(--led-size) * 0.05);
+      left: calc(var(--led-size) * 0.12);
+      width: calc(var(--led-size) * 0.43);
+      height: calc(var(--led-size) * 0.21);
+      border-radius: 50% / 100% 100% 0 0;
+      background: linear-gradient(to bottom, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 100%);
+    }
+
+    .led-blue .led-lens {
+      background: radial-gradient(circle at 50% 30%, #001f4d 0%, #000a1a 100%);
+      box-shadow: inset 0 calc(var(--led-size) * -0.05) calc(var(--led-size) * 0.1) rgba(0, 0, 0, 0.6);
+    }
+
+    .led-blue.active .led-lens {
+      background: radial-gradient(circle at 50% 30%, #b3d9ff 0%, #0066ff 60%, #003399 100%);
+      box-shadow:
+        inset 0 calc(var(--led-size) * -0.033) calc(var(--led-size) * 0.083) rgba(0, 0, 0, 0.3),
+        0 0 calc(var(--led-size) * 0.28) rgba(0, 102, 255, 0.95),
+        0 0 calc(var(--led-size) * 0.55) rgba(0, 102, 255, 0.5);
+    }
+
+    .led-orange .led-lens {
+      background: radial-gradient(circle at 50% 30%, #4a2300 0%, #1a0d00 100%);
+      box-shadow: inset 0 calc(var(--led-size) * -0.05) calc(var(--led-size) * 0.1) rgba(0, 0, 0, 0.6);
+    }
+
+    .led-orange.active .led-lens {
+      background: radial-gradient(circle at 50% 30%, #ffdd99 0%, #ff8800 60%, #aa5500 100%);
+      box-shadow:
+        inset 0 calc(var(--led-size) * -0.033) calc(var(--led-size) * 0.083) rgba(0, 0, 0, 0.3),
+        0 0 calc(var(--led-size) * 0.28) rgba(255, 136, 0, 0.95),
+        0 0 calc(var(--led-size) * 0.55) rgba(255, 136, 0, 0.5);
+    }
+
+    .module-section.is-off .module-knobs,
+    .module-section.is-off .amp-knobs {
+      opacity: 0.45;
+      filter: grayscale(0.15);
+    }
+
+    .module-section.is-off .module-title,
+    .module-section.is-off .module-mode,
+    .module-section.is-off .module-badge,
+    .module-section.is-off .label,
+    .module-section.is-off .center-value,
+    .module-section.is-off .amp-name,
+    .module-section.is-off .amp-cab {
+      opacity: 0.78;
+    }
+
+
+    .unit-selector {
+      position: relative;
+      justify-self: end;
+      min-width: 0;
+      z-index: 3;
+    }
+
+    .unit-selector-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      max-width: 100%;
+      border: 0;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      color: var(--ink);
+      font: inherit;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .unit-selector-label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    .unit-selector-caret {
+      flex: 0 0 auto;
+      font-size: 9px;
+      line-height: 1;
+    }
+
+    .unit-selector-menu {
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 0;
+      display: none;
+      min-width: max-content;
+      padding: 4px;
+      border: 1px solid var(--line);
+      background: var(--paper);
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+    }
+
+    .unit-selector.open .unit-selector-menu {
+      display: grid;
+      gap: 2px;
+      z-index: 40;
+    }
+
+    .unit-selector.open-up .unit-selector-menu {
+      top: auto;
+      bottom: calc(100% + 4px);
+    }
+
+    .unit-selector-option {
+      border: 0;
+      background: transparent;
+      color: var(--ink);
+      font: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      text-align: left;
+      padding: 4px 8px;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .unit-selector-option:hover,
+    .unit-selector-option:focus-visible {
+      background: rgba(154, 111, 8, 0.12);
+      outline: none;
+    }
+
+    .unit-selector-option.is-selected {
+      font-weight: 800;
+    }
+
+    .unit-selector.align-left .unit-selector-menu {
+      left: 0;
+      right: auto;
+    }
+
+    .unit-selector:not(.align-left) .unit-selector-menu {
+      right: 0;
+      left: auto;
+    }
+
+    .led-red .led-lens {
+      background: radial-gradient(circle at 50% 30%, #4a0000 0%, #1a0000 100%);
+      box-shadow: inset 0 calc(var(--led-size) * -0.05) calc(var(--led-size) * 0.1) rgba(0, 0, 0, 0.6);
+    }
+
+    .led-red.active .led-lens {
+      background: radial-gradient(circle at 50% 30%, #ff9999 0%, #ff0000 60%, #990000 100%);
+      box-shadow:
+        inset 0 calc(var(--led-size) * -0.033) calc(var(--led-size) * 0.083) rgba(0, 0, 0, 0.3),
+        0 0 calc(var(--led-size) * 0.28) rgba(255, 0, 0, 0.95),
+        0 0 calc(var(--led-size) * 0.55) rgba(255, 0, 0, 0.5);
+    }
+
+    .led-green .led-lens {
+      background: radial-gradient(circle at 50% 30%, #003300 0%, #001a00 100%);
+      box-shadow: inset 0 calc(var(--led-size) * -0.05) calc(var(--led-size) * 0.1) rgba(0, 0, 0, 0.6);
+    }
+
+    .led-green.active .led-lens {
+      background: radial-gradient(circle at 50% 30%, #b3ffb3 0%, #00ff00 60%, #008800 100%);
+      box-shadow:
+        inset 0 calc(var(--led-size) * -0.033) calc(var(--led-size) * 0.083) rgba(0, 0, 0, 0.3),
+        0 0 calc(var(--led-size) * 0.28) rgba(0, 255, 0, 0.95),
+        0 0 calc(var(--led-size) * 0.55) rgba(0, 255, 0, 0.5);
+    }
+
+    .unit-selector.align-left {
+      justify-self: start;
+    }
+
+    .unit-selector.align-left .unit-selector-label {
+      text-align: left;
+    }
+
+    .unit-selector.is-amp .unit-selector-button,
+    .unit-selector.is-cab .unit-selector-button {
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .unit-selector.is-cab .unit-selector-button,
+    .unit-selector.is-cab .unit-selector-option {
+      text-transform: none;
+    }
+
+    .unit-selector.is-amp .unit-selector-option,
+    .unit-selector.is-cab .unit-selector-option {
+      font-size: 12px;
+    }
+
+    @media (max-width: 420px) {
+      html, body {
+        height: 100%;
+      }
+
+      body {
+        padding: 0;
+        background: var(--paper);
+      }
+
+      #app {
+        min-height: 100dvh;
+        place-items: stretch;
+      }
+
+      .thr-app {
+        width: 100vw;
+        height: 100dvh;
+        min-height: 100dvh;
+        border: 0;
+        box-shadow: none;
+      }
+
+      :root {
+        --app-width: 100vw;
+        --knob-size: min(17.2vw, 72px);
+        --center-font-size: min(3.2vw, 12px);
+        --knob-font-size: min(2.4vw, 10px);
+      }
+
+      .top-strip {
+        gap: 10px;
+        padding: 0 4px;
+        font-size: 9px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+      <script>
+
+    const TOKENS = {
+      VIEWBOX_SIZE: 176,
+      CENTER_X: 88,
+      CENTER_Y: 88,
+      OUTER_RING_RADIUS: 60,
+      POINTER_START_RADIUS: 36,
+      POINTER_END_RADIUS: 56,
+      START_DEG: 225,
+      SWEEP_DEG: 270,
+      MIN: 0,
+      MAX: 100,
+      KEY_STEP: 1,
+      FAST_STEP: 10,
+      DRAG_SPEED: 0.38
+    };
+
+    const UI_CONFIG = {
+      topStrip: ['IMP', 'EXP', 'USER MEMORY 1', 'CONNECT'],
+      footerStrip: ['1', '2', '3', '4', '5'],
+      amp: {
+        selectedAmp: 'Boutique Lead',
+        selectedCabinet: 'British 4x12',
+        ampModels: [
+          'Classic Clean', 'Classic Crunch', 'Classic Lead', 'Classic Hi Gain', 'Classic Special', 'Classic Bass', 'Classic Acoustic', 'Classic Flat',
+          'Boutique Clean', 'Boutique Crunch', 'Boutique Lead', 'Boutique Hi Gain', 'Boutique Special', 'Boutique Bass', 'Boutique Acoustic', 'Boutique Flat',
+          'Modern Clean', 'Modern Crunch', 'Modern Lead', 'Modern Hi Gain', 'Modern Special', 'Modern Bass', 'Modern Acoustic', 'Modern Flat'
+        ],
+        cabinets: [
+          'BYPASS', 'American 1x12', 'California 1x12', 'Boutique 1x12', 'American 2x12', 'British 2x12', 'British Blues 2x12', 'Boutique 2x12',
+          'Yamaha 2x12', 'American 4x10', 'American 4x12', 'British 4x12', 'Brown 4x12', 'Vintage 4x12', 'Mods 4x12', 'Juicy 4x12', 'Fuel 4x12'
+        ],
+        active: true,
+        knobs: [
+          { label: 'GAIN', value: 36 },
+          { label: 'MASTER', value: 78 },
+          { label: 'BASS', value: 48 },
+          { label: 'MID', value: 43 },
+          { label: 'TREBLE', value: 67 }
+        ]
+      },
+      rows: [
+        {
+          type: 'dual',
+          modules: [
+            {
+              key: 'comp',
+              mode: 'COMP',
+              ledColor: 'orange',
+              active: false,
+              compact: true,
+              knobs: [
+                { label: 'SUSTAIN', value: 78 },
+                { label: 'LEVEL', value: 26 }
+              ]
+            },
+            {
+              key: 'gate',
+              mode: 'NOISE GATE',
+              ledColor: 'orange',
+              active: true,
+              compact: true,
+              knobs: [
+                { label: 'THRESHOLD', value: 26 },
+                { label: 'DECAY', value: 21 }
+              ]
+            }
+          ]
+        },
+        {
+          type: 'single',
+          module: {
+            key: 'effect',
+            title: 'EFFECT',
+            selectedUnit: 'Chorus',
+            ledColor: 'orange',
+            active: true,
+            preserveFiveSlots: true,
+            units: {
+              'Chorus': ['Speed', 'Depth', 'Pre Delay', 'Feedback', 'Mix'],
+              'Phaser': ['Speed', 'Feedback', 'Mix'],
+              'Flanger': ['Speed', 'Depth', 'Mix'],
+              'Tremolo': ['Speed', 'Depth', 'Mix']
+            },
+            knobs: [
+              { label: 'SPEED', value: 12 },
+              { label: 'DEPTH', value: 78 },
+              { label: 'PRE DELAY', value: 26 },
+              { label: 'FEEDBACK', value: 21 },
+              { label: 'MIX', value: 67 }
+            ]
+          }
+        },
+        {
+          type: 'single',
+          module: {
+            key: 'echo',
+            title: 'ECHO',
+            badge: 'TAP',
+            selectedUnit: 'Tape Echo',
+            ledColor: 'orange',
+            active: false,
+            preserveFiveSlots: true,
+            units: {
+              'Tape Echo': ['Time', 'Feedback', 'Bass', 'Treble', 'Mix'],
+              'Digital Delay': ['Time', 'Feedback', 'Bass', 'Treble', 'Mix']
+            },
+            knobs: [
+              { label: 'TIME', value: 52 },
+              { label: 'FEEDBACK', value: 21 },
+              { label: 'BASS', value: 47 },
+              { label: 'TREBLE', value: 59 },
+              { label: 'MIX', value: 67 }
+            ]
+          }
+        },
+        {
+          type: 'single',
+          module: {
+            key: 'reverb',
+            title: 'REVERB',
+            selectedUnit: 'Hall',
+            ledColor: 'orange',
+            active: true,
+            preserveFiveSlots: true,
+            units: {
+              'Spring': ['Reverb', 'Tone', 'Mix'],
+              'Plate': ['Decay', 'Pre Delay', 'Tone', 'Mix'],
+              'Room': ['Decay', 'Pre Delay', 'Tone', 'Mix'],
+              'Hall': ['Decay', 'Pre Delay', 'Tone', 'Mix']
+            },
+            knobs: [
+              { label: 'DECAY', value: 78 },
+              { label: 'PRE DELAY', value: 26 },
+              { label: 'TONE', value: 48 },
+              { label: 'MIX', value: 67 }
+            ]
+          }
+        }
+      ]
+    };
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, Math.round(value)));
+    }
+
+    function normalizeLabel(label) {
+      return String(label).trim().toUpperCase();
+    }
+
+    function titleCaseToFamily(label) {
+      return String(label).trim().split(/\s+/)[0].toLowerCase();
+    }
+
+    class KnobControl {
+      constructor(options = {}) {
+        this.options = {
+          label: 'KNOB',
+          value: 50,
+          min: TOKENS.MIN,
+          max: TOKENS.MAX,
+          onChange: null,
+          ...options
+        };
+        this.value = clamp(this.options.value, this.options.min, this.options.max);
+        this.dragging = false;
+        this.anchorY = 0;
+        this.anchorValue = this.value;
+        this.isFirstTouchMove = false;
+        this.build();
+        this.setValue(this.value, { emit: false, force: true });
+      }
+
+      build() {
+        const ns = 'http://www.w3.org/2000/svg';
+        this.root = document.createElement('div');
+        this.root.className = 'knob-module';
+
+        this.button = document.createElement('button');
+        this.button.type = 'button';
+        this.button.className = 'knob';
+        this.button.setAttribute('role', 'slider');
+        this.button.setAttribute('aria-label', `${this.options.label} control`);
+        this.button.setAttribute('aria-valuemin', String(this.options.min));
+        this.button.setAttribute('aria-valuemax', String(this.options.max));
+
+        this.dial = document.createElement('div');
+        this.dial.className = 'dial';
+
+        this.svg = document.createElementNS(ns, 'svg');
+        this.svg.setAttribute('viewBox', `0 0 ${TOKENS.VIEWBOX_SIZE} ${TOKENS.VIEWBOX_SIZE}`);
+        this.svg.setAttribute('aria-hidden', 'true');
+
+        this.trackPath = document.createElementNS(ns, 'path');
+        this.trackPath.setAttribute('class', 'track-path');
+        this.activePath = document.createElementNS(ns, 'path');
+        this.activePath.setAttribute('class', 'active-path');
+        this.pointerLine = document.createElementNS(ns, 'line');
+        this.pointerLine.setAttribute('class', 'pointer-line');
+
+        this.centerValue = document.createElement('div');
+        this.centerValue.className = 'center-value';
+        this.label = document.createElement('div');
+        this.label.className = 'label';
+        this.label.textContent = this.options.label;
+
+        this.svg.append(this.trackPath, this.activePath, this.pointerLine);
+        this.dial.append(this.svg, this.centerValue);
+        this.button.append(this.dial, this.label);
+        this.root.append(this.button);
+
+        this.bindEvents();
+      }
+
+      bindEvents() {
+        this.button.addEventListener('mouseenter', () => this.button.focus({ preventScroll: true }));
+
+        this.button.addEventListener('pointerdown', (event) => {
+          this.button.focus({ preventScroll: true });
+          this.dragging = true;
+          this.anchorY = event.clientY;
+          this.anchorValue = this.value;
+          this.isFirstTouchMove = event.pointerType === 'touch';
+          this.button.setPointerCapture(event.pointerId);
+        });
+
+        this.button.addEventListener('pointermove', (event) => {
+          if (!this.dragging) return;
+
+          const rect = this.dial.getBoundingClientRect();
+          const insideDial = (
+            event.clientX >= rect.left && event.clientX <= rect.right &&
+            event.clientY >= rect.top && event.clientY <= rect.bottom
+          );
+
+          if (insideDial && event.pointerType !== 'touch') {
+            this.setValue(this.valueFromPoint(event.clientX, event.clientY));
+            this.anchorY = event.clientY;
+            this.anchorValue = this.value;
+            return;
+          }
+
+          if (this.isFirstTouchMove) {
+            this.anchorY = event.clientY;
+            this.anchorValue = this.value;
+            this.isFirstTouchMove = false;
+            return;
+          }
+
+          const delta = (this.anchorY - event.clientY) * TOKENS.DRAG_SPEED;
+          this.setValue(this.anchorValue + delta);
+        });
+
+        const stopDrag = (event) => {
+          this.dragging = false;
+          this.isFirstTouchMove = false;
+          try { this.button.releasePointerCapture(event.pointerId); } catch (_) {}
+        };
+
+        this.button.addEventListener('pointerup', stopDrag);
+        this.button.addEventListener('pointercancel', stopDrag);
+        this.button.addEventListener('lostpointercapture', () => {
+          this.dragging = false;
+          this.isFirstTouchMove = false;
+        });
+
+        this.button.addEventListener('wheel', (event) => {
+          event.preventDefault();
+          const step = event.shiftKey ? TOKENS.FAST_STEP : TOKENS.KEY_STEP;
+          this.setValue(this.value + (event.deltaY < 0 ? step : -step));
+        }, { passive: false });
+
+        this.button.addEventListener('keydown', (event) => {
+          const step = event.shiftKey ? TOKENS.FAST_STEP : TOKENS.KEY_STEP;
+          let next = this.value;
+          let handled = true;
+
+          switch (event.key) {
+            case 'ArrowUp':
+            case 'ArrowRight':
+              next = this.value + step;
+              break;
+            case 'ArrowDown':
+            case 'ArrowLeft':
+              next = this.value - step;
+              break;
+            case 'PageUp':
+              next = this.value + TOKENS.FAST_STEP;
+              break;
+            case 'PageDown':
+              next = this.value - TOKENS.FAST_STEP;
+              break;
+            case 'Home':
+              next = this.options.min;
+              break;
+            case 'End':
+              next = this.options.max;
+              break;
+            default:
+              handled = false;
+          }
+
+          if (!handled) return;
+          event.preventDefault();
+          this.setValue(next);
+        });
+      }
+
+      polar(radius, degrees) {
+        const radians = ((degrees - 90) * Math.PI) / 180;
+        return {
+          x: TOKENS.CENTER_X + radius * Math.cos(radians),
+          y: TOKENS.CENTER_Y + radius * Math.sin(radians)
+        };
+      }
+
+      fullCirclePath(radius) {
+        const top = this.polar(radius, 0);
+        const bottom = this.polar(radius, 180);
+        return `M ${top.x.toFixed(2)} ${top.y.toFixed(2)} A ${radius} ${radius} 0 1 1 ${bottom.x.toFixed(2)} ${bottom.y.toFixed(2)} A ${radius} ${radius} 0 1 1 ${top.x.toFixed(2)} ${top.y.toFixed(2)}`;
+      }
+
+      arcPath(radius, startDeg, endDeg) {
+        const start = this.polar(radius, startDeg);
+        const end = this.polar(radius, endDeg);
+        const largeArc = Math.abs(endDeg - startDeg) > 180 ? 1 : 0;
+        return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${radius} ${radius} 0 ${largeArc} 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
+      }
+
+      angleFromValue(value) {
+        const ratio = (value - this.options.min) / (this.options.max - this.options.min);
+        return TOKENS.START_DEG + ratio * TOKENS.SWEEP_DEG;
+      }
+
+      valueFromPoint(clientX, clientY) {
+        const rect = this.dial.getBoundingClientRect();
+        const x = clientX - (rect.left + rect.width / 2);
+        const y = clientY - (rect.top + rect.height / 2);
+        let angle = (Math.atan2(y, x) * 180) / Math.PI + 90;
+        if (angle < 0) angle += 360;
+        let delta = angle - TOKENS.START_DEG;
+        if (delta < 0) delta += 360;
+        delta = Math.max(0, Math.min(TOKENS.SWEEP_DEG, delta));
+        return this.options.min + (delta / TOKENS.SWEEP_DEG) * (this.options.max - this.options.min);
+      }
+
+      render() {
+        const trackRadius = TOKENS.OUTER_RING_RADIUS;
+        const activeTrackRadius = trackRadius - 3; // NOTE: 3 = (active-stroke - track-stroke) / 2
+        const angle = this.angleFromValue(this.value);
+        const pointerStart = this.polar(TOKENS.POINTER_START_RADIUS, angle);
+        const pointerEnd = this.polar(TOKENS.POINTER_END_RADIUS, angle);
+        this.trackPath.setAttribute('d', this.fullCirclePath(trackRadius));
+        this.activePath.setAttribute('d', this.arcPath(activeTrackRadius, TOKENS.START_DEG, angle));
+        this.pointerLine.setAttribute('x1', pointerStart.x.toFixed(2));
+        this.pointerLine.setAttribute('y1', pointerStart.y.toFixed(2));
+        this.pointerLine.setAttribute('x2', pointerEnd.x.toFixed(2));
+        this.pointerLine.setAttribute('y2', pointerEnd.y.toFixed(2));
+        this.centerValue.textContent = String(this.value);
+        this.button.setAttribute('aria-valuenow', String(this.value));
+      }
+
+      setValue(nextValue, { emit = true, force = false } = {}) {
+        const next = clamp(nextValue, this.options.min, this.options.max);
+        if (next === this.value && !force) return this.value;
+        this.value = next;
+        this.render();
+        if (emit) {
+          const detail = { label: this.options.label, value: this.value, knob: this };
+          if (typeof this.options.onChange === 'function') this.options.onChange(detail);
+          this.button.dispatchEvent(new CustomEvent('valuechange', { bubbles: true, detail }));
+        }
+        return this.value;
+      }
+
+      getValue() {
+        return this.value;
+      }
+
+      mount(parent) {
+        parent.appendChild(this.root);
+        this.render();
+        return this;
+      }
+    }
+
+    class LEDIndicator {
+      constructor(options = {}) {
+        this.options = {
+          color: 'orange',
+          active: true,
+          clickable: true,
+          ariaLabel: 'Toggle module',
+          onToggle: null,
+          ...options
+        };
+        this.active = !!this.options.active;
+        this.build();
+        this.setActive(this.active, { emit: false });
+      }
+
+      build() {
+        this.button = document.createElement('button');
+        this.button.type = 'button';
+        this.button.className = `led-bezel led-${this.options.color}`;
+        this.button.setAttribute('aria-pressed', String(this.active));
+        this.button.setAttribute('aria-label', this.options.ariaLabel);
+
+        const inner = document.createElement('div');
+        inner.className = 'led-inner-ring';
+        const lens = document.createElement('div');
+        lens.className = 'led-lens';
+        inner.append(lens);
+        this.button.append(inner);
+
+        if (this.options.clickable) {
+          this.button.addEventListener('click', () => this.toggle());
+        } else {
+          this.button.disabled = true;
+          this.button.setAttribute('aria-disabled', 'true');
+        }
+      }
+
+      setColor(color) {
+        ['orange', 'blue', 'red', 'green'].forEach((name) => {
+          this.button.classList.remove(`led-${name}`);
+        });
+        this.button.classList.add(`led-${color}`);
+      }
+
+      setActive(active, { emit = true } = {}) {
+        this.active = !!active;
+        this.button.classList.toggle('active', this.active);
+        this.button.setAttribute('aria-pressed', String(this.active));
+        if (emit && typeof this.options.onToggle === 'function') {
+          this.options.onToggle(this.active, this);
+        }
+        if (emit) {
+          this.button.dispatchEvent(new CustomEvent('togglechange', {
+            bubbles: true,
+            detail: {
+              active: this.active,
+              indicator: this
+            }
+          }));
+        }
+      }
+
+      toggle() {
+        this.setActive(!this.active);
+      }
+
+      mount(parent) {
+        parent.appendChild(this.button);
+        return this;
+      }
+    }
+
+    class UnitSelector {
+      static activeInstance = null;
+
+      constructor(options = {}) {
+        this.options = {
+          value: '',
+          items: [],
+          ariaLabel: 'Select unit',
+          onChange: null,
+          className: '',
+          ...options
+        };
+        this.value = this.options.value;
+        this.items = [...this.options.items];
+        this.handleDocumentPointerDown = this.handleDocumentPointerDown.bind(this);
+        this.handleDocumentKeyDown = this.handleDocumentKeyDown.bind(this);
+        this.build();
+      }
+
+      build() {
+        this.root = document.createElement('div');
+        this.root.className = `unit-selector ${this.options.className || ''}`.trim();
+
+        this.button = document.createElement('button');
+        this.button.type = 'button';
+        this.button.className = 'unit-selector-button';
+        this.button.setAttribute('aria-haspopup', 'menu');
+        this.button.setAttribute('aria-expanded', 'false');
+        this.button.setAttribute('aria-label', this.options.ariaLabel);
+
+        this.labelNode = document.createElement('span');
+        this.labelNode.className = 'unit-selector-label';
+
+        this.caretNode = document.createElement('span');
+        this.caretNode.className = 'unit-selector-caret';
+        this.caretNode.textContent = '▼';
+        this.caretNode.setAttribute('aria-hidden', 'true');
+
+        this.button.append(this.labelNode, this.caretNode);
+
+        this.menu = document.createElement('div');
+        this.menu.className = 'unit-selector-menu';
+        this.menu.setAttribute('role', 'menu');
+
+        this.root.append(this.button, this.menu);
+
+        this.button.addEventListener('click', (event) => {
+          event.stopPropagation();
+          if (this.root.classList.contains('open')) {
+            this.close();
+          } else {
+            this.open();
+          }
+        });
+
+        this.renderOptions();
+        this.setValue(this.value, { emit: false });
+      }
+
+      renderOptions() {
+        this.menu.replaceChildren();
+        this.items.forEach((item) => {
+          const option = document.createElement('button');
+          option.type = 'button';
+          option.className = 'unit-selector-option';
+          option.textContent = item;
+          option.setAttribute('role', 'menuitemradio');
+          option.addEventListener('click', (event) => {
+            event.stopPropagation();
+            this.setValue(item);
+            this.close();
+          });
+          this.menu.append(option);
+        });
+        this.refreshOptionState();
+      }
+
+      refreshOptionState() {
+        Array.from(this.menu.children).forEach((node) => {
+          const selected = node.textContent === this.value;
+          node.classList.toggle('is-selected', selected);
+          node.setAttribute('aria-checked', String(selected));
+        });
+      }
+
+      setItems(items) {
+        this.items = [...items];
+        this.renderOptions();
+      }
+
+      setValue(value, { emit = true } = {}) {
+        this.value = value;
+        this.labelNode.textContent = value;
+        this.refreshOptionState();
+        if (emit && typeof this.options.onChange === 'function') {
+          this.options.onChange(value, this);
+        }
+        if (emit) {
+          this.root.dispatchEvent(new CustomEvent('selectorchange', {
+            bubbles: true,
+            detail: {
+              value: this.value,
+              selector: this
+            }
+          }));
+        }
+      }
+
+      open() {
+        if (UnitSelector.activeInstance && UnitSelector.activeInstance !== this) {
+          UnitSelector.activeInstance.close();
+        }
+        UnitSelector.activeInstance = this;
+        this.root.classList.add('open');
+        this.button.setAttribute('aria-expanded', 'true');
+        this.positionMenu();
+        document.addEventListener('pointerdown', this.handleDocumentPointerDown);
+        document.addEventListener('keydown', this.handleDocumentKeyDown);
+      }
+
+      close() {
+        this.root.classList.remove('open', 'open-up');
+        this.button.setAttribute('aria-expanded', 'false');
+        if (UnitSelector.activeInstance === this) {
+          UnitSelector.activeInstance = null;
+        }
+        document.removeEventListener('pointerdown', this.handleDocumentPointerDown);
+        document.removeEventListener('keydown', this.handleDocumentKeyDown);
+      }
+
+      positionMenu() {
+        this.root.classList.remove('open-up');
+        const menuRect = this.menu.getBoundingClientRect();
+        if (menuRect.bottom > window.innerHeight && menuRect.top > menuRect.height) {
+          this.root.classList.add('open-up');
+        }
+      }
+
+      handleDocumentPointerDown(event) {
+        if (!this.root.contains(event.target)) {
+          this.close();
+        }
+      }
+
+      handleDocumentKeyDown(event) {
+        if (event.key === 'Escape') {
+          this.close();
+          this.button.focus({ preventScroll: true });
+        }
+      }
+
+      mount(parent) {
+        parent.appendChild(this.root);
+        return this;
+      }
+    }
+
+    class ModuleSection {
+      constructor(config = {}) {
+        this.config = config;
+        this.knobs = [];
+        this.currentUnit = null;
+        this.unitValues = null;
+        this.initializeUnitState();
+        this.build();
+      }
+
+      hasUnitSelector() {
+        return !!this.config.units;
+      }
+
+      initializeUnitState() {
+        if (!this.hasUnitSelector()) {
+          return;
+        }
+
+        const unitNames = Object.keys(this.config.units || {});
+        this.currentUnit = this.config.selectedUnit && unitNames.includes(this.config.selectedUnit)
+          ? this.config.selectedUnit
+          : unitNames[0];
+
+        this.unitValues = {};
+        unitNames.forEach((unitName) => {
+          const store = {};
+          (this.config.units[unitName] || []).forEach((parameter) => {
+            store[parameter] = 50;
+          });
+          this.unitValues[unitName] = store;
+        });
+
+        (this.config.knobs || []).forEach((knob) => {
+          const label = this.findMatchingParameter(this.currentUnit, knob.label);
+          if (label) {
+            this.unitValues[this.currentUnit][label] = clamp(knob.value, TOKENS.MIN, TOKENS.MAX);
+          }
+        });
+      }
+
+      getUnitNames() {
+        return Object.keys(this.config.units || {});
+      }
+
+      getCurrentParameters() {
+        if (!this.hasUnitSelector()) {
+          return (this.config.knobs || []).map((knob) => knob.label);
+        }
+        return [...(this.config.units[this.currentUnit] || [])];
+      }
+
+      findMatchingParameter(unitName, label) {
+        const normalized = normalizeLabel(label);
+        return (this.config.units?.[unitName] || []).find((parameter) => normalizeLabel(parameter) === normalized) || null;
+      }
+
+      build() {
+        this.root = document.createElement('section');
+        this.root.className = 'module-section';
+        this.root.dataset.moduleKey = this.config.key || '';
+
+        if (this.config.compact) {
+          this.root.classList.add('compact');
+        }
+        if (this.config.preserveFiveSlots) {
+          this.root.classList.add('preserve-five-slots');
+        }
+
+        this.header = document.createElement('div');
+        this.header.className = 'module-head';
+
+        const inner = document.createElement('div');
+        inner.className = 'module-head-inner';
+
+        if (this.config.compact) {
+          const title = document.createElement('div');
+          title.className = 'module-title';
+          title.textContent = this.config.mode || '';
+          inner.append(title);
+
+          const spacer = document.createElement('div');
+          spacer.setAttribute('aria-hidden', 'true');
+          inner.append(spacer);
+        } else {
+          const leftGroup = document.createElement('div');
+          leftGroup.className = 'module-head-left';
+
+          const title = document.createElement('div');
+          title.className = 'module-title';
+          title.textContent = this.config.title || '';
+          leftGroup.append(title);
+
+          if (this.config.badge) {
+            const badge = document.createElement('div');
+            badge.className = 'module-badge';
+            badge.textContent = this.config.badge;
+            leftGroup.append(badge);
+          }
+
+          inner.append(leftGroup);
+
+          if (this.hasUnitSelector()) {
+            this.unitSelector = new UnitSelector({
+              value: this.currentUnit,
+              items: this.getUnitNames(),
+              ariaLabel: `${this.config.title || 'Module'} unit selector`,
+              onChange: (unitName) => this.switchUnit(unitName)
+            });
+            this.unitSelector.mount(inner);
+          } else {
+            const mode = document.createElement('div');
+            mode.className = 'module-mode';
+            mode.textContent = this.config.mode || '';
+            inner.append(mode);
+          }
+        }
+
+        const ledSlot = document.createElement('div');
+        ledSlot.className = 'module-led-slot';
+        this.header.append(inner, ledSlot);
+
+        this.knobGrid = document.createElement('div');
+        this.knobGrid.className = 'module-knobs';
+        this.root.append(this.header, this.knobGrid);
+
+        this.led = new LEDIndicator({
+          color: this.config.ledColor || 'orange',
+          active: this.config.active !== false,
+          ariaLabel: `${this.currentUnit || this.config.mode || this.config.title || 'Module'} power`,
+          onToggle: (isActive) => {
+            this.root.classList.toggle('is-off', !isActive);
+          }
+        }).mount(ledSlot);
+
+        this.renderKnobArea();
+        this.root.classList.toggle('is-off', !this.led.active);
+      }
+
+      renderKnobArea() {
+        this.knobGrid.replaceChildren();
+        this.knobs = [];
+
+        const parameters = this.getCurrentParameters();
+        if (this.config.preserveFiveSlots) {
+          const totalColumns = 5;
+          const leftPlaceholders = Math.max(0, totalColumns - parameters.length);
+          for (let index = 0; index < leftPlaceholders; index += 1) {
+            const placeholder = document.createElement('div');
+            placeholder.className = 'knob-placeholder';
+            placeholder.setAttribute('aria-hidden', 'true');
+            this.knobGrid.append(placeholder);
+          }
+        }
+
+        if (this.hasUnitSelector()) {
+          parameters.forEach((parameter) => {
+            const label = normalizeLabel(parameter);
+            const value = this.unitValues[this.currentUnit][parameter];
+            const knob = new KnobControl({
+              label,
+              value,
+              onChange: ({ value: nextValue }) => {
+                this.unitValues[this.currentUnit][parameter] = nextValue;
+              }
+            }).mount(this.knobGrid);
+            this.knobs.push(knob);
+          });
+          return;
+        }
+
+        (this.config.knobs || []).forEach((knobConfig) => {
+          const knob = new KnobControl(knobConfig).mount(this.knobGrid);
+          this.knobs.push(knob);
+        });
+      }
+
+      switchUnit(nextUnit) {
+        if (!this.hasUnitSelector() || nextUnit === this.currentUnit) {
+          return;
+        }
+        this.currentUnit = nextUnit;
+        this.unitSelector.setValue(nextUnit, { emit: false });
+        this.renderKnobArea();
+      }
+
+      getState() {
+        if (this.hasUnitSelector()) {
+          const unitValues = {};
+          this.getUnitNames().forEach((unitName) => {
+            unitValues[unitName] = { ...this.unitValues[unitName] };
+          });
+          return {
+            active: this.led.active,
+            selectedUnit: this.currentUnit,
+            units: unitValues,
+            values: this.getCurrentParameters().map((parameter) => ({
+              label: normalizeLabel(parameter),
+              value: this.unitValues[this.currentUnit][parameter]
+            }))
+          };
+        }
+
+        return {
+          active: this.led.active,
+          values: this.knobs.map((knob) => ({
+            label: knob.options.label,
+            value: knob.getValue()
+          }))
+        };
+      }
+
+      mount(parent) {
+        parent.appendChild(this.root);
+        return this;
+      }
+    }
+
+    class AmpSection {
+      constructor(config = {}) {
+        this.config = config;
+        this.knobs = [];
+        this.currentAmp = this.resolveInitialValue(this.config.selectedAmp, this.config.ampModels || []);
+        this.currentCabinet = this.resolveInitialValue(this.config.selectedCabinet, this.config.cabinets || []);
+        this.build();
+      }
+
+      resolveInitialValue(value, items) {
+        return items.includes(value) ? value : (items[0] || '');
+      }
+
+      getLedColorForAmp(ampName) {
+        const family = titleCaseToFamily(ampName);
+        if (family === 'classic') return 'red';
+        if (family === 'modern') return 'green';
+        return 'blue';
+      }
+
+      build() {
+        this.root = document.createElement('section');
+        this.root.className = 'module-section amp-head';
+        this.root.dataset.moduleKey = 'amp';
+
+        const headRow = document.createElement('div');
+        headRow.className = 'amp-head-row';
+
+        this.ampSelector = new UnitSelector({
+          value: this.currentAmp,
+          items: this.config.ampModels || [],
+          ariaLabel: 'Select amp model',
+          className: 'align-left is-amp',
+          onChange: (value) => this.setAmp(value)
+        }).mount(headRow);
+
+        this.cabSelector = new UnitSelector({
+          value: this.currentCabinet,
+          items: this.config.cabinets || [],
+          ariaLabel: 'Select speaker cabinet',
+          className: 'align-right is-cab',
+          onChange: (value) => this.setCabinet(value)
+        }).mount(headRow);
+
+        const ledWrap = document.createElement('div');
+        ledWrap.className = 'module-led-slot';
+        headRow.append(ledWrap);
+
+        this.knobGrid = document.createElement('div');
+        this.knobGrid.className = 'amp-knobs';
+
+        this.root.append(headRow, this.knobGrid);
+
+        this.led = new LEDIndicator({
+          color: this.getLedColorForAmp(this.currentAmp),
+          active: true,
+          clickable: false,
+          ariaLabel: 'Selected amp family indicator'
+        }).mount(ledWrap);
+        this.led.setActive(true, { emit: false });
+
+        (this.config.knobs || []).forEach((knobConfig) => {
+          const knob = new KnobControl(knobConfig).mount(this.knobGrid);
+          this.knobs.push(knob);
+        });
+      }
+
+      setAmp(value) {
+        this.currentAmp = value;
+        this.ampSelector.setValue(value, { emit: false });
+        this.led.setColor(this.getLedColorForAmp(value));
+        this.led.setActive(true, { emit: false });
+      }
+
+      setCabinet(value) {
+        this.currentCabinet = value;
+        this.cabSelector.setValue(value, { emit: false });
+      }
+
+      getState() {
+        return {
+          active: true,
+          selectedAmp: this.currentAmp,
+          selectedCabinet: this.currentCabinet,
+          ledColor: this.getLedColorForAmp(this.currentAmp),
+          values: this.knobs.map((knob) => ({
+            label: knob.options.label,
+            value: knob.getValue()
+          }))
+        };
+      }
+
+      mount(parent) {
+        parent.appendChild(this.root);
+        return this;
+      }
+    }
+
+    class THRIIApp {
+      constructor(config, mountNode) {
+        this.config = config;
+        this.mountNode = mountNode;
+        this.sections = new Map();
+        this.selectedMemorySlot = null;
+        this.isMemoryDirty = false;
+        this.userMemoryLabel = this.resolveInitialMemoryLabel();
+        this.userMemoryInput = null;
+        this.memoryButtons = [];
+        this.suspendDirtyTracking = false;
+        this.render();
+        this.bindDirtyTracking();
+      }
+
+      resolveInitialMemoryLabel() {
+        return 'ACTUAL';
+      }
+
+      getMemoryLabelForSlot(slotNumber) {
+        return `USER MEMORY ${slotNumber}`;
+      }
+
+      withDirtyTrackingSuspended(callback) {
+        this.suspendDirtyTracking = true;
+        try {
+          callback();
+        } finally {
+          this.suspendDirtyTracking = false;
+        }
+      }
+
+      setUserMemoryLabel(value) {
+        this.userMemoryLabel = value;
+        if (this.userMemoryInput) {
+          this.userMemoryInput.value = value;
+        }
+      }
+
+      formatMemoryButtonLabel(slotNumber) {
+        const isSelected = this.selectedMemorySlot === slotNumber;
+        const dirtySuffix = isSelected && this.isMemoryDirty ? ' *' : '';
+        return `${slotNumber}${dirtySuffix}`;
+      }
+
+      updateMemoryButtons() {
+        this.memoryButtons.forEach((button, index) => {
+          const slotNumber = index + 1;
+          const isSelected = this.selectedMemorySlot === slotNumber;
+          button.textContent = this.formatMemoryButtonLabel(slotNumber);
+          button.classList.toggle('is-selected', isSelected && !this.isMemoryDirty);
+          button.setAttribute('aria-pressed', String(isSelected && !this.isMemoryDirty));
+        });
+      }
+
+      activateMemorySlot(slotNumber) {
+        this.withDirtyTrackingSuspended(() => {
+          this.selectedMemorySlot = slotNumber;
+          this.isMemoryDirty = false;
+          this.setUserMemoryLabel(this.getMemoryLabelForSlot(slotNumber));
+          this.updateMemoryButtons();
+        });
+      }
+
+      markDirty() {
+        if (this.suspendDirtyTracking || this.selectedMemorySlot === null || this.isMemoryDirty) {
+          return;
+        }
+        this.isMemoryDirty = true;
+        this.updateMemoryButtons();
+      }
+
+      bindDirtyTracking() {
+        if (!this.root) {
+          return;
+        }
+        const handler = () => this.markDirty();
+        this.root.addEventListener('valuechange', handler);
+        this.root.addEventListener('togglechange', handler);
+        this.root.addEventListener('selectorchange', handler);
+      }
+
+      renderStrip(items, className) {
+        const strip = document.createElement('div');
+        strip.className = className;
+
+        items.forEach((item, index) => {
+          const isEditableMemory = className === 'top-strip' && index === 2;
+          const isFooterMemoryButton = className === 'footer-strip';
+          const slot = document.createElement('div');
+          slot.className = `strip-item${isEditableMemory ? ' center editable-memory' : ''}`;
+
+          if (isEditableMemory) {
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'strip-editable-input';
+            input.value = this.userMemoryLabel;
+            input.setAttribute('aria-label', 'User memory label');
+            input.addEventListener('input', (event) => {
+              const nextValue = event.target.value;
+              if (nextValue === this.userMemoryLabel) {
+                return;
+              }
+              this.userMemoryLabel = nextValue;
+              if (this.selectedMemorySlot !== null && !this.suspendDirtyTracking) {
+                this.markDirty();
+              }
+            });
+            this.userMemoryInput = input;
+            slot.append(input);
+          } else if (isFooterMemoryButton) {
+            const slotNumber = index + 1;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'footer-memory-button';
+            button.textContent = this.formatMemoryButtonLabel(slotNumber);
+            button.setAttribute('aria-label', `Recall memory slot ${slotNumber}`);
+            button.setAttribute('aria-pressed', 'false');
+            button.addEventListener('click', () => {
+              this.activateMemorySlot(slotNumber);
+            });
+            this.memoryButtons.push(button);
+            slot.append(button);
+          } else {
+            slot.textContent = item;
+          }
+
+          strip.append(slot);
+        });
+
+        return strip;
+      }
+
+      render() {
+        this.root = document.createElement('main');
+        this.root.className = 'thr-app';
+        this.memoryButtons = [];
+
+        this.root.append(this.renderStrip(this.config.topStrip, 'top-strip'));
+
+        const body = document.createElement('div');
+        body.className = 'ui-body';
+
+        const ampSection = new AmpSection(this.config.amp).mount(body);
+        this.sections.set('amp', ampSection);
+
+        this.config.rows.forEach((rowConfig) => {
+          if (rowConfig.type === 'dual') {
+            const row = document.createElement('div');
+            row.className = 'module-row dual';
+            rowConfig.modules.forEach((moduleConfig) => {
+              const section = new ModuleSection(moduleConfig).mount(row);
+              this.sections.set(moduleConfig.key, section);
+            });
+            body.append(row);
+            return;
+          }
+
+          const row = document.createElement('div');
+          row.className = 'module-row';
+          const section = new ModuleSection(rowConfig.module).mount(row);
+          this.sections.set(rowConfig.module.key, section);
+          body.append(row);
+        });
+
+        this.root.append(body, this.renderStrip(this.config.footerStrip, 'footer-strip'));
+        this.mountNode.replaceChildren(this.root);
+        this.updateMemoryButtons();
+      }
+
+      getState() {
+        const snapshot = {
+          userMemoryLabel: this.userMemoryLabel,
+          selectedMemorySlot: this.selectedMemorySlot,
+          isMemoryDirty: this.isMemoryDirty
+        };
+        this.sections.forEach((section, key) => {
+          if (typeof section.getState === 'function') {
+            snapshot[key] = section.getState();
+            return;
+          }
+          snapshot[key] = {
+            active: section.led.active,
+            values: section.knobs.map((knob) => ({
+              label: knob.options.label,
+              value: knob.getValue()
+            }))
+          };
+        });
+        return snapshot;
+      }
+    }
+
+    const app = new THRIIApp(UI_CONFIG, document.getElementById('app'));
+    window.THRIIDemo = app;
+  
+  </script>
+</body>
+</html>
