@@ -59,10 +59,12 @@ The recommended ownership model is:
 - Parser owns raw frame decoding and event extraction
 - Symbol table owns the THR-II semantic dictionary used to map raw IDs to names and typed values
 - Shadow store owns the current THR-II state
-- UI owns rendering and user intent only
+- UI owns rendering, user interaction intent, and controlled staging of input values into the canonical model
 - Preset domain owns import/export conversion to and from the THR-II preset format
 
 This prevents state drift, where the UI, parser, dump cache, and live controls each become independent authorities.
+
+Important nuance: the UI is allowed to apply a user-selected value into the shadow model as an explicit state transition, but it must not maintain a separate authoritative device value outside that model. The shadow store remains the single source of truth; the UI only feeds intent into it before serialization or re-sync from the amp.
 
 ## Symbol table role in the architecture
 
@@ -432,12 +434,12 @@ This path turns the canonical state into a `.thrl6p` JSON payload for saving or 
 
 Command-driven runtime edit flow:
 
-- GUI -> Shadow State (intent/selection) -> Command Builder -> SysEx transport -> THR-II
+- GUI intent -> Shadow State (controlled value update / pending commit) -> Command Builder -> SysEx transport -> THR-II
 - THR-II -> SysEx Parser -> Symbol Table -> Shadow State -> GUI
 
 This pattern is used for parameter writes, amp selection, cabinet selection, effect selection, and module toggles.
 
-The UI may show a user choice immediately, but the final authoritative value is still the response-driven state update from the device or the synchronized shadow model.
+The UI may apply a user choice into the shadow state as part of the commit flow, but the final authoritative value remains the canonical shadow model or the response-driven state update from the device. The UI is not allowed to hold a separate device-authoritative state that bypasses the model.
 
 ## Runtime-flow summary
 
