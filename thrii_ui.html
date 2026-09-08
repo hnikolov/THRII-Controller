@@ -91,7 +91,9 @@
     }
 
     .top-strip {
-      grid-template-columns: auto auto 1fr auto;
+      position: relative;
+      z-index: 50;
+      grid-template-columns: auto 1fr auto;
       gap: 14px;
       padding: 0 8px;
     }
@@ -568,7 +570,7 @@
       position: relative;
       justify-self: end;
       min-width: 0;
-      z-index: 3;
+      z-index: 60;
     }
 
     .unit-selector-button {
@@ -614,6 +616,7 @@
       border: 1px solid var(--line);
       background: var(--paper);
       box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+      z-index: 80;
     }
 
     .unit-selector.open .unit-selector-menu {
@@ -772,7 +775,28 @@
     };
 
     const UI_CONFIG = {
-      topStrip: ['IMP', 'EXP', 'USER MEMORY 1', 'CONNECT'],
+      topStrip: [
+        {
+          kind: 'preset-menu',
+          label: 'PRESETS',
+          items: [
+            'Export',
+            'Import',
+            'Import AI',
+            'Import Factory',
+            'Save to THR slot 1',
+            'Save to THR slot 2',
+            'Save to THR slot 3',
+            'Save to THR slot 4',
+            'Save to THR slot 5',
+            'Backup THR',
+            'Restore THR',
+            'Debug UI'
+          ]
+        },
+        'USER MEMORY 1',
+        'CONNECT'
+      ],
       footerStrip: ['1', '2', '3', '4', '5'],
       amp: {
         selectedAmp: 'Boutique Lead',
@@ -1222,6 +1246,7 @@
           ariaLabel: 'Select unit',
           onChange: null,
           className: '',
+          displayValue: null,
           ...options
         };
         this.value = this.options.value;
@@ -1304,7 +1329,10 @@
 
       setValue(value, { emit = true } = {}) {
         this.value = value;
-        this.labelNode.textContent = value;
+        const label = this.options.displayValue !== null && this.options.displayValue !== undefined
+          ? this.options.displayValue
+          : value;
+        this.labelNode.textContent = label;
         this.refreshOptionState();
         if (emit && typeof this.options.onChange === 'function') {
           this.options.onChange(value, this);
@@ -1772,12 +1800,24 @@
         strip.className = className;
 
         items.forEach((item, index) => {
-          const isEditableMemory = className === 'top-strip' && index === 2;
+          const isEditableMemory = className === 'top-strip' && index === 1;
           const isFooterMemoryButton = className === 'footer-strip';
           const slot = document.createElement('div');
           slot.className = `strip-item${isEditableMemory ? ' center editable-memory' : ''}`;
 
-          if (isEditableMemory) {
+          if (item && typeof item === 'object' && item.kind === 'preset-menu') {
+            const presetMenu = new UnitSelector({
+              value: '',
+              displayValue: item.label,
+              items: item.items || [],
+              ariaLabel: `${item.label} actions`,
+              className: 'align-left',
+              onChange: () => {
+                // No actions wired yet.
+              }
+            });
+            presetMenu.mount(slot);
+          } else if (isEditableMemory) {
             const input = document.createElement('input');
             input.type = 'text';
             input.className = 'strip-editable-input';
