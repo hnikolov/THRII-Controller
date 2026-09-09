@@ -143,6 +143,19 @@ Not allowed:
 - creating UI-level state duplication
 - forcing production app logic to depend on debug tooling
 
+### 6) Parameter writes should be coalesced, not streamed
+
+When a user rotates a knob or drags a live control, the app may generate many rapid value changes. Those intermediate values are a UI-gesture detail, not necessarily a set of commands that must be sent to the THR-II.
+
+The preferred policy is:
+
+- keep the latest value in the shadow state immediately
+- coalesce repeated outbound writes in a small scheduler window
+- send only the final pending value to the device once the burst settles or a short maximum interval is reached
+- treat this as a transport-level write policy, not as a separate UI state model
+
+This is effectively a last-write-wins throttle. It avoids flooding the amp while preserving the final user intent and the canonical model.
+
 ## Required behavior for changes
 
 When editing parser or protocol code, confirm:

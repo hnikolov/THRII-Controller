@@ -85,6 +85,19 @@ The project needs an explicit boundary between:
 
 This keeps state updates deterministic and easy to debug.
 
+### 6) Outbound writes use last-write-wins throttling
+
+The UI may update the canonical shadow model on every knob drag or value change for responsiveness, but the protocol writer must not flush every intermediate value to the amp.
+
+Preferred behavior:
+
+- the shadow store is updated immediately with the newest user value
+- a transport/protocol scheduler coalesces repeated outbound writes into a single pending value
+- when the interaction settles or a short timer expires, the latest pending value is emitted to the THR-II
+- if more updates arrive before the flush window closes, only the newest value is kept and sent
+
+This is a better rule than a naive hard delay because it preserves responsiveness while preventing protocol floods. It also respects the canonical state model: the device writer derives from the shadow store, not from transient DOM state.
+
 ## Required state flow
 
 The canonical flow must be:

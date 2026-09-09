@@ -45,7 +45,14 @@ The runtime UI is intentionally designed as a portrait-first mobile experience. 
    - the debug UI must be independent, ideally as a separate tab, separate page, or separately loaded debug module
    - the debug code should never be interleaved with the app runtime logic; it should be a clearly isolated module that can be included or excluded without affecting the production state model
 
-5. PWA-friendly structure
+5. Write throttling and coalescing
+   - the UI may update the shadow state on every drag or knob movement for responsiveness
+   - outbound THR-II writes must be rate-limited and coalesced so a burst of rapid knob changes does not flood the amp
+   - the preferred rule is last-write-wins: keep the newest value in the canonical state, and serialize only the latest pending value after a short time window or when the user pauses interaction
+   - avoid sending every intermediate value to the device; the device should receive steady, bounded updates rather than a dense stream of transient edits
+   - this rule belongs in the protocol/output layer, not in the UI rendering logic, so the runtime state remains single-source-of-truth and the transport remains bounded and predictable
+
+6. PWA-friendly structure
    - keep the runtime architecture modular but not over-fragmented
    - prefer a small number of clear domain modules over many tiny abstraction layers
    - optimize for maintainability and Copilot-driven iteration
