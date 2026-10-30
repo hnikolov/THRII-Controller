@@ -153,7 +153,7 @@ A cleaner production shape is:
     - debug/
       - debugPanel.js
 
-This is intentionally a little more compact than the earlier split. The important part is not the exact file count; it is the clear separation between:
+The important part is not the exact file count; it is the clear separation between:
 
 - device transport and protocol
 - semantic decoding and symbol mapping
@@ -188,6 +188,7 @@ In other words, the UI code should not be treated as a permanent part of the old
 
 ## Topology
 
+```
                          +------------------------+          +-------+       +-------------------+
                          |         SysEx          | Commands | THRII |       | Import/Export     |
                          |     Command Builder    |<---------|  GUI  |------>| Presets (.thrl6p) |
@@ -218,6 +219,7 @@ In other words, the UI code should not be treated as a permanent part of the old
                          |    +----------->|               Symbol Table             |
                          v                 |               ID/name/enum             |
                       ACK/NACK, etc.       +----------------------------------------+            
+```
 
 ## Parallel debug observer pattern
 
