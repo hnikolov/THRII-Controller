@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-31",
+  "firmware": "1.44.0.a",
+  "browser": "Chrome",
+  "page": "thrii_ctrl.html (legacy)",
+  "items": {
+    "usb_connect": "PASS",
+    "ble_connect": "NA (deferred by user, to be tested later)",
+    "activate": "PASS",
+    "dump_actual": "PASS",
+    "dump_slots_1_to_5": "PASS",
+    "app_param_to_amp": "PASS",
+    "amp_knob_to_app": "PASS",
+    "amp_slot_buttons_follow": "FAIL: amp data is received and visible in the log, but the UI is not updated",
+    "import_export": "FAIL: import is OK; export of doc/test_preset_EVH.thrl6p differs from doc/01. EarlyVH.thrl6p: FX1 Compressor enabled false -> true; FX2 Effect @wetDry 0.334071 -> 0 (Depth/Freq/Pre added as 0); FX3 Echo enabled true -> false and @wetDry 0.212781 -> 0; FX4 Reverb @wetDry 0.19566 -> 0.06 and FX4WetSend 0.19566 added; name changed to the file name (expected)",
+    "upload_readback": "PASS"
+  }
+}

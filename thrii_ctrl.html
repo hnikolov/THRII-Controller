@@ -524,16 +524,23 @@
   </main>
 
   <script src="doc/thr10ii_w_symbol_table_1_44_0_a.js"></script>
-  <script>
-    const MIDI_SERVICE_UUID = '03b80e5a-ede8-4b33-a751-6ce34ec4c700';
-    const MIDI_CHAR_UUID = '7772e5db-3868-4112-a1a9-f2669d106bf3';
-
-    const thrActivateSequenceHex = [
-      'f0 7e 7f 06 01 f7',
-      'f0 00 01 0c 24 01 4d 00 00 00 00 07 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 f7',
-      'f0 00 01 0c 24 01 4d 00 01 00 00 07 00 04 00 00 00 04 00 00 00 00 00 00 00 00 00 00 f7',
-      'f0 00 01 0c 24 01 4d 00 02 00 00 03 28 72 4d 54 5d 00 00 00 f7'
-    ];
+  <script type="module">
+    import { clamp01, normalizeOnOff } from './src/core/values.js';
+    import { concatBytes, parseSysExHex, sleep, toHex, writeF32LE, writeU32LE } from './src/core/bytes.js';
+    import { nextCommandCounter } from './src/protocol/counter.js';
+    import { thrActivateSequenceHex, thrDumpProtocol, thrKeys, thrOpcode, thrTypeCode } from './src/protocol/constants.js';
+    import {
+      buildAskGlobalParameter, buildBodyFrame, buildCommandFrameFromRawPayload, buildHeaderFrame,
+      buildRequestUserSettingsDump, buildSetModuleEnabled, buildSetModuleParameter, buildSetParameter,
+      buildUploadUserSettingsBodyFrames, buildUploadUserSettingsFrames, buildUploadUserSettingsHeader,
+      dumpTargetRefToU32, encodeBitBucket7Padded, encodeShadowRawU32, normalizeDumpTargetRef
+    } from './src/protocol/builders.js';
+    import { createStore } from './src/state/shadowStore.js';
+    import { buildShadowParameterIndex, getLatestShadowUnitById, getLatestShadowUnitByName, readShadowParamByName } from './src/state/selectors.js';
+    import { createTransportManager } from './src/transports/transportManager.js';
+    import { parseIdentityReply, setDeviceIdentity } from './src/protocol/identity.js';
+    import { MIDI_CHAR_UUID, MIDI_SERVICE_UUID } from './src/transports/bleTransport.js';
+    import { decodeBitBucket7THR, extractSysexFrames, parseIncomingThrFrame, parseOutgoingFrameMeta, readF32LEFromU32, readU32LEFromBytes, sliceU32LEWords } from './src/protocol/frames.js';
 
     const ampModelCommandsHex = {
       classicLead: [
@@ -608,70 +615,6 @@
       modernHiGain: 'Modern Hi Gain'
     };
 
-    const thrKeys = {
-      unit: {
-        amp: 0x0000010c,
-        fx1: 0x00000109,
-        fx2: 0x0000010e,
-        fx3: 0x00000111,
-        fx4: 0x00000114,
-        guitarProc: 0x0000013c,
-        global: 0xffffffff
-      },
-      parameter: {
-        spkSimType: 0x00000107,
-        gateEnable: 0x00000104,
-        fx1Enable: 0x00000130,
-        fx2Enable: 0x0000012f,
-        fx3Enable: 0x0000012e,
-        fx4Enable: 0x00000132
-      },
-      enumValue: {
-        effect: {
-          chorus: 230,
-          flanger: 226,
-          phaser: 208,
-          tremolo: 220
-        },
-        echo: {
-          tapeEcho: 235,
-          digitalDelay: 241
-        },
-        reverb: {
-          spring: 243,
-          plate: 249,
-          room: 256,
-          hall: 254
-        },
-        cabinetSymbolToIndex: {
-          145: 16
-        }
-      }
-    };
-
-    const thrTypeCode = {
-      float32: 0x00000004,
-      bool: 0x00000003,
-      enum: 0x00000002
-    };
-
-    const thrOpcode = {
-      requestUserSettingsDump: 0x0000000c,
-      uploadUserSettingsDump: 0x0000000d,
-      setGlobalOrType: 0x00000008,
-      askGlobal: 0x00000009,
-      setParameter: 0x0000000a
-    };
-
-    const thrDumpProtocol = {
-      actualTargetU32: 0xffffffff,
-      minSlot: 0,
-      maxSlot: 4,
-      defaultUploadChunkDecodedSize: 210,
-      // Upload header after the 3 length/target words carries 3 constant words.
-      defaultUploadTailWords: [0x00000000, 0x00000001, 0x00000000]
-    };
-
     const thrL6PresetFormat = {
       schema: 'L6Preset',
       version: 5,
@@ -682,14 +625,10 @@
 
     let bleDevice = null;
     let bleServer = null;
-    let bleMidiChar = null;
-    let bleTs = 0;
-    let bleNotificationHandler = null;
 
     let midiAccess = null;
-    let midiOut = null;
-    let midiIn = null;
-    let thrCommandCounter = 3;
+
+    const transports = createTransportManager();
 
     function log(msg) {
       const el = document.getElementById('log');
@@ -698,74 +637,8 @@
       el.scrollTop = el.scrollHeight;
     }
 
-    function toHex(bytes) {
-      return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' ');
-    }
-
-    function sleep(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    function nextCommandCounter() {
-      const c = thrCommandCounter & 0x7f;
-      thrCommandCounter = (thrCommandCounter + 1) & 0x7f;
-      return c;
-    }
-
-    function parseSysExHex(hexStr) {
-      const cleaned = (hexStr || '').replace(/[^0-9a-fA-F]/g, '');
-      if (!cleaned || cleaned.length % 2 !== 0) throw new Error('Invalid hex string.');
-      const out = new Uint8Array(cleaned.length / 2);
-      for (let i = 0; i < cleaned.length; i += 2) {
-        out[i / 2] = parseInt(cleaned.slice(i, i + 2), 16);
-      }
-      return out;
-    }
-
     function isUserCancellationError(err) {
       return !!err && (err.name === 'NotFoundError' || err.name === 'AbortError');
-    }
-
-    function clamp01(value) {
-      const n = Number(value);
-      if (!Number.isFinite(n)) return 0;
-      return Math.max(0, Math.min(1, n));
-    }
-
-    function normalizeDumpTargetRef(targetRef) {
-      if (targetRef && typeof targetRef === 'object') {
-        if (targetRef.kind === 'actual') {
-          return { kind: 'actual', value: thrDumpProtocol.actualTargetU32 >>> 0 };
-        }
-        if (targetRef.kind === 'slot') {
-          const slot = Math.max(
-            thrDumpProtocol.minSlot,
-            Math.min(thrDumpProtocol.maxSlot, Number(targetRef.value) | 0)
-          );
-          return { kind: 'slot', value: slot };
-        }
-      }
-
-      const numeric = Number(targetRef);
-      if (Number.isFinite(numeric)) {
-        const asU32 = numeric >>> 0;
-        if (asU32 === (thrDumpProtocol.actualTargetU32 >>> 0)) {
-          return { kind: 'actual', value: thrDumpProtocol.actualTargetU32 >>> 0 };
-        }
-        const slot = Math.max(
-          thrDumpProtocol.minSlot,
-          Math.min(thrDumpProtocol.maxSlot, numeric | 0)
-        );
-        return { kind: 'slot', value: slot };
-      }
-
-      throw new Error('Invalid dump target. Use slot 0..4 or actual (0xffffffff).');
-    }
-
-    function dumpTargetRefToU32(targetRef) {
-      const normalized = normalizeDumpTargetRef(targetRef);
-      if (normalized.kind === 'actual') return thrDumpProtocol.actualTargetU32 >>> 0;
-      return normalized.value >>> 0;
     }
 
     function dumpTargetRefToLabel(targetRef) {
@@ -777,88 +650,6 @@
     function cloneBytesOrNull(bytes) {
       if (!(bytes instanceof Uint8Array)) return null;
       return bytes.slice(0);
-    }
-
-    function writeU32LE(value) {
-      const v = Number(value) >>> 0;
-      return Uint8Array.from([
-        v & 0xff,
-        (v >>> 8) & 0xff,
-        (v >>> 16) & 0xff,
-        (v >>> 24) & 0xff
-      ]);
-    }
-
-    function writeF32LE(value) {
-      const buf = new ArrayBuffer(4);
-      const dv = new DataView(buf);
-      dv.setFloat32(0, Number(value), true);
-      return new Uint8Array(buf);
-    }
-
-    function concatBytes(...parts) {
-      const len = parts.reduce((sum, part) => sum + part.length, 0);
-      const out = new Uint8Array(len);
-      let off = 0;
-      for (const part of parts) {
-        out.set(part, off);
-        off += part.length;
-      }
-      return out;
-    }
-
-    // Parser section: incoming THR-II frame decoding and event extraction.
-
-    function readU32LEFromBytes(bytes, offset = 0) {
-      if ((offset + 4) > bytes.length) {
-        throw new Error('Out of bounds LE32 read at offset ' + offset);
-      }
-      return (
-        (bytes[offset]) |
-        (bytes[offset + 1] << 8) |
-        (bytes[offset + 2] << 16) |
-        ((bytes[offset + 3] << 24) >>> 0)
-      ) >>> 0;
-    }
-
-    function decodeBitBucket7THR(encodedBytes, validDecodedBytes) {
-      const out = [];
-      for (let p = 0; p < encodedBytes.length;) {
-        const bucket = encodedBytes[p++] & 0x7f;
-        for (let i = 0; i < 7 && p < encodedBytes.length; i += 1) {
-          const low = encodedBytes[p++] & 0x7f;
-          const msb = (bucket >> (6 - i)) & 0x01;
-          out.push(low | (msb << 7));
-        }
-      }
-
-      const maxLen = Math.max(0, Number(validDecodedBytes) || 0);
-      return Uint8Array.from(out.slice(0, maxLen));
-    }
-
-    function sliceU32LEWords(bytes, offset = 0, warnings = []) {
-      const out = [];
-      if (offset < 0 || offset > bytes.length) {
-        warnings.push('Invalid word slice offset: ' + offset);
-        return out;
-      }
-
-      const available = bytes.length - offset;
-      if (available % 4 !== 0) {
-        warnings.push('Payload tail is not aligned to 4 bytes: ' + available);
-      }
-
-      for (let p = offset; (p + 4) <= bytes.length; p += 4) {
-        out.push(readU32LEFromBytes(bytes, p));
-      }
-      return out;
-    }
-
-    function readF32LEFromU32(u32) {
-      const buf = new ArrayBuffer(4);
-      const dv = new DataView(buf);
-      dv.setUint32(0, u32 >>> 0, true);
-      return dv.getFloat32(0, true);
     }
 
     // Parser section: symbol table resolution (local JSON + runtime fallback map).
@@ -1041,124 +832,6 @@
         typeCode: normalizedType,
         decoded: valueRawU32 >>> 0,
         decodedKind: normalizedType === thrTypeCode.enum ? 'enum_u32' : 'u32'
-      };
-    }
-
-    function extractSysexFrames(bytes) {
-      const frames = [];
-      let start = -1;
-
-      for (let i = 0; i < bytes.length; i += 1) {
-        const b = bytes[i];
-        if (b === 0xf0) {
-          start = i;
-          continue;
-        }
-        if (b === 0xf7 && start >= 0) {
-          frames.push(bytes.slice(start, i + 1));
-          start = -1;
-        }
-      }
-
-      return frames;
-    }
-
-    function parseIncomingThrFrame(rawFrame, source) {
-      const warnings = [];
-      if (rawFrame.length < 14) throw new Error('Frame too short for THR parse.');
-      if (rawFrame[0] !== 0xf0 || rawFrame[rawFrame.length - 1] !== 0xf7) {
-        throw new Error('Not a SysEx frame.');
-      }
-
-      const manufacturer = [rawFrame[1], rawFrame[2], rawFrame[3]];
-      if (manufacturer[0] !== 0x00 || manufacturer[1] !== 0x01 || manufacturer[2] !== 0x0c) {
-        warnings.push('Unexpected manufacturer bytes: ' + manufacturer.map(v => v.toString(16).padStart(2, '0')).join(' '));
-      }
-
-      const header = {
-        family: rawFrame[4],
-        model: rawFrame[5],
-        marker: rawFrame[6],
-        group: rawFrame[7],
-        counter: rawFrame[8],
-        pc: rawFrame[9],
-        l2: rawFrame[10],
-        l1: rawFrame[11],
-        lastValidIndex: ((rawFrame[10] & 0x0f) * 16) + (rawFrame[11] & 0x0f)
-      };
-
-      const encodedPayload = rawFrame.slice(12, rawFrame.length - 1);
-      const decodedPayload = decodeBitBucket7THR(encodedPayload, header.lastValidIndex + 1);
-
-      let opcode = null;
-      let declaredLength = null;
-      let payloadWords = [];
-      if (decodedPayload.length >= 8) {
-        const firstWord = readU32LEFromBytes(decodedPayload, 0);
-        // Continuation frames in multi-frame dumps can start with arbitrary payload words.
-        // Only treat word#0 as opcode when it matches known THR opcode range.
-        if (firstWord <= 0x0f) {
-          opcode = firstWord;
-          declaredLength = readU32LEFromBytes(decodedPayload, 4);
-          payloadWords = sliceU32LEWords(decodedPayload, 8, warnings);
-        } else if (header.pc === 0) {
-          warnings.push('Decoded payload does not start with THR opcode: 0x' + firstWord.toString(16));
-        }
-      } else {
-        warnings.push('Decoded payload shorter than opcode+length.');
-      }
-
-      return {
-        source,
-        rawHex: toHex(rawFrame),
-        header,
-        encodedPayload,
-        decodedPayload,
-        opcode,
-        declaredLength,
-        payloadWords,
-        warnings
-      };
-    }
-
-    function parseOutgoingFrameMeta(frameBytes, label) {
-      if (!(frameBytes instanceof Uint8Array) || frameBytes.length < 14) {
-        return null;
-      }
-
-      if (frameBytes[0] !== 0xf0 || frameBytes[frameBytes.length - 1] !== 0xf7) {
-        return null;
-      }
-
-      const header = {
-        group: frameBytes[7],
-        counter: frameBytes[8],
-        l2: frameBytes[10],
-        l1: frameBytes[11]
-      };
-      const lastValidIndex = ((header.l2 & 0x0f) * 16) + (header.l1 & 0x0f);
-      const encoded = frameBytes.slice(12, frameBytes.length - 1);
-      const decoded = decodeBitBucket7THR(encoded, lastValidIndex + 1);
-
-      let opcode = null;
-      let declaredLength = null;
-      if (decoded.length >= 8) {
-        const firstWord = readU32LEFromBytes(decoded, 0);
-        // Heuristic: THR opcodes are small values (<= 0x0f).
-        if (firstWord <= 0x0f) {
-          opcode = firstWord;
-          declaredLength = readU32LEFromBytes(decoded, 4);
-        }
-      }
-
-      return {
-        timeMs: Date.now(),
-        label: label || 'TX',
-        group: header.group,
-        counter: header.counter,
-        opcode,
-        declaredLength,
-        rawHex: toHex(frameBytes)
       };
     }
 
@@ -1712,11 +1385,13 @@
         leadingWords: Array.isArray(leadingWords) ? leadingWords.map(w => Number(w) >>> 0) : []
       };
 
-      if (normalized.kind === 'actual') {
-        thrIncomingParser.state.dumpCache.actual = cacheEntry;
-      } else {
-        thrIncomingParser.state.dumpCache.slots[normalized.value] = cacheEntry;
-      }
+      shadowStore.commit(() => {
+        if (normalized.kind === 'actual') {
+          thrIncomingParser.state.dumpCache.actual = cacheEntry;
+        } else {
+          thrIncomingParser.state.dumpCache.slots[normalized.value] = cacheEntry;
+        }
+      }, 'dump');
       return cacheEntry;
     }
 
@@ -2215,49 +1890,6 @@
       }, 1600);
     }
 
-    function readShadowParamByName(paramName) {
-      const units = Object.values(thrIncomingParser.state.units || {});
-      let latest = null;
-      units.forEach(unit => {
-        Object.values(unit.parameters || {}).forEach(param => {
-          if (param.name !== paramName) return;
-          if (!latest || (param.updatedAtMs || 0) > (latest.updatedAtMs || 0)) {
-            latest = { unit, param };
-          }
-        });
-      });
-      return latest;
-    }
-
-    function getLatestShadowUnitByName(unitName) {
-      const units = Object.values(thrIncomingParser.state.units || {}).filter(u => u.name === unitName);
-      if (!units.length) return null;
-      units.sort((a, b) => {
-        const aTime = Math.max(0, ...Object.values(a.parameters || {}).map(p => p.updatedAtMs || 0));
-        const bTime = Math.max(0, ...Object.values(b.parameters || {}).map(p => p.updatedAtMs || 0));
-        return bTime - aTime;
-      });
-      return units[0];
-    }
-
-    function getLatestShadowUnitById(unitId) {
-      const key = Number(unitId) >>> 0;
-      const units = Object.values(thrIncomingParser.state.units || {}).filter(u => (Number(u.id) >>> 0) === key);
-      if (!units.length) return null;
-      units.sort((a, b) => {
-        const aTime = Math.max(0, ...Object.values(a.parameters || {}).map(p => p.updatedAtMs || 0));
-        const bTime = Math.max(0, ...Object.values(b.parameters || {}).map(p => p.updatedAtMs || 0));
-        return bTime - aTime;
-      });
-      return units[0];
-    }
-
-    function normalizeOnOff(value) {
-      if (typeof value === 'boolean') return value;
-      if (typeof value === 'number') return value >= 0.5;
-      return null;
-    }
-
     function isGateLikeParamName(name) {
       const normalized = String(name || '').toLowerCase().replace(/\s+/g, '');
       return (
@@ -2321,7 +1953,7 @@
     function syncControlsFromShadowState() {
       clearControlSyncMarkers();
 
-      const cabinet = readShadowParamByName('SpkSimType') || readShadowParamByName('SpkSimTypeState');
+      const cabinet = readShadowParamByName(shadowStore.getState(), 'SpkSimType') || readShadowParamByName(shadowStore.getState(), 'SpkSimTypeState');
       if (cabinet && cabinet.param) {
         const select = document.getElementById('cabPreset');
         const v = Number(cabinet.param.value);
@@ -2353,7 +1985,7 @@
         { paramName: 'FX4EnableState', target: 'reverb' }
       ];
       toggleMap.forEach(item => {
-        const hit = readShadowParamByName(item.paramName);
+        const hit = readShadowParamByName(shadowStore.getState(), item.paramName);
         if (!hit || !hit.param) return;
         const enabled = normalizeOnOff(hit.param.value);
         if (enabled == null) {
@@ -2371,7 +2003,7 @@
       ];
 
       typeMap.forEach(item => {
-        const unit = getLatestShadowUnitByName(item.unitName);
+        const unit = getLatestShadowUnitByName(shadowStore.getState(), item.unitName);
         if (!unit || unit.typeKey == null) return;
 
         if (item.ampButtons) {
@@ -2650,6 +2282,8 @@
       set('pdLastError', state.stats.lastError || 'none');
     }
 
+    const shadowStore = createStore(createParserShadowState());
+
     const thrIncomingParser = {
       parseIncomingThrFrame,
       decodeBitBucket7THR,
@@ -2663,7 +2297,7 @@
       history: [],
       events: [],
       pendingOutbound: [],
-      state: createParserShadowState(),
+      state: shadowStore.getState(),
       syncMarkerTimer: null,
       series: {
         incomingByKey: {},
@@ -2854,8 +2488,8 @@
 
     function getMirrorTransportText() {
       const names = [];
-      if (midiOut) names.push('USB');
-      if (bleDevice && bleMidiChar) names.push('BLE');
+      if (transports.usb.isConnected()) names.push('USB');
+      if (bleDevice && transports.ble.isConnected()) names.push('BLE');
       return names.length ? names.join('+') : 'Not connected';
     }
 
@@ -3178,7 +2812,7 @@
         { id: 'reverb', unitId: thrKeys.unit.fx4, unitName: 'FX4' }
       ];
       typeCards.forEach(item => {
-        const unit = getLatestShadowUnitById(item.unitId) || getLatestShadowUnitByName(item.unitName);
+        const unit = getLatestShadowUnitById(shadowStore.getState(), item.unitId) || getLatestShadowUnitByName(shadowStore.getState(), item.unitName);
         const card = cardsById[item.id];
         if (!card) return;
         if (unit && unit.typeName) {
@@ -3602,6 +3236,10 @@
       if (!frames.length) {
         return;
       }
+      frames.forEach(frame => {
+        const identity = parseIdentityReply(frame);
+        if (identity) setDeviceIdentity(identity);
+      });
 
       frames.forEach(frame => {
         thrIncomingParser.state.stats.framesRx += 1;
@@ -3616,11 +3254,10 @@
           const events = assemblyEvents.concat(semanticEvents, derivedEvents);
           events.forEach(event => {
             pushParserEvent(event);
-            applyParserEventToShadowState(event, source);
+            shadowStore.commit(() => applyParserEventToShadowState(event, source), event.kind === 'settings_dump_download_complete' ? 'dump' : 'device');
             logParserEvent(event, source);
           });
           cleanupStaleDumpSessions();
-          syncControlsFromShadowState();
           updateParserDiagnosticsView();
           updateDumpUiStatus();
           renderParserMirrorView();
@@ -3692,9 +3329,10 @@
 
     function setStatus() {
       const names = [];
-      if (midiOut) names.push('USB OUT: ' + (midiOut.name || 'Unnamed'));
-      if (midiIn) names.push('USB IN: ' + (midiIn.name || 'Unnamed'));
-      if (bleDevice && bleMidiChar) names.push('BLE: ' + (bleDevice.name || 'Unnamed'));
+      const usbPorts = transports.usb.ports();
+      if (usbPorts.output) names.push('USB OUT: ' + (usbPorts.output.name || 'Unnamed'));
+      if (usbPorts.input) names.push('USB IN: ' + (usbPorts.input.name || 'Unnamed'));
+      if (bleDevice && transports.ble.isConnected()) names.push('BLE: ' + (bleDevice.name || 'Unnamed'));
 
       document.getElementById('status').textContent = names.length ? 'Connected' : 'Not connected';
       document.getElementById('deviceInfo').textContent = 'Device: ' + (names.join(' | ') || '(none)');
@@ -3714,59 +3352,14 @@
     }
 
     function anyConnected() {
-      return !!midiOut || !!bleMidiChar;
-    }
-
-    function nextBleTs() {
-      const ts = bleTs;
-      bleTs = (bleTs + 1) & 0x1fff;
-      return [0x80 | (ts >> 7), 0x80 | (ts & 0x7f)];
-    }
-
-    function buildBlePacket(bytes) {
-      const [hi, lo] = nextBleTs();
-      const packet = new Uint8Array(2 + bytes.length);
-      packet[0] = hi;
-      packet[1] = lo;
-      packet.set(bytes, 2);
-      return packet;
-    }
-
-    async function sendBle(bytes, chunkPayloadSize = 200) {
-      if (!bleMidiChar) throw new Error('BLE is not connected.');
-      for (let i = 0; i < bytes.length; i += chunkPayloadSize) {
-        const chunk = bytes.slice(i, i + chunkPayloadSize);
-        const packet = buildBlePacket(chunk);
-        if (typeof bleMidiChar.writeValueWithoutResponse === 'function') {
-          await bleMidiChar.writeValueWithoutResponse(packet);
-        } else {
-          await bleMidiChar.writeValue(packet);
-        }
-      }
+      return transports.isConnected();
     }
 
     async function sendAndLog(bytes, transportLabel) {
-      registerOutgoingForParser(bytes, transportLabel);
-      await sendMidi(bytes);
+      await transports.send(bytes, transportLabel);
       if (transportLabel) {
         log(transportLabel + ': ' + toHex(bytes));
       }
-    }
-
-    async function sendMidi(bytes) {
-      if (midiOut) {
-        midiOut.send(Array.from(bytes));
-        return;
-      }
-      if (bleMidiChar) {
-        await sendBle(bytes);
-        return;
-      }
-      throw new Error('No USB or BLE output connected.');
-    }
-
-    function onUsbMidiMessage(event) {
-      handleIncomingBytes(new Uint8Array(event.data), 'USB');
     }
 
     async function requestUsbMidiPermissionHint() {
@@ -3811,34 +3404,21 @@
         return { connected: false, cancelled: false };
       }
 
-      const outputs = Array.from(midiAccess.outputs.values());
-      const inputs = Array.from(midiAccess.inputs.values());
-
-      if (!outputs.length && !inputs.length) {
+      const ports = transports.usb.attach(midiAccess);
+      if (!ports.connected) {
         log('No USB MIDI ports available.');
         disconnectUsb();
         return { connected: false, cancelled: false };
       }
 
-      midiOut = outputs[0] || null;
-      midiIn = inputs.find(i => midiOut && i.name === midiOut.name) || inputs[0] || null;
-      if (midiIn) {
-        midiIn.addEventListener('midimessage', onUsbMidiMessage);
-      }
-
-      log('USB connected: ' + [midiOut && midiOut.name, midiIn && midiIn.name].filter(Boolean).join(' | '));
+      const { output, input } = transports.usb.ports();
+      log('USB connected: ' + [output && output.name, input && input.name].filter(Boolean).join(' | '));
       setStatus();
-      return { connected: !!midiOut || !!midiIn, cancelled: false };
+      return { connected: ports.connected, cancelled: false };
     }
 
     function cleanupBle() {
-      if (bleMidiChar && bleNotificationHandler) {
-        try {
-          bleMidiChar.removeEventListener('characteristicvaluechanged', bleNotificationHandler);
-        } catch (err) {}
-      }
-      bleNotificationHandler = null;
-      bleMidiChar = null;
+      transports.ble.detach();
       bleServer = null;
     }
 
@@ -3872,8 +3452,9 @@
 
       try {
         bleServer = await bleDevice.gatt.connect();
+        transports.ble.setMaxPacketBytes(bleServer.maxWriteWithoutResponseSize);
         const service = await bleServer.getPrimaryService(MIDI_SERVICE_UUID);
-        bleMidiChar = await service.getCharacteristic(MIDI_CHAR_UUID);
+        transports.ble.setCharacteristic(await service.getCharacteristic(MIDI_CHAR_UUID));
       } catch (err) {
         cleanupBle();
         log('BLE connect failed: ' + err.message);
@@ -3881,12 +3462,7 @@
       }
 
       try {
-        await bleMidiChar.startNotifications();
-        bleNotificationHandler = e => {
-          const rx = new Uint8Array(e.target.value.buffer);
-          handleIncomingBytes(rx, 'BLE');
-        };
-        bleMidiChar.addEventListener('characteristicvaluechanged', bleNotificationHandler);
+        await transports.ble.enableNotifications();
       } catch (err) {
         log('BLE notifications unavailable: ' + err.message);
       }
@@ -3897,32 +3473,25 @@
     }
 
     async function onConnect() {
-      const usbResult = await tryConnectUsb();
-      if (usbResult.connected) {
+      const bleResult = await connectBle();
+      if (bleResult.connected) {
         return;
       }
 
-      if (usbResult.cancelled) {
-        log('USB canceled. Falling back to BLE.');
+      if (bleResult.cancelled) {
+        log('BLE canceled. Falling back to USB.');
       } else {
-        log('USB not connected. Falling back to BLE.');
+        log('BLE not connected. Falling back to USB.');
       }
 
-      const bleResult = await connectBle();
-      if (!bleResult.connected && bleResult.cancelled) {
-        log('BLE connection canceled by user.');
-      }
-      if (!bleResult.connected) {
+      const usbResult = await tryConnectUsb();
+      if (!usbResult.connected) {
         setStatus();
       }
     }
 
     function disconnectUsb() {
-      if (midiIn) {
-        midiIn.removeEventListener('midimessage', onUsbMidiMessage);
-      }
-      midiIn = null;
-      midiOut = null;
+      transports.usb.detach();
       midiAccess = null;
     }
 
@@ -3956,215 +3525,6 @@
       const hex = 'f000010c24014d0108000e0b000e0000000400000000 ' + n.toString(16).padStart(2, '0') + ' 0000000000f7';
       await sendAndLog(parseSysExHex(hex), 'TX THR preset ' + (n + 1));
       log('THR preset ' + (n + 1) + ' command sent.');
-    }
-
-    function encodeBitBucket7Padded(rawBytes) {
-      const groups = Math.max(1, Math.ceil(rawBytes.length / 7));
-      const out = [];
-
-      for (let g = 0; g < groups; g += 1) {
-        let bucket = 0;
-        const lows = [];
-
-        for (let i = 0; i < 7; i += 1) {
-          const idx = g * 7 + i;
-          const value = idx < rawBytes.length ? (rawBytes[idx] & 0xff) : 0;
-
-          // THR-II follows the documented bitbucket ordering where byte #1 maps to bit6, byte #7 maps to bit0.
-          if (value & 0x80) bucket |= (1 << (6 - i));
-          lows.push(value & 0x7f);
-        }
-
-        out.push(bucket, ...lows);
-      }
-
-      return Uint8Array.from(out);
-    }
-
-    function buildCommandFrameFromRawPayload(rawPayload, options = {}) {
-      const group = options.group || 0;
-      const counter = options.counter == null ? nextCommandCounter() : options.counter;
-      const pc = options.pc == null ? 0 : options.pc;
-      const lastValidIndex = options.lastValidIndex == null ? Math.max(0, rawPayload.length - 1) : options.lastValidIndex;
-      const encoded = encodeBitBucket7Padded(rawPayload);
-
-      const frame = new Uint8Array(12 + encoded.length + 1);
-      frame[0] = 0xf0;
-      frame[1] = 0x00;
-      frame[2] = 0x01;
-      frame[3] = 0x0c;
-      frame[4] = 0x24;
-      frame[5] = 0x01;
-      frame[6] = 0x4d;
-      frame[7] = group & 0x7f;
-      frame[8] = counter & 0x7f;
-      frame[9] = pc & 0x7f;
-      frame[10] = (lastValidIndex >> 4) & 0x0f;
-      frame[11] = lastValidIndex & 0x0f;
-      frame.set(encoded, 12);
-      frame[12 + encoded.length] = 0xf7;
-      return frame;
-    }
-
-    function buildHeaderFrame(args) {
-      const opcodeRaw = writeU32LE(args.opcode >>> 0);
-      const followingRaw = writeU32LE(args.followingBytes >>> 0);
-      return buildCommandFrameFromRawPayload(concatBytes(opcodeRaw, followingRaw), {
-        group: args.group || 0,
-        counter: args.counter,
-        pc: args.pc,
-        lastValidIndex: 7
-      });
-    }
-
-    function buildBodyFrame(args) {
-      return buildCommandFrameFromRawPayload(args.bodyRawPayload, {
-        group: args.group || 0,
-        counter: args.counter,
-        pc: args.pc,
-        lastValidIndex: Math.max(0, args.bodyRawPayload.length - 1)
-      });
-    }
-
-    function buildRequestUserSettingsDump(targetRef, options = {}) {
-      const targetU32 = dumpTargetRefToU32(targetRef);
-      const payload = concatBytes(
-        writeU32LE(thrOpcode.requestUserSettingsDump),
-        writeU32LE(4),
-        writeU32LE(targetU32)
-      );
-
-      return buildCommandFrameFromRawPayload(payload, {
-        group: options.group == null ? 0x01 : options.group,
-        counter: options.counter,
-        pc: options.pc,
-        lastValidIndex: 11
-      });
-    }
-
-    function buildUploadUserSettingsHeader(uploadArgs = {}, options = {}) {
-      const targetU32 = dumpTargetRefToU32(uploadArgs.targetRef);
-      const patchRawLength = uploadArgs.patchRawLength == null ? 0 : (Number(uploadArgs.patchRawLength) >>> 0);
-      const payloadLengthMinus8 = uploadArgs.payloadLengthMinus8 == null
-        ? ((patchRawLength + 12) >>> 0)
-        : (Number(uploadArgs.payloadLengthMinus8) >>> 0);
-      const payloadLengthTotal = uploadArgs.payloadLengthTotal == null
-        ? ((payloadLengthMinus8 + 8) >>> 0)
-        : (Number(uploadArgs.payloadLengthTotal) >>> 0);
-
-      const tailWords = Array.isArray(uploadArgs.constantsTailWords) && uploadArgs.constantsTailWords.length
-        ? uploadArgs.constantsTailWords
-        : thrDumpProtocol.defaultUploadTailWords;
-
-      // Upload opcode 0x0d uses six parameters directly after opcode.
-      // Do not prepend the generic command "declared length" word here.
-      const parameterWords = [payloadLengthTotal, targetU32, payloadLengthMinus8]
-        .concat(tailWords.map(v => Number(v) >>> 0));
-      const parameterPayload = concatBytes(...parameterWords.map(writeU32LE));
-      const payload = concatBytes(writeU32LE(thrOpcode.uploadUserSettingsDump), parameterPayload);
-
-      return buildCommandFrameFromRawPayload(payload, {
-        group: options.group == null ? 0x01 : options.group,
-        counter: options.counter,
-        pc: options.pc,
-        lastValidIndex: Math.max(0, payload.length - 1)
-      });
-    }
-
-    function buildUploadUserSettingsBodyFrames(patchRaw, options = {}) {
-      const bytes = patchRaw instanceof Uint8Array ? patchRaw : Uint8Array.from(patchRaw || []);
-      if (!bytes.length) return [];
-
-      const chunkSize = Math.max(
-        1,
-        Number(options.frameChunkDecodedSize || thrDumpProtocol.defaultUploadChunkDecodedSize) | 0
-      );
-      const group = options.group == null ? 0x01 : options.group;
-      const baseCounter = options.counter == null ? nextCommandCounter() : options.counter;
-      const pcStart = options.pcStart == null ? 0 : (options.pcStart & 0x7f);
-      const incrementCounter = !!options.incrementCounter;
-
-      const frames = [];
-      for (let offset = 0, idx = 0; offset < bytes.length; offset += chunkSize, idx += 1) {
-        const chunk = bytes.slice(offset, offset + chunkSize);
-        const frameCounter = incrementCounter ? ((baseCounter + idx) & 0x7f) : (baseCounter & 0x7f);
-        const framePc = (pcStart + idx) & 0x7f;
-
-        frames.push(buildBodyFrame({
-          group,
-          counter: frameCounter,
-          pc: framePc,
-          bodyRawPayload: chunk
-        }));
-      }
-      return frames;
-    }
-
-    function buildUploadUserSettingsFrames(uploadArgs = {}, patchRaw, options = {}) {
-      const patchBytes = patchRaw instanceof Uint8Array ? patchRaw : Uint8Array.from(patchRaw || []);
-      const header = buildUploadUserSettingsHeader({
-        targetRef: uploadArgs.targetRef,
-        patchRawLength: patchBytes.length,
-        payloadLengthTotal: uploadArgs.payloadLengthTotal,
-        payloadLengthMinus8: uploadArgs.payloadLengthMinus8,
-        constantsTailWords: uploadArgs.constantsTailWords
-      }, {
-        group: options.group,
-        counter: options.headerCounter,
-        pc: options.headerPc
-      });
-
-      const bodyFrames = buildUploadUserSettingsBodyFrames(patchBytes, {
-        group: options.group,
-        counter: options.bodyCounter,
-        incrementCounter: options.incrementBodyCounter,
-        frameChunkDecodedSize: options.frameChunkDecodedSize,
-        pcStart: options.bodyPcStart
-      });
-
-      return [header, ...bodyFrames];
-    }
-
-    function buildSetParameter(uKey, pKey, typeCode, valueRawU32, options = {}) {
-      const header = buildHeaderFrame({
-        group: options.group || 0,
-        counter: options.headerCounter,
-        opcode: thrOpcode.setParameter,
-        followingBytes: 16
-      });
-
-      const bodyPayload = concatBytes(
-        writeU32LE(uKey),
-        writeU32LE(pKey),
-        writeU32LE(typeCode),
-        writeU32LE(valueRawU32)
-      );
-
-      const body = buildBodyFrame({
-        group: options.group || 0,
-        counter: options.bodyCounter,
-        bodyRawPayload: bodyPayload
-      });
-
-      return [header, body];
-    }
-
-    function buildAskGlobalParameter(uKeyGlobal, pKey, options = {}) {
-      const header = buildHeaderFrame({
-        group: options.group || 0,
-        counter: options.headerCounter,
-        opcode: thrOpcode.askGlobal,
-        followingBytes: 8
-      });
-
-      const bodyPayload = concatBytes(writeU32LE(uKeyGlobal), writeU32LE(pKey));
-      const body = buildBodyFrame({
-        group: options.group || 0,
-        counter: options.bodyCounter,
-        bodyRawPayload: bodyPayload
-      });
-
-      return [header, body];
     }
 
     function buildSelectUnitType(uKey, enumSymbolKey, options = {}) {
@@ -4211,28 +3571,6 @@
       );
     }
 
-    function buildSetModuleEnabled(target, enabled, options = {}) {
-      const map = {
-        compressor: thrKeys.parameter.fx1Enable,
-        gate: thrKeys.parameter.gateEnable,
-        effect: thrKeys.parameter.fx2Enable,
-        echo: thrKeys.parameter.fx3Enable,
-        reverb: thrKeys.parameter.fx4Enable
-      };
-
-      const pKey = map[target];
-      if (pKey == null) throw new Error('Unknown module enable target: ' + target);
-
-      const valueRawU32 = new DataView(writeF32LE(enabled ? 1 : 0).buffer).getUint32(0, true);
-      return buildSetParameter(
-        thrKeys.unit.guitarProc,
-        pKey,
-        thrTypeCode.float32,
-        valueRawU32,
-        options
-      );
-    }
-
     function buildSelectEffect(effectSymbolKey, options = {}) {
       return buildSelectUnitType(thrKeys.unit.fx2, effectSymbolKey, options);
     }
@@ -4243,11 +3581,6 @@
 
     function buildSelectReverb(reverbSymbolKey, options = {}) {
       return buildSelectUnitType(thrKeys.unit.fx4, reverbSymbolKey, options);
-    }
-
-    function buildSetModuleParameter(uKey, pKey, value01, options = {}) {
-      const valueRawU32 = new DataView(writeF32LE(clamp01(value01)).buffer).getUint32(0, true);
-      return buildSetParameter(uKey, pKey, thrTypeCode.float32, valueRawU32, options);
     }
 
     const thrProtocolBuilders = {
@@ -4372,27 +3705,6 @@
       return candidates[0] || null;
     }
 
-    function buildShadowParameterIndex() {
-      const out = new Map();
-      const units = Object.values(thrIncomingParser.state.units || {});
-      units.forEach(unit => {
-        const unitKey = Number(unit.id) >>> 0;
-        Object.values(unit.parameters || {}).forEach(param => {
-          const pKey = Number(param.id) >>> 0;
-          const mapKey = unitKey + ':' + pKey;
-          out.set(mapKey, {
-            unitKey,
-            pKey,
-            typeCode: Number(param.typeCode) >>> 0,
-            rawU32: Number(param.rawU32) >>> 0,
-            decodedKind: param.decodedKind || null,
-            value: param.value
-          });
-        });
-      });
-      return out;
-    }
-
     function encodeDumpValueToRawU32(typeCode, shadowParam) {
       const code = Number(typeCode) >>> 0;
       if (!shadowParam) return null;
@@ -4475,7 +3787,7 @@
           : parseDumpPatchDomain(baseRaw, { targetRef: options.targetRef || null }));
 
       const out = baseRaw.slice(0);
-      const shadowIndex = buildShadowParameterIndex();
+      const shadowIndex = buildShadowParameterIndex(shadowStore.getState());
       let changedWordCount = 0;
 
       if (domain && Array.isArray(domain.entries)) {
@@ -4857,7 +4169,7 @@
     }
 
     function getUnitForExport(unitName, unitId) {
-      return getLatestShadowUnitById(unitId) || getLatestShadowUnitByName(unitName);
+      return getLatestShadowUnitById(shadowStore.getState(), unitId) || getLatestShadowUnitByName(shadowStore.getState(), unitName);
     }
 
     function toCanonicalParamName(rawName) {
@@ -4908,14 +4220,14 @@
       }
 
       for (let i = 0; i < candidates.length; i += 1) {
-        const exact = readShadowParamByName(String(candidates[i] || '').trim());
+        const exact = readShadowParamByName(shadowStore.getState(), String(candidates[i] || '').trim());
         if (exact && exact.param) return exact.param;
       }
 
       for (let i = 0; i < candidates.length; i += 1) {
         const base = toCanonicalParamName(candidates[i]);
         if (!base) continue;
-        const withState = readShadowParamByName(base + 'State');
+        const withState = readShadowParamByName(shadowStore.getState(), base + 'State');
         if (withState && withState.param) return withState.param;
       }
 
@@ -4947,7 +4259,7 @@
           const name = namesToTry[j];
           if (!name || tried.has(name)) continue;
           tried.add(name);
-          const hit = readShadowParamByName(name);
+          const hit = readShadowParamByName(shadowStore.getState(), name);
           if (hit && hit.param) {
             return hit.param;
           }
@@ -5403,32 +4715,6 @@
       return null;
     }
 
-    function encodeShadowRawU32(typeCode, value, existingRaw = 0) {
-      const code = Number(typeCode) >>> 0;
-
-      if (code === (thrTypeCode.float32 >>> 0)) {
-        const n = Number(value);
-        if (!Number.isFinite(n)) return Number(existingRaw) >>> 0;
-        return new DataView(writeF32LE(n).buffer).getUint32(0, true) >>> 0;
-      }
-
-      if (code === (thrTypeCode.bool >>> 0)) {
-        const b = normalizeOnOff(value);
-        if (b == null) return Number(existingRaw) >>> 0;
-        return b ? 0x3f800000 : 0x00000000;
-      }
-
-      if (code === (thrTypeCode.enum >>> 0)) {
-        const n = Number(value);
-        if (!Number.isFinite(n)) return Number(existingRaw) >>> 0;
-        return (Math.round(n) >>> 0);
-      }
-
-      const n = Number(value);
-      if (Number.isFinite(n)) return (Math.round(n) >>> 0);
-      return Number(existingRaw) >>> 0;
-    }
-
     function upsertShadowParam(unit, candidateNames, value, preferredTypeCode, warnings, contextLabel, options = {}) {
       if (!unit) return false;
       const hit = findUnitParamByCandidates(unit, candidateNames);
@@ -5660,7 +4946,6 @@
       });
 
       mirrorUiState.previewSubtypeByCard = {};
-      syncControlsFromShadowState();
       updateParserDiagnosticsView();
       renderParserMirrorView();
 
@@ -5691,7 +4976,7 @@
       }
 
       const normalized = parseImportedThrl6Preset(parsed);
-      const result = applyImportedToneToShadow(normalized.tone);
+      const result = shadowStore.commit(() => applyImportedToneToShadow(normalized.tone), 'import');
 
       log('Preset imported to shadow: ' + normalized.presetName + ' (writes=' + result.writeCount + ', warnings=' + result.warnings.length + ')');
       result.warnings.slice(0, 12).forEach(w => log('Import warning: ' + w));
@@ -5706,6 +4991,10 @@
       input.value = '';
       input.click();
     }
+
+    transports.bus.on('raw:in', ({ bytes, source }) => handleIncomingBytes(bytes, source));
+    transports.bus.on('raw:out', ({ bytes, label }) => registerOutgoingForParser(bytes, label));
+    shadowStore.subscribe(() => syncControlsFromShadowState());
 
     document.getElementById('btnConnect').addEventListener('click', () => safeRun(onConnect));
     document.getElementById('btnDisconnect').addEventListener('click', () => safeRun(disconnectAll));

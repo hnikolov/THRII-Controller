@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>THR-II unit tests</title>
+</head>
+<body>
+  <div id="summary">running</div>
+  <pre id="failures"></pre>
+  <script type="module">
+    import { runAll } from './support/assert.js';
+    import './unit/fixtures.test.js';
+    import './unit/bytes.test.js';
+    import './unit/builders.test.js';
+    import './unit/shadowStore.test.js';
+    import './unit/frames.test.js';
+    import './unit/transports.test.js';
+    import './unit/writeScheduler.test.js';
+    import './unit/runtime.test.js';
+    import './unit/incoming.test.js';
+    import './unit/applyDeviceEvent.test.js';
+    import './unit/identity.test.js';
+    import './unit/dumpAssembly.test.js';
+    import './unit/dumpParser.test.js';
+    import './unit/syncFlow.test.js';
+    import './unit/paramWrite.test.js';
+    import './unit/unitTypeWrite.test.js';
+    import './unit/effectParams.test.js';
+    import './unit/presetSelect.test.js';
+    import './unit/transportQueue.test.js';
+
+    const result = await runAll();
+    document.getElementById('summary').textContent = `PASS ${result.pass} FAIL ${result.fail}`;
+    document.getElementById('failures').textContent = result.failures.join('\n');
+  </script>
+</body>
+</html>

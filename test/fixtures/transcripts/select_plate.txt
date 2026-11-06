@@ -1,0 +1,19 @@
+[8:49:03 AM] TX builder reverb 1/2: f0 00 01 0c 24 01 4d 00 25 00 00 07 00 08 00 00 00 08 00 00 00 00 00 00 00 00 00 00 f7
+[8:49:03 AM] TX builder reverb 2/2: f0 00 01 0c 24 01 4d 00 26 00 00 07 04 14 01 00 00 79 00 00 00 00 00 00 00 00 00 00 f7
+[8:49:03 AM] Reverb type command sent: plate
+[8:49:03 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 08 00 00 0b 00 01 00 00 00 04 00 00 00 00 00 00 00 00 00 00 f7
+[8:49:03 AM] RX USB parsed: grp=0 cnt=8 last=11 op=0x00000001 len=4
+[8:49:03 AM] RX USB decoded: 01 00 00 00 04 00 00 00 00 00 00 00
+[8:49:03 AM] RX USB event: ACK corr(cnt=37,op=0x8)
+[8:49:03 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 09 00 01 03 00 06 00 00 00 0c 00 00 00 00 01 00 00 00 02 00 00 00 00 01 00 00 00 00 f7
+[8:49:03 AM] RX USB parsed: grp=0 cnt=9 last=19 op=0x00000006 len=12
+[8:49:03 AM] RX USB decoded: 06 00 00 00 0c 00 00 00 01 00 00 00 02 00 00 00 01 00 00 00
+[8:49:03 AM] RX USB event: status_ready op=0x6
+[8:49:04 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 0a 00 01 07 00 04 00 00 00 10 00 00 3c 00 7f 7f 7f 7f 50 01 00 00 00 04 00 00 00 00 20 00 00 3f 00 00 00 00 f7
+[8:49:04 AM] RX USB parsed: grp=0 cnt=10 last=23 op=0x00000004 len=16
+[8:49:04 AM] RX USB decoded: 04 00 00 00 10 00 00 00 ff ff ff ff 50 01 00 00 04 00 00 00 00 00 80 3f
+[8:49:04 AM] RX USB event: parameter_change Global.GuitProcOutputGain = 1.0000
+[8:49:04 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 0b 00 01 07 00 04 00 00 00 10 00 00 3c 00 7f 7f 7f 7f 4d 01 00 00 00 04 00 00 00 00 20 00 00 3f 00 00 00 00 f7
+[8:49:04 AM] RX USB parsed: grp=0 cnt=11 last=23 op=0x00000004 len=16
+[8:49:04 AM] RX USB decoded: 04 00 00 00 10 00 00 00 ff ff ff ff 4d 01 00 00 04 00 00 00 00 00 80 3f
+[8:49:04 AM] RX USB event: parameter_change Global.GuitProcInputGain = 1.0000

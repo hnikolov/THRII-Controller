@@ -1,0 +1,44 @@
+[8:15:08 PM] RX USB raw: f0 00 01 0c 24 01 4d 00 07 00 01 03 00 06 00 00 00 0c 00 00 00 00 01 00 00 00 02 00 00 00 00 01 00 00 00 00 f7
+[8:15:08 PM] RX USB parsed: grp=0 cnt=7 last=19 op=0x00000006 len=12
+[8:15:08 PM] RX USB decoded: 06 00 00 00 0c 00 00 00 01 00 00 00 02 00 00 00 01 00 00 00
+[8:15:08 PM] RX USB event: status_ready op=0x6
+[8:15:08 PM] RX USB raw: f0 00 01 0c 24 01 4d 00 08 00 01 07 00 04 00 00 00 10 00 00 00 00 0c 01 00 00 4c 00 01 00 00 04 00 00 00 60 40 5f 5f 3f 00 00 00 00 f7
+[8:15:08 PM] RX USB parsed: grp=0 cnt=8 last=23 op=0x00000004 len=16
+[8:15:08 PM] RX USB decoded: 04 00 00 00 10 00 00 00 0c 01 00 00 4c 00 00 00 04 00 00 00 e0 df 5f 3f
+[8:15:08 PM] RX USB event: parameter_change Amp.Master = 0.8745
+[8:15:08 PM] RX USB raw: f0 00 01 0c 24 01 4d 00 09 00 01 03 00 06 00 00 00 0c 00 00 00 00 01 00 00 00 02 00 00 00 00 01 00 00 00 00 f7
+[8:15:08 PM] RX USB parsed: grp=0 cnt=9 last=19 op=0x00000006 len=12
+[8:15:08 PM] RX USB decoded: 06 00 00 00 0c 00 00 00 01 00 00 00 02 00 00 00 01 00 00 00
+[8:15:08 PM] RX USB event: status_ready op=0x6
+[8:15:08 PM] RX USB raw: f0 00 01 0c 24 01 4d 00 0a 00 01 07 00 04 00 00 00 10 00 00 00 00 0c 01 00 00 4c 00 01 00 00 04 00 00 00 68 40 67 67 3f 00 00 00 00 f7
+[8:15:08 PM] RX USB parsed: grp=0 cnt=10 last=23 op=0x00000004 len=16
+[8:15:08 PM] RX USB decoded: 04 00 00 00 10 00 00 00 0c 01 00 00 4c 00 00 00 04 00 00 00 e8 e7 67 3f
+[8:15:08 PM] RX USB event: parameter_change Amp.Master = 0.9059
+[8:15:08 PM] RX USB raw: f0 00 01 0c 24 01 4d 00 0b 00 01 07 00 04 00 00 00 10 00 00 00 00 0c 01 00 00 4c 00 01 00 00 04 00 00 00 69 40 68 68 3f 00 00 00 00 f7
+[8:15:08 PM] RX USB parsed: grp=0 cnt=11 last=23 op=0x00000004 len=16
+[8:15:08 PM] RX USB decoded: 04 00 00 00 10 00 00 00 0c 01 00 00 4c 00 00 00 04 00 00 00 e9 e8 68 3f
+[8:15:08 PM] RX USB event: parameter_change Amp.Master = 0.9098
+[8:15:08 PM] RX USB raw: f0 00 01 0c 24 01 4d 00 0c 00 01 03 00 06 00 00 00 0c 00 00 00 00 01 00 00 00 02 00 00 00 00 01 00 00 00 00 f7
+[8:15:08 PM] RX USB parsed: grp=0 cnt=12 last=19 op=0x00000006 len=12
+[8:15:08 PM] RX USB decoded: 06 00 00 00 0c 00 00 00 01 00 00 00 02 00 00 00 01 00 00 00
+[8:15:08 PM] RX USB event: status_ready op=0x6
+[8:15:08 PM] RX USB raw: f0 00 01 0c 24 01 4d 00 0d 00 01 07 00 04 00 00 00 10 00 00 00 00 0c 01 00 00 4c 00 01 00 00 04 00 00 00 72 40 71 71 3f 00 00 00 00 f7
+[8:15:08 PM] RX USB parsed: grp=0 cnt=13 last=23 op=0x00000004 len=16
+[8:15:08 PM] RX USB decoded: 04 00 00 00 10 00 00 00 0c 01 00 00 4c 00 00 00 04 00 00 00 f2 f1 71 3f
+[8:15:08 PM] RX USB event: parameter_change Amp.Master = 0.9451
+[8:15:09 PM] RX USB raw: f0 00 01 0c 24 01 4d 00 0e 00 01 07 00 04 00 00 00 10 00 00 00 00 0c 01 00 00 4c 00 01 00 00 04 00 00 00 73 40 72 72 3f 00 00 00 00 f7
+[8:15:09 PM] RX USB parsed: grp=0 cnt=14 last=23 op=0x00000004 len=16
+[8:15:09 PM] RX USB decoded: 04 00 00 00 10 00 00 00 0c 01 00 00 4c 00 00 00 04 00 00 00 f3 f2 72 3f
+[8:15:09 PM] RX USB event: parameter_change Amp.Master = 0.9490
+[8:15:09 PM] RX USB raw: f0 00 01 0c 24 01 4d 00 0f 00 01 03 00 06 00 00 00 0c 00 00 00 00 01 00 00 00 02 00 00 00 00 01 00 00 00 00 f7
+[8:15:09 PM] RX USB parsed: grp=0 cnt=15 last=19 op=0x00000006 len=12
+[8:15:09 PM] RX USB decoded: 06 00 00 00 0c 00 00 00 01 00 00 00 02 00 00 00 01 00 00 00
+[8:15:09 PM] RX USB event: status_ready op=0x6
+[8:15:09 PM] RX USB raw: f0 00 01 0c 24 01 4d 00 10 00 01 07 00 04 00 00 00 10 00 00 00 00 0c 01 00 00 4c 00 01 00 00 04 00 00 00 77 40 76 76 3f 00 00 00 00 f7
+[8:15:09 PM] RX USB parsed: grp=0 cnt=16 last=23 op=0x00000004 len=16
+[8:15:09 PM] RX USB decoded: 04 00 00 00 10 00 00 00 0c 01 00 00 4c 00 00 00 04 00 00 00 f7 f6 76 3f
+[8:15:09 PM] RX USB event: parameter_change Amp.Master = 0.9647
+[8:15:09 PM] RX USB raw: f0 00 01 0c 24 01 4d 00 11 00 01 03 00 06 00 00 00 0c 00 00 00 00 01 00 00 00 02 00 00 00 00 01 00 00 00 00 f7
+[8:15:09 PM] RX USB parsed: grp=0 cnt=17 last=19 op=0x00000006 len=12
+[8:15:09 PM] RX USB decoded: 06 00 00 00 0c 00 00 00 01 00 00 00 02 00 00 00 01 00 00 00
+[8:15:09 PM] RX USB event: status_ready op=0x6

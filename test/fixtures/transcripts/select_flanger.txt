@@ -1,0 +1,23 @@
+[8:45:56 AM] TX builder effect 1/2: f0 00 01 0c 24 01 4d 00 19 00 00 07 00 08 00 00 00 08 00 00 00 00 00 00 00 00 00 00 f7
+[8:45:56 AM] TX builder effect 2/2: f0 00 01 0c 24 01 4d 00 1a 00 00 07 04 0e 01 00 00 62 00 00 00 00 00 00 00 00 00 00 f7
+[8:45:56 AM] Effect type command sent: flanger
+[8:45:56 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 6b 00 00 0b 00 01 00 00 00 04 00 00 00 00 00 00 00 00 00 00 f7
+[8:45:56 AM] RX USB parsed: grp=0 cnt=107 last=11 op=0x00000001 len=4
+[8:45:56 AM] RX USB decoded: 01 00 00 00 04 00 00 00 00 00 00 00
+[8:45:56 AM] RX USB event: ACK corr(cnt=25,op=0x8)
+[8:45:56 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 6c 00 01 03 00 06 00 00 00 0c 00 00 00 00 01 00 00 00 02 00 00 00 00 01 00 00 00 00 f7
+[8:45:56 AM] RX USB parsed: grp=0 cnt=108 last=19 op=0x00000006 len=12
+[8:45:56 AM] RX USB decoded: 06 00 00 00 0c 00 00 00 01 00 00 00 02 00 00 00 01 00 00 00
+[8:45:56 AM] RX USB event: status_ready op=0x6
+[8:45:56 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 6d 00 01 07 00 04 00 00 00 10 00 00 3c 00 7f 7f 7f 7f 50 01 00 00 00 04 00 00 00 00 20 00 00 3f 00 00 00 00 f7
+[8:45:56 AM] RX USB parsed: grp=0 cnt=109 last=23 op=0x00000004 len=16
+[8:45:56 AM] RX USB decoded: 04 00 00 00 10 00 00 00 ff ff ff ff 50 01 00 00 04 00 00 00 00 00 80 3f
+[8:45:56 AM] RX USB event: parameter_change Global.GuitProcOutputGain = 1.0000
+[8:45:56 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 6e 00 01 07 00 04 00 00 00 10 00 00 3c 00 7f 7f 7f 7f 4d 01 00 00 00 04 00 00 00 00 20 00 00 3f 00 00 00 00 f7
+[8:45:56 AM] RX USB parsed: grp=0 cnt=110 last=23 op=0x00000004 len=16
+[8:45:56 AM] RX USB decoded: 04 00 00 00 10 00 00 00 ff ff ff ff 4d 01 00 00 04 00 00 00 00 00 80 3f
+[8:45:56 AM] RX USB event: parameter_change Global.GuitProcInputGain = 1.0000
+[8:45:56 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 6f 00 01 03 00 06 00 00 00 0c 00 00 00 00 01 00 00 00 02 00 00 00 00 01 00 00 00 00 f7
+[8:45:56 AM] RX USB parsed: grp=0 cnt=111 last=19 op=0x00000006 len=12
+[8:45:56 AM] RX USB decoded: 06 00 00 00 0c 00 00 00 01 00 00 00 02 00 00 00 01 00 00 00
+[8:45:56 AM] RX USB event: status_ready op=0x6

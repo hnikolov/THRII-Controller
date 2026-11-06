@@ -1,0 +1,69 @@
+{
+  "units": {
+    "265": {
+      "id": 265, "name": "FX1", "typeKey": null, "typeName": null,
+      "parameters": {
+        "192": { "id": 192, "name": "Sustain", "typeCode": 4, "decodedKind": "float32", "rawU32": 1050253722, "value": 0.3 },
+        "193": { "id": 193, "name": "Level", "typeCode": 4, "decodedKind": "float32", "rawU32": 1062501089, "value": 0.83 },
+        "280": { "id": 280, "name": "FX1EnableState", "typeCode": 3, "decodedKind": "bool", "rawU32": 0, "value": false }
+      }
+    },
+    "268": {
+      "id": 268, "name": "Amp", "typeKey": 120, "typeName": "THR10X_Brown1",
+      "parameters": {
+        "76": { "id": 76, "name": "Master", "typeCode": 4, "decodedKind": "float32", "rawU32": 1060136542, "value": 0.689062 },
+        "84": { "id": 84, "name": "Bass", "typeCode": 4, "decodedKind": "float32", "rawU32": 1053943803, "value": 0.409973 },
+        "86": { "id": 86, "name": "Mid", "typeCode": 4, "decodedKind": "float32", "rawU32": 1060221368, "value": 0.694118 },
+        "87": { "id": 87, "name": "Treble", "typeCode": 4, "decodedKind": "float32", "rawU32": 1061076066, "value": 0.745062 },
+        "88": { "id": 88, "name": "Drive", "typeCode": 4, "decodedKind": "float32", "rawU32": 1057394960, "value": 0.525651 }
+      }
+    },
+    "270": {
+      "id": 270, "name": "FX2", "typeKey": 208, "typeName": "Phaser",
+      "parameters": {
+        "212": { "id": 212, "name": "Speed", "typeCode": 4, "decodedKind": "float32", "rawU32": 1013732219, "value": 0.0144242 },
+        "214": { "id": 214, "name": "Feedback", "typeCode": 4, "decodedKind": "float32", "rawU32": 1054755888, "value": 0.434175 },
+        "282": { "id": 282, "name": "FX2MixState", "typeCode": 4, "decodedKind": "float32", "rawU32": 1051396955, "value": 0.334071 },
+        "283": { "id": 283, "name": "FX2EnableState", "typeCode": 3, "decodedKind": "bool", "rawU32": 0, "value": false }
+      }
+    },
+    "273": {
+      "id": 273, "name": "FX3", "typeKey": 235, "typeName": "TapeEcho",
+      "parameters": {
+        "84": { "id": 84, "name": "Bass", "typeCode": 4, "decodedKind": "float32", "rawU32": 1056964608, "value": 0.5 },
+        "87": { "id": 87, "name": "Treble", "typeCode": 4, "decodedKind": "float32", "rawU32": 1050936588, "value": 0.320351 },
+        "214": { "id": 214, "name": "Feedback", "typeCode": 4, "decodedKind": "float32", "rawU32": 1051730922, "value": 0.344024 },
+        "237": { "id": 237, "name": "Time", "typeCode": 4, "decodedKind": "float32", "rawU32": 1054348000, "value": 0.422019 },
+        "285": { "id": 285, "name": "FX3MixState", "typeCode": 4, "decodedKind": "float32", "rawU32": 1046078275, "value": 0.212781 },
+        "286": { "id": 286, "name": "FX3EnableState", "typeCode": 3, "decodedKind": "bool", "rawU32": 1065353216, "value": true }
+      }
+    },
+    "276": {
+      "id": 276, "name": "FX4", "typeKey": 249, "typeName": "LargePlate1",
+      "parameters": {
+        "107": { "id": 107, "name": "Decay", "typeCode": 4, "decodedKind": "float32", "rawU32": 1047708014, "value": 0.237066 },
+        "246": { "id": 246, "name": "Tone", "typeCode": 4, "decodedKind": "float32", "rawU32": 1057582832, "value": 0.536849 },
+        "252": { "id": 252, "name": "PreDelay", "typeCode": 4, "decodedKind": "float32", "rawU32": 1050736268, "value": 0.314381 },
+        "289": { "id": 289, "name": "FX4EnableState", "typeCode": 3, "decodedKind": "bool", "rawU32": 1065353216, "value": true },
+        "296": { "id": 296, "name": "FX4WetSendState", "typeCode": 4, "decodedKind": "float32", "rawU32": 1044929304, "value": 0.19566 }
+      }
+    },
+    "316": {
+      "id": 316, "name": "GuitarProc", "typeKey": null, "typeName": null,
+      "parameters": {
+        "105": { "id": 105, "name": "Thresh", "typeCode": 4, "decodedKind": "float32", "rawU32": 3255042048, "value": -33 },
+        "107": { "id": 107, "name": "Decay", "typeCode": 4, "decodedKind": "float32", "rawU32": 1045556101, "value": 0.205 },
+        "263": { "id": 263, "name": "SpkSimType", "typeCode": 2, "decodedKind": "enum_u32", "rawU32": 2, "value": 2 },
+        "291": { "id": 291, "name": "GateEnableState", "typeCode": 3, "decodedKind": "bool", "rawU32": 1065353216, "value": true }
+      }
+    },
+    "4294967295": {
+      "id": 4294967295, "name": "Global", "typeKey": null, "typeName": null,
+      "parameters": {
+        "4294963201": { "id": 4294963201, "name": "THRPresetParamTempo", "typeCode": 2, "decodedKind": "enum_u32", "rawU32": 110, "value": 110 }
+      }
+    }
+  },
+  "identity": { "family": 36, "model": 1 },
+  "activeSlot": null
+}

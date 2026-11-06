@@ -1,0 +1,12 @@
+[8:37:39 PM] RX USB raw: f0 00 01 0c 24 01 4d 00 02 00 01 07 00 02 00 00 00 10 00 00 00 00 02 00 00 00 01 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00 00 f7
+[8:37:39 PM] RX USB parsed: grp=0 cnt=2 last=23 op=0x00000002 len=16
+[8:37:39 PM] RX USB decoded: 02 00 00 00 10 00 00 00 02 00 00 00 01 00 00 00 02 00 00 00 00 00 00 00
+[8:37:39 PM] RX USB event: settings_dump_report direction=upload
+[8:37:39 PM] RX USB raw: f0 00 01 0c 24 01 4d 00 03 00 01 07 00 04 00 00 00 10 00 00 3c 00 7f 7f 7f 7f 4d 01 00 00 00 04 00 00 00 00 20 00 00 3f 00 00 00 00 f7
+[8:37:39 PM] RX USB parsed: grp=0 cnt=3 last=23 op=0x00000004 len=16
+[8:37:39 PM] RX USB decoded: 04 00 00 00 10 00 00 00 ff ff ff ff 4d 01 00 00 04 00 00 00 00 00 80 3f
+[8:37:39 PM] RX USB event: parameter_change Global.GuitProcInputGain = 1.0000
+[8:37:39 PM] RX USB raw: f0 00 01 0c 24 01 4d 00 04 00 01 07 00 04 00 00 00 10 00 00 3c 00 7f 7f 7f 7f 50 01 00 00 00 04 00 00 00 00 20 00 00 3f 00 00 00 00 f7
+[8:37:39 PM] RX USB parsed: grp=0 cnt=4 last=23 op=0x00000004 len=16
+[8:37:39 PM] RX USB decoded: 04 00 00 00 10 00 00 00 ff ff ff ff 50 01 00 00 04 00 00 00 00 00 80 3f
+[8:37:39 PM] RX USB event: parameter_change Global.GuitProcOutputGain = 1.0000

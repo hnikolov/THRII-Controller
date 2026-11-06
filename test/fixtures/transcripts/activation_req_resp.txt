@@ -1,0 +1,20 @@
+[8:31:43 PM] TX THR activation 1/4: f0 7e 7f 06 01 f7
+[8:31:43 PM] RX USB raw: f0 7e 7f 06 02 00 01 0c 24 00 01 00 61 00 2c 01 f7
+[8:31:43 PM] RX USB parsed: grp=12 cnt=36 last=16 op=n/a len=n/a
+[8:31:43 PM] RX USB parser warnings: Unexpected manufacturer bytes: 7e 7f 06 | Decoded payload shorter than opcode+length.
+[8:31:43 PM] RX USB decoded: 80 ac 01
+[8:31:43 PM] RX USB raw: f0 00 01 0c 24 01 7e 7f 06 02 4c 36 49 6d 61 67 65 54 79 70 65 3a 6d 61 69 6e 00 4c 36 49 6d 61 67 65 56 65 72 73 69 6f 6e 3a 31 2e 34 2e 34 2e 30 2e 61 00 f7
+[8:31:43 PM] RX USB parsed: grp=127 cnt=6 last=198 op=n/a len=n/a
+[8:31:43 PM] RX USB decoded: ed 61 67 e5 54 79 f0 ba ed 61 69 ee 00 cc 49 ed e1 67 e5 d6 65 f3 e9 ef 6e 3a b1 2e 2e b4 ae 30 ae 61 00
+[8:31:43 PM] TX THR activation 2/4: f0 00 01 0c 24 01 4d 00 00 00 00 07 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 f7
+[8:31:43 PM] RX USB raw: f0 00 01 0c 24 01 4d 00 00 00 00 0b 00 01 00 00 00 04 00 00 00 00 61 00 44 01 00 00 f7
+[8:31:43 PM] RX USB parsed: grp=0 cnt=0 last=11 op=0x00000001 len=4
+[8:31:43 PM] RX USB decoded: 01 00 00 00 04 00 00 00 61 00 44 01
+[8:31:43 PM] RX USB event: answer op=0x1 corr(cnt=0,op=0x1)
+[8:31:44 PM] TX THR activation 3/4: f0 00 01 0c 24 01 4d 00 01 00 00 07 00 04 00 00 00 04 00 00 00 00 00 00 00 00 00 00 f7
+[8:31:44 PM] TX THR activation 4/4: f0 00 01 0c 24 01 4d 00 02 00 00 03 28 72 4d 54 5d 00 00 00 f7
+[8:31:44 PM] RX USB raw: f0 00 01 0c 24 01 4d 00 01 00 00 0b 00 01 00 00 00 04 00 00 00 00 00 00 00 00 00 00 f7
+[8:31:44 PM] RX USB parsed: grp=0 cnt=1 last=11 op=0x00000001 len=4
+[8:31:44 PM] RX USB decoded: 01 00 00 00 04 00 00 00 00 00 00 00
+[8:31:44 PM] RX USB event: ACK corr(cnt=1,op=0x4)
+[8:31:45 PM] THR-II activation sequence completed.

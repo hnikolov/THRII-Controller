@@ -1,0 +1,15 @@
+[
+  { "name": "requestDump_actual", "fn": "buildRequestUserSettingsDump", "args": [{ "kind": "actual" }], "options": { "counter": 16 } },
+  { "name": "requestDump_slot1", "fn": "buildRequestUserSettingsDump", "args": [{ "kind": "slot", "value": 0 }], "options": { "counter": 17 } },
+  { "name": "requestDump_slot2", "fn": "buildRequestUserSettingsDump", "args": [{ "kind": "slot", "value": 1 }], "options": { "counter": 18 } },
+  { "name": "requestDump_slot3", "fn": "buildRequestUserSettingsDump", "args": [{ "kind": "slot", "value": 2 }], "options": { "counter": 19 } },
+  { "name": "requestDump_slot4", "fn": "buildRequestUserSettingsDump", "args": [{ "kind": "slot", "value": 3 }], "options": { "counter": 20 } },
+  { "name": "requestDump_slot5", "fn": "buildRequestUserSettingsDump", "args": [{ "kind": "slot", "value": 4 }], "options": { "counter": 21 } },
+  { "name": "setModuleEnabled_gate_on", "fn": "buildSetModuleEnabled", "args": ["gate", true], "options": { "headerCounter": 32, "bodyCounter": 33 } },
+  { "name": "setModuleEnabled_effect_off", "fn": "buildSetModuleEnabled", "args": ["effect", false], "options": { "headerCounter": 34, "bodyCounter": 35 } },
+  { "name": "setModuleParameter", "fn": "buildSetModuleParameter", "args": [16, 1234, 0.75], "options": { "headerCounter": 36, "bodyCounter": 37 } },
+  { "name": "setParameter_raw", "fn": "buildSetParameter", "args": [16, 1234, 3, 42], "options": { "headerCounter": 38, "bodyCounter": 39 } },
+  { "name": "askGlobalParameter", "fn": "buildAskGlobalParameter", "args": [0, 7], "options": { "headerCounter": 40, "bodyCounter": 41 } },
+  { "name": "uploadHeader_slot2", "fn": "buildUploadUserSettingsHeader", "args": [{ "targetRef": { "kind": "slot", "value": 1 }, "patchRawLength": 300 }], "options": { "counter": 48 } },
+  { "name": "uploadFrames_slot2", "fn": "buildUploadUserSettingsFrames", "args": [{ "targetRef": { "kind": "slot", "value": 1 } }, { "pattern": "index-mod-256", "length": 300 }], "options": { "headerCounter": 50, "bodyCounter": 51, "incrementBodyCounter": true, "headerPc": 0, "bodyPcStart": 0 } }
+]

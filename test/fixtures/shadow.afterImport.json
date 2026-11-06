@@ -1,0 +1,7 @@
+{
+  "description": "SHA-256 of the canonical device model (units + lastParameterChange, sorted keys) after importing doc/01. EarlyVH.thrl6p on the Phase 1 legacy page. Recomputed after the Phase 2 refactor; it must match.",
+  "method": "units[k] = {id,name,typeKey,typeName,parameters[pk]={id,name,typeCode,decodedKind,rawU32,value}}; lastParameterChange={source,unitName,paramName,value}; JSON.stringify with sorted keys; UTF-8; SHA-256 via crypto.subtle",
+  "sha256": "0c83327ff3efebff6e991d833cbe04829bad0a9d5c0cffcadfc3eea4ceb88f7a",
+  "bytes": 3585,
+  "unitCount": 7
+}

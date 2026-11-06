@@ -92,7 +92,7 @@ The UI may update the canonical shadow model on every knob drag or value change 
 Preferred behavior:
 
 - the shadow store is updated immediately with the newest user value
-- a transport/protocol scheduler coalesces repeated outbound writes into a single pending value
+- the protocol-layer scheduler (`src/protocol/writeScheduler.js`) coalesces repeated outbound writes into a single pending value
 - when the interaction settles or a short timer expires, the latest pending value is emitted to the THR-II
 - if more updates arrive before the flush window closes, only the newest value is kept and sent
 

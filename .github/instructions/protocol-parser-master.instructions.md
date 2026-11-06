@@ -152,7 +152,7 @@ The preferred policy is:
 - keep the latest value in the shadow state immediately
 - coalesce repeated outbound writes in a small scheduler window
 - send only the final pending value to the device once the burst settles or a short maximum interval is reached
-- treat this as a transport-level write policy, not as a separate UI state model
+- treat this as a protocol-layer write policy (`src/protocol/writeScheduler.js`), not as a separate UI state model
 
 This is effectively a last-write-wins throttle. It avoids flooding the amp while preserving the final user intent and the canonical model.
 

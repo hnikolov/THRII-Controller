@@ -1,0 +1,23 @@
+[8:43:35 AM] TX builder toggle 1/2: f0 00 01 0c 24 01 4d 00 0f 00 00 07 00 0a 00 00 00 10 00 00 00 00 00 00 00 00 00 00 f7
+[8:43:35 AM] TX builder toggle 2/2: f0 00 01 0c 24 01 4d 00 10 00 00 0f 00 3c 01 00 00 2e 01 00 00 00 04 00 00 00 00 00 40 00 3f 00 00 00 00 00 f7
+[8:43:35 AM] Toggle command sent: echo -> ON
+[8:43:35 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 5e 00 00 0b 00 01 00 00 00 04 00 00 00 00 00 00 00 00 00 00 f7
+[8:43:35 AM] RX USB parsed: grp=0 cnt=94 last=11 op=0x00000001 len=4
+[8:43:35 AM] RX USB decoded: 01 00 00 00 04 00 00 00 00 00 00 00
+[8:43:35 AM] RX USB event: ACK corr(cnt=15,op=0xa)
+[8:43:35 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 5f 00 01 03 00 06 00 00 00 0c 00 00 00 00 01 00 00 00 02 00 00 00 00 01 00 00 00 00 f7
+[8:43:35 AM] RX USB parsed: grp=0 cnt=95 last=19 op=0x00000006 len=12
+[8:43:35 AM] RX USB decoded: 06 00 00 00 0c 00 00 00 01 00 00 00 02 00 00 00 01 00 00 00
+[8:43:35 AM] RX USB event: status_ready op=0x6
+---
+[8:43:35 AM] TX builder toggle 1/2: f0 00 01 0c 24 01 4d 00 11 00 00 07 00 0a 00 00 00 10 00 00 00 00 00 00 00 00 00 00 f7
+[8:43:35 AM] TX builder toggle 2/2: f0 00 01 0c 24 01 4d 00 12 00 00 0f 00 3c 01 00 00 2e 01 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 00 f7
+[8:43:35 AM] Toggle command sent: echo -> OFF
+[8:43:35 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 60 00 00 0b 00 01 00 00 00 04 00 00 00 00 00 00 00 00 00 00 f7
+[8:43:35 AM] RX USB parsed: grp=0 cnt=96 last=11 op=0x00000001 len=4
+[8:43:35 AM] RX USB decoded: 01 00 00 00 04 00 00 00 00 00 00 00
+[8:43:35 AM] RX USB event: ACK corr(cnt=17,op=0xa)
+[8:43:35 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 61 00 01 03 00 06 00 00 00 0c 00 00 00 00 01 00 00 00 02 00 00 00 00 01 00 00 00 00 f7
+[8:43:35 AM] RX USB parsed: grp=0 cnt=97 last=19 op=0x00000006 len=12
+[8:43:35 AM] RX USB decoded: 06 00 00 00 0c 00 00 00 01 00 00 00 02 00 00 00 01 00 00 00
+[8:43:35 AM] RX USB event: status_ready op=0x6

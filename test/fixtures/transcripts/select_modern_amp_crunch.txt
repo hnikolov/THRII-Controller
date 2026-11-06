@@ -1,0 +1,56 @@
+[8:51:17 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 1e 00 01 03 00 06 00 00 00 0c 00 00 00 00 01 00 00 00 02 00 00 00 00 01 00 00 00 00 f7
+[8:51:17 AM] RX USB parsed: grp=0 cnt=30 last=19 op=0x00000006 len=12
+[8:51:17 AM] RX USB decoded: 06 00 00 00 0c 00 00 00 01 00 00 00 02 00 00 00 01 00 00 00
+[8:51:17 AM] RX USB event: status_ready op=0x6
+[8:51:17 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 1f 00 00 0f 00 03 00 00 00 08 00 00 02 00 0c 01 00 00 23 00 00 00 00 00 00 00 00 00 f7
+[8:51:17 AM] RX USB parsed: grp=0 cnt=31 last=15 op=0x00000003 len=8
+[8:51:17 AM] RX USB decoded: 03 00 00 00 08 00 00 00 0c 01 00 00 a3 00 00 00
+[8:51:17 AM] RX USB event: unit_type_change Amp -> THR30_SR101
+[8:51:17 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 20 00 01 07 00 04 00 00 00 10 00 00 00 00 3c 01 00 00 07 01 00 00 00 04 00 00 00 00 00 00 40 41 00 00 00 00 f7
+[8:51:17 AM] RX USB parsed: grp=0 cnt=32 last=23 op=0x00000004 len=16
+[8:51:17 AM] RX USB decoded: 04 00 00 00 10 00 00 00 3c 01 00 00 07 01 00 00 04 00 00 00 00 00 40 41
+[8:51:17 AM] RX USB event: parameter_change GuitarProc.SpkSimType = 12.0000
+[8:51:17 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 21 00 01 07 00 04 00 00 00 10 00 00 00 00 3c 01 00 00 04 01 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 f7
+[8:51:17 AM] RX USB parsed: grp=0 cnt=33 last=23 op=0x00000004 len=16
+[8:51:17 AM] RX USB decoded: 04 00 00 00 10 00 00 00 3c 01 00 00 04 01 00 00 04 00 00 00 00 00 00 00
+[8:51:17 AM] RX USB event: parameter_change GuitarProc.GateEnable = 0.0000
+[8:51:17 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 22 00 01 07 00 04 00 00 00 10 00 00 00 00 3c 01 00 00 69 00 00 00 00 04 00 00 00 00 10 00 18 42 00 00 00 00 f7
+[8:51:17 AM] RX USB parsed: grp=0 cnt=34 last=23 op=0x00000004 len=16
+[8:51:17 AM] RX USB decoded: 04 00 00 00 10 00 00 00 3c 01 00 00 69 00 00 00 04 00 00 00 00 00 18 c2
+[8:51:17 AM] RX USB event: parameter_change GuitarProc.Thresh = -38.0000
+[8:51:17 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 23 00 01 07 00 04 00 00 00 10 00 00 00 00 3c 01 00 00 6b 00 01 00 00 04 00 00 00 1a 40 19 19 3f 00 00 00 00 f7
+[8:51:17 AM] RX USB parsed: grp=0 cnt=35 last=23 op=0x00000004 len=16
+[8:51:17 AM] RX USB decoded: 04 00 00 00 10 00 00 00 3c 01 00 00 6b 00 00 00 04 00 00 00 9a 99 19 3f
+[8:51:17 AM] RX USB event: parameter_change GuitarProc.Decay = 0.6000
+[8:51:17 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 24 00 01 07 00 04 00 00 00 10 00 00 00 00 0c 01 00 00 58 00 01 00 00 04 00 00 00 49 60 48 48 3e 00 00 00 00 f7
+[8:51:17 AM] RX USB parsed: grp=0 cnt=36 last=23 op=0x00000004 len=16
+[8:51:17 AM] RX USB decoded: 04 00 00 00 10 00 00 00 0c 01 00 00 58 00 00 00 04 00 00 00 c9 c8 c8 3e
+[8:51:17 AM] RX USB event: parameter_change Amp.Drive = 0.3922
+[8:51:17 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 25 00 01 07 00 04 00 00 00 10 00 00 00 00 0c 01 00 00 54 00 01 00 00 04 00 00 00 45 60 44 44 3e 00 00 00 00 f7
+[8:51:17 AM] RX USB parsed: grp=0 cnt=37 last=23 op=0x00000004 len=16
+[8:51:17 AM] RX USB decoded: 04 00 00 00 10 00 00 00 0c 01 00 00 54 00 00 00 04 00 00 00 c5 c4 c4 3e
+[8:51:17 AM] RX USB event: parameter_change Amp.Bass = 0.3843
+[8:51:17 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 26 00 01 07 00 04 00 00 00 10 00 00 00 00 0c 01 00 00 56 00 01 00 00 04 00 00 00 1e 40 1d 1d 3f 00 00 00 00 f7
+[8:51:17 AM] RX USB parsed: grp=0 cnt=38 last=23 op=0x00000004 len=16
+[8:51:17 AM] RX USB decoded: 04 00 00 00 10 00 00 00 0c 01 00 00 56 00 00 00 04 00 00 00 9e 9d 1d 3f
+[8:51:17 AM] RX USB event: parameter_change Amp.Mid = 0.6157
+[8:51:17 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 27 00 01 07 00 04 00 00 00 10 00 00 00 00 0c 01 00 00 57 00 01 00 00 04 00 00 00 34 40 33 33 3f 00 00 00 00 f7
+[8:51:17 AM] RX USB parsed: grp=0 cnt=39 last=23 op=0x00000004 len=16
+[8:51:17 AM] RX USB decoded: 04 00 00 00 10 00 00 00 0c 01 00 00 57 00 00 00 04 00 00 00 b4 b3 33 3f
+[8:51:17 AM] RX USB event: parameter_change Amp.Treble = 0.7020
+[8:51:17 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 28 00 01 07 00 04 00 00 00 10 00 00 00 00 0c 01 00 00 4c 00 01 00 00 04 00 00 00 21 40 20 20 3f 00 00 00 00 f7
+[8:51:17 AM] RX USB parsed: grp=0 cnt=40 last=23 op=0x00000004 len=16
+[8:51:17 AM] RX USB decoded: 04 00 00 00 10 00 00 00 0c 01 00 00 4c 00 00 00 04 00 00 00 a1 a0 20 3f
+[8:51:17 AM] RX USB event: parameter_change Amp.Master = 0.6275
+[8:51:17 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 29 00 01 03 00 06 00 00 00 0c 00 00 00 00 01 00 00 00 02 00 00 00 00 01 00 00 00 00 f7
+[8:51:17 AM] RX USB parsed: grp=0 cnt=41 last=19 op=0x00000006 len=12
+[8:51:17 AM] RX USB decoded: 06 00 00 00 0c 00 00 00 01 00 00 00 02 00 00 00 01 00 00 00
+[8:51:17 AM] RX USB event: status_ready op=0x6
+[8:51:17 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 2a 00 01 07 00 04 00 00 00 10 00 00 3c 00 7f 7f 7f 7f 4d 01 00 00 00 04 00 00 00 00 20 00 00 3f 00 00 00 00 f7
+[8:51:17 AM] RX USB parsed: grp=0 cnt=42 last=23 op=0x00000004 len=16
+[8:51:17 AM] RX USB decoded: 04 00 00 00 10 00 00 00 ff ff ff ff 4d 01 00 00 04 00 00 00 00 00 80 3f
+[8:51:17 AM] RX USB event: parameter_change Global.GuitProcInputGain = 1.0000
+[8:51:17 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 2b 00 01 07 00 04 00 00 00 10 00 00 3c 00 7f 7f 7f 7f 50 01 00 00 00 04 00 00 00 00 20 00 00 3f 00 00 00 00 f7
+[8:51:17 AM] RX USB parsed: grp=0 cnt=43 last=23 op=0x00000004 len=16
+[8:51:17 AM] RX USB decoded: 04 00 00 00 10 00 00 00 ff ff ff ff 50 01 00 00 04 00 00 00 00 00 80 3f
+[8:51:17 AM] RX USB event: parameter_change Global.GuitProcOutputGain = 1.0000

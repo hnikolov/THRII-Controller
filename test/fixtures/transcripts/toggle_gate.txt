@@ -1,0 +1,23 @@
+[8:41:24 AM] TX builder toggle 1/2: f0 00 01 0c 24 01 4d 00 07 00 00 07 00 0a 00 00 00 10 00 00 00 00 00 00 00 00 00 00 f7
+[8:41:24 AM] TX builder toggle 2/2: f0 00 01 0c 24 01 4d 00 08 00 00 0f 00 3c 01 00 00 04 01 00 00 00 04 00 00 00 00 00 40 00 3f 00 00 00 00 00 f7
+[8:41:24 AM] Toggle command sent: gate -> ON
+[8:41:24 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 56 00 00 0b 00 01 00 00 00 04 00 00 00 00 00 00 00 00 00 00 f7
+[8:41:24 AM] RX USB parsed: grp=0 cnt=86 last=11 op=0x00000001 len=4
+[8:41:24 AM] RX USB decoded: 01 00 00 00 04 00 00 00 00 00 00 00
+[8:41:24 AM] RX USB event: ACK corr(cnt=7,op=0xa)
+[8:41:24 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 57 00 01 03 00 06 00 00 00 0c 00 00 00 00 01 00 00 00 02 00 00 00 00 01 00 00 00 00 f7
+[8:41:24 AM] RX USB parsed: grp=0 cnt=87 last=19 op=0x00000006 len=12
+[8:41:24 AM] RX USB decoded: 06 00 00 00 0c 00 00 00 01 00 00 00 02 00 00 00 01 00 00 00
+[8:41:24 AM] RX USB event: status_ready op=0x6
+---
+[8:41:25 AM] TX builder toggle 1/2: f0 00 01 0c 24 01 4d 00 09 00 00 07 00 0a 00 00 00 10 00 00 00 00 00 00 00 00 00 00 f7
+[8:41:25 AM] TX builder toggle 2/2: f0 00 01 0c 24 01 4d 00 0a 00 00 0f 00 3c 01 00 00 04 01 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 00 f7
+[8:41:25 AM] Toggle command sent: gate -> OFF
+[8:41:25 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 58 00 00 0b 00 01 00 00 00 04 00 00 00 00 00 00 00 00 00 00 f7
+[8:41:25 AM] RX USB parsed: grp=0 cnt=88 last=11 op=0x00000001 len=4
+[8:41:25 AM] RX USB decoded: 01 00 00 00 04 00 00 00 00 00 00 00
+[8:41:25 AM] RX USB event: ACK corr(cnt=9,op=0xa)
+[8:41:25 AM] RX USB raw: f0 00 01 0c 24 01 4d 00 59 00 01 03 00 06 00 00 00 0c 00 00 00 00 01 00 00 00 02 00 00 00 00 01 00 00 00 00 f7
+[8:41:25 AM] RX USB parsed: grp=0 cnt=89 last=19 op=0x00000006 len=12
+[8:41:25 AM] RX USB decoded: 06 00 00 00 0c 00 00 00 01 00 00 00 02 00 00 00 01 00 00 00
+[8:41:25 AM] RX USB event: status_ready op=0x6
