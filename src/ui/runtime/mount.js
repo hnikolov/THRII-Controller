@@ -9,6 +9,8 @@ export function mountRuntime(rootEl, { store, intents, layout = RUNTIME_LAYOUT }
   const unsubscribe = store.subscribe(state => app.update(selectRuntimeModel(state, layout)));
 
   return {
+    // Connection status from the shell: { kind: 'ble' | 'usb' (connected) or null, version, busy, error }.
+    setConnection: status => app.memory.setConnection(status),
     destroy() {
       unsubscribe();
       rootEl.replaceChildren();

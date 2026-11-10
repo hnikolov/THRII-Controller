@@ -1,11 +1,12 @@
 import { UnitSelectorView } from './unitSelectorView.js';
 
-// Top strip (presets, user memory label) and footer (memory slots 1..5).
+// Top strip (presets, user memory label, connection) and footer (memory slots 1..5).
 // The active slot, preset name and modified flag come from the store; the label text box is local only.
 export class MemoryView {
-  constructor({ presetMenu, onSelectSlot, slotCount = 5 }) {
+  constructor({ presetMenu, onSelectSlot, onConnect, slotCount = 5 }) {
     this.presetMenu = presetMenu;
     this.onSelectSlot = onSelectSlot;
+    this.onConnect = onConnect;
     this.slotCount = slotCount;
     this.activeSlot = null;
     this.label = labelFor(null);
@@ -44,10 +45,25 @@ export class MemoryView {
 
     const connectSlot = document.createElement('div');
     connectSlot.className = 'strip-item';
-    connectSlot.textContent = 'CONNECT';
+    this.connectButton = document.createElement('button');
+    this.connectButton.type = 'button';
+    this.connectButton.className = 'strip-button';
+    this.connectButton.addEventListener('click', () => this.onConnect(this.connected));
+    connectSlot.append(this.connectButton);
+    this.setConnection();
 
     strip.append(presetSlot, labelSlot, connectSlot);
     return strip;
+  }
+
+  // Shell-driven: one press connects; once connected the same button disconnects and shows the amp's firmware version
+  // (DISCONNECT until the activation has reported it). kind is the transport in use.
+  setConnection({ kind = null, version = '', busy = false, error = '' } = {}) {
+    this.connected = !!kind;
+    const connectedLabel = version ? `FW ${version}` : 'DISCONNECT';
+    this.connectButton.textContent = busy ? 'CONNECTING' : (kind ? connectedLabel : 'CONNECT');
+    this.connectButton.disabled = busy;
+    this.connectButton.title = kind ? `Connected over ${kind.toUpperCase()}. Press to disconnect.` : error;
   }
 
   buildFooter() {

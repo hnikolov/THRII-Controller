@@ -30,238 +30,33 @@
     </section>
   </div>
   <script type="module">
-    import { createTransportManager } from './src/transports/transportManager.js';
+    import { boot } from './src/app/boot.js';
     import { createRawObserver } from './src/debug/observer.js';
     import { mountRawTracePanel } from './src/ui/debug/rawTracePanel.js';
-    import { sleep } from './src/core/bytes.js';
     import { flags } from './src/core/flags.js';
-    import { createEmptyDeviceState, createStore } from './src/state/shadowStore.js';
-    import { findParamById } from './src/state/selectors.js';
-    import { applyDeviceEvent } from './src/state/applyDeviceEvent.js';
-    import { createWriteScheduler } from './src/protocol/writeScheduler.js';
-    import { buildParamWriteFrames } from './src/protocol/paramWrite.js';
-    import { buildSelectUnitType, buildSelectPreset } from './src/protocol/builders.js';
-    import { thrTypeCode } from './src/protocol/constants.js';
-    import { decodeIncomingEvent } from './src/protocol/incoming.js';
-    import { extractSysexFrames } from './src/protocol/frames.js';
-    import { parseIdentityReply, setDeviceIdentity } from './src/protocol/identity.js';
-    import { runActivation } from './src/protocol/activation.js';
-    import { createRuntimeIntents } from './src/ui/runtime/intents.js';
-    import { mountRuntime } from './src/ui/runtime/mount.js';
-    import { loadSymbolTable, makeNameOf, makeLiveIdOf, makeIdOfName } from './src/protocol/symbolTable.js';
-    import { createSyncFlow } from './src/protocol/syncFlow.js';
-    import { applyDumpPatch } from './src/state/applyDumpPatch.js';
 
-    // Dev-only: ?flag=coalesceWrites&flag=autoActivate turns those switches on for this page.
+    // Dev-only: ?flag=slotSync turns that switch on for this page.
     for (const name of new URLSearchParams(location.search).getAll('flag')) {
       if (name in flags) flags[name] = true;
     }
 
-    const transports = createTransportManager();
-    const observer = createRawObserver(transports.bus);
-    mountRawTracePanel(document.getElementById('raw'), observer);
-
     const statusEl = document.getElementById('status');
-    const setStatus = text => { statusEl.textContent = text; };
-    const note = text => { setStatus(text); transports.bus.emit('note', { text }); };
 
     // ?source=mock loads the captured device model (with its identity). Otherwise the store starts empty.
     const isMock = new URLSearchParams(location.search).get('source') === 'mock';
     const fixture = isMock ? await (await fetch('./test/fixtures/mockState.json')).json() : null;
-    if (fixture && fixture.identity) setDeviceIdentity(fixture.identity);
-    const store = createStore(fixture ? { units: fixture.units, activeSlot: fixture.activeSlot } : createEmptyDeviceState());
 
-    // Slot sync needs the symbol names to turn the dump into parameters. Without them the sync stays off.
-    const symbolIds = await loadSymbolTable('doc/thr10ii_w_symbol_table_1_44_0_a.json').catch(err => {
-      setStatus('Symbol table not loaded: ' + err.message);
-      return null;
+    // Runtime pane (left): the same composition as thrii_ui.html. Its CONNECT button and the buttons here share one connection.
+    const app = await boot(document.getElementById('runtime-pane'), {
+      fixture,
+      onStatus: text => { statusEl.textContent = text; }
     });
-    const nameOf = symbolIds ? makeNameOf(symbolIds) : null;
-    const liveIdOf = symbolIds ? makeLiveIdOf(symbolIds) : (id => id);
-    const typeKeyOf = symbolIds ? makeIdOfName(symbolIds) : (() => null);
-    const paramIdOf = typeKeyOf;
-    // A memory slot pick: select the slot, then read the Actual settings back. The slot becomes active when that read completes.
-    let pendingSlot = null;
-    const selectPreset = async slot => {
-      if (!sync) {
-        setStatus('Memory slot switch needs the symbol table (the read-back uses it).');
-        return;
-      }
-      try {
-        pendingSlot = slot;
-        await transports.send(buildSelectPreset(slot - 1), `TX memory slot ${slot}`);
-        sync.requestDump();
-      } catch (err) {
-        pendingSlot = null;
-        setStatus('Write failed: ' + err.message);
-      }
-    };
+    mountRawTracePanel(document.getElementById('raw'), createRawObserver(app.transports.bus));
 
-    const sync = nameOf ? createSyncFlow({
-      send: (bytes, label) => transports.send(bytes, label),
-      nameOf,
-      onPatch: (entries, presetName) => {
-        applyDumpPatch(store, entries, nameOf, presetName, liveIdOf);
-        if (pendingSlot !== null) {
-          const slot = pendingSlot;
-          pendingSlot = null;
-          store.commit(state => { state.activeSlot = slot; }, 'device');
-        }
-      },
-      onError: err => note('Sync failed: ' + err.message),
-      onState: (s, detail) => note('Sync: ' + s + (detail ? ' (' + detail + ')' : ''))
-    }) : null;
-
-    // Inbound frames: the identity reply sets the device identity; other frames update the store (source device).
-    let identityWaiter = null;
-    transports.bus.on('raw:in', ({ bytes }) => {
-      extractSysexFrames(bytes).forEach(frame => {
-        const identity = parseIdentityReply(frame);
-        if (identity) {
-          setDeviceIdentity(identity);
-          if (identityWaiter) identityWaiter(identity);
-          return;
-        }
-        const event = decodeIncomingEvent(frame);
-        if (event) applyDeviceEvent(store, event, nameOf);
-        if (sync && (flags.slotSync || sync.state !== 'idle')) sync.onFrame(frame, event);
-      });
-    });
-
-    function waitForIdentity(timeoutMs = 2000) {
-      return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => {
-          identityWaiter = null;
-          reject(new Error('No identity reply from the amp.'));
-        }, timeoutMs);
-        identityWaiter = identity => {
-          clearTimeout(timer);
-          identityWaiter = null;
-          resolve(identity);
-        };
-      });
-    }
-
-    async function activate() {
-      try {
-        const identity = await runActivation({
-          send: (bytes, label) => transports.send(bytes, label),
-          awaitIdentity: () => waitForIdentity(),
-          sleep,
-          setIdentity: setDeviceIdentity
-        });
-        setStatus(`Activated: family 0x${identity.family.toString(16)}, model 0x${identity.model.toString(16)}`);
-        // The amp's current settings fill the UI (the knobs, names, and preset name), as after a slot press.
-        if (sync) sync.requestDump();
-      } catch (err) {
-        setStatus('Activation failed: ' + err.message);
-      }
-    }
-
-    document.getElementById('btnUsb').addEventListener('click', async () => {
-      try {
-        const result = await transports.connectUsb();
-        setStatus(result.connected ? 'USB connected' : 'USB: no ports');
-        if (result.connected && flags.autoActivate) activate();
-      } catch (err) {
-        setStatus('USB failed: ' + err.message);
-      }
-    });
-
-    document.getElementById('btnBle').addEventListener('click', async () => {
-      try {
-        const result = await transports.connectBle();
-        setStatus('BLE connected: ' + result.name + (result.notifications ? '' : ' (notifications unavailable)'));
-        if (flags.autoActivate) activate();
-      } catch (err) {
-        setStatus('BLE failed: ' + err.message);
-      }
-    });
-
-    document.getElementById('btnDisconnect').addEventListener('click', () => {
-      transports.disconnect();
-      setDeviceIdentity(null);
-      setStatus('Disconnected');
-    });
-
-    document.getElementById('btnActivate').addEventListener('click', activate);
-
-    // Runtime pane (left): the same runtime as thrii_ctrl.html and thrii_ui.html.
-    // In mock mode a slot press simulates the device's slot event.
-    const sendParam = (unitId, paramId, value) => {
-      try {
-        const param = findParamById(store.getState(), unitId, paramId);
-        if (!param) return;
-        buildParamWriteFrames(unitId, paramId, param.typeCode, value, param.rawU32).forEach(frame => {
-          transports.send(frame, `TX param ${unitId}:${paramId}`).catch(err => setStatus('Write failed: ' + err.message));
-        });
-      } catch (err) {
-        setStatus('Write failed: ' + err.message);
-      }
-    };
-
-    // Unit type pick: the select frames, then the type's default values and the module's enable, each frame awaited in order.
-    // Effect-mode changes need pauses: the amp hard-stopped on rapid switches (thrii_sysex_bitbucket_ble.md, 256 ms before, 512 ms after).
-    // The default values are spaced 50 ms apart (without that gap the amp did not change its sound on the hardware).
-    const EFFECT_MODE_BEFORE_MS = 256;
-    const EFFECT_MODE_AFTER_MS = 512;
-    const DEFAULT_WRITE_GAP_MS = 50;
-
-    const sendUnitType = async (unitId, typeKey, writes, enable) => {
-      try {
-        await sleep(EFFECT_MODE_BEFORE_MS);
-        for (const frame of buildSelectUnitType(unitId, typeKey)) {
-          await transports.send(frame, `TX unit type ${unitId}:${typeKey}`);
-        }
-        await sleep(EFFECT_MODE_AFTER_MS);
-        for (const [index, write] of writes.entries()) {
-          if (index > 0) await sleep(DEFAULT_WRITE_GAP_MS);
-          for (const frame of buildParamWriteFrames(write.unitId, write.paramId, thrTypeCode.float32, write.value)) {
-            await transports.send(frame, `TX default ${write.unitId}:${write.paramId}`);
-          }
-        }
-        if (enable) {
-          if (writes.length) await sleep(DEFAULT_WRITE_GAP_MS);
-          for (const frame of buildParamWriteFrames(enable.unitId, enable.paramId, enable.typeCode, true)) {
-            await transports.send(frame, `TX enable ${enable.unitId}:${enable.paramId}`);
-          }
-        }
-      } catch (err) {
-        setStatus('Write failed: ' + err.message);
-      }
-    };
-
-    const scheduler = createWriteScheduler({
-      readValue: key => {
-        const [unitId, paramId] = key.split(':').map(Number);
-        const param = findParamById(store.getState(), unitId, paramId);
-        return param ? param.value : null;
-      },
-      emitWrite: (key, value) => {
-        const [unitId, paramId] = key.split(':').map(Number);
-        sendParam(unitId, paramId, value);
-      }
-    });
-
-    const intents = createRuntimeIntents({
-      store,
-      flags,
-      scheduler,
-      sendParam,
-      typeKeyOf,
-      paramIdOf,
-      onSelectSlot: slot => {
-        if (isMock) {
-          store.commit(state => { state.activeSlot = slot; }, 'device');
-        } else {
-          selectPreset(slot);
-        }
-      },
-      onSelectUnit: sendUnitType,
-      onRequestDump: () => setStatus('Settings dump is still handled by thrii_ctrl.html')
-    });
-
-    mountRuntime(document.getElementById('runtime-pane'), { store, intents });
+    document.getElementById('btnUsb').addEventListener('click', () => app.connect('usb'));
+    document.getElementById('btnBle').addEventListener('click', () => app.connect('ble'));
+    document.getElementById('btnDisconnect').addEventListener('click', app.disconnect);
+    document.getElementById('btnActivate').addEventListener('click', app.activate);
   </script>
 </body>
 </html>

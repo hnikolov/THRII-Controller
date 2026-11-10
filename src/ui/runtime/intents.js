@@ -17,7 +17,9 @@ export function createRuntimeIntents({
   paramIdOf = () => null,
   onSelectSlot = () => {},
   onRequestDump = () => {},
-  onSelectUnit = () => {}
+  onSelectUnit = () => {},
+  onConnect = () => {},
+  onDisconnect = () => {}
 }) {
   return {
     setParam(ref, value) {
@@ -75,6 +77,15 @@ export function createRuntimeIntents({
 
     requestDump(target) {
       onRequestDump(target);
+    },
+
+    // The shell picks the transport and reports the result through the runtime's setConnection.
+    connect() {
+      onConnect();
+    },
+
+    disconnect() {
+      onDisconnect();
     }
   };
 }

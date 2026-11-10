@@ -150,7 +150,8 @@ body {
   border-left: 0;
 }
 
-.footer-memory-button {
+.footer-memory-button,
+.strip-button {
   width: 100%;
   min-height: var(--header-height);
   border: 0;
@@ -166,9 +167,20 @@ body {
 }
 
 .footer-memory-button:hover,
-.footer-memory-button:focus-visible {
+.footer-memory-button:focus-visible,
+.strip-button:hover:not(:disabled),
+.strip-button:focus-visible {
   outline: none;
   background: rgba(255, 246, 218, 0.08);
+}
+
+/* The firmware version keeps its lower-case letter (1.44.0.a). */
+.strip-button {
+  text-transform: none;
+}
+
+.strip-button:disabled {
+  cursor: default;
 }
 
 .footer-memory-button.is-selected {

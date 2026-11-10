@@ -1,6 +1,6 @@
 import { it, assertEqual, assertDeepEqual, assertTrue } from '../support/assert.js';
 import { parseSysExHex, toHex } from '../../src/core/bytes.js';
-import { parseIdentityReply, setDeviceIdentity, getDeviceIdentity, resolveIdentity, withIdentity } from '../../src/protocol/identity.js';
+import { formatFirmwareVersion, parseIdentityReply, setDeviceIdentity, getDeviceIdentity, resolveIdentity, withIdentity } from '../../src/protocol/identity.js';
 import { runActivation } from '../../src/protocol/activation.js';
 import { thrActivateSequenceHex } from '../../src/protocol/constants.js';
 
@@ -15,6 +15,10 @@ async function loadInboundFrames(path) {
 it('identity reply from the activation capture gives family 0x24 and model 0x01 (thr10ii)', async () => {
   const frames = await loadInboundFrames('/test/fixtures/transcripts/activation_req_resp.txt');
   assertDeepEqual(parseIdentityReply(frames[0]), { family: 0x24, model: 0x01, version: [0x61, 0x00, 0x2c, 0x01] }, 'identity');
+});
+
+it('the identity reply version bytes 61 00 2c 01 read as firmware 1.44.0.a', () => {
+  assertEqual(formatFirmwareVersion([0x61, 0x00, 0x2c, 0x01]), '1.44.0.a', 'version text');
 });
 
 it('the firmware text frame (group 0x7e) is not an identity reply', async () => {

@@ -235,6 +235,38 @@ it('mount: an empty store shows "--" and disabled knobs', async () => {
   }
 });
 
+it('mount: the CONNECT button connects, and disconnects once the shell reports a connection', () => {
+  const store = createStore(createEmptyDeviceState());
+  const calls = [];
+  const intents = createRuntimeIntents({
+    store,
+    flags,
+    sendParam: () => {},
+    onConnect: () => calls.push('connect'),
+    onDisconnect: () => calls.push('disconnect')
+  });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const runtime = mountRuntime(container, { store, intents });
+  try {
+    const button = container.querySelector('.strip-button');
+    assertEqual(button.textContent, 'CONNECT', 'idle label');
+    button.click();
+    runtime.setConnection({ busy: true });
+    assertEqual(button.disabled, true, 'disabled while connecting');
+    runtime.setConnection({ kind: 'ble' });
+    assertEqual(button.textContent, 'DISCONNECT', 'connected label');
+    assertEqual(button.disabled, false, 'enabled when connected');
+    runtime.setConnection({ kind: 'ble', version: '1.44.0.a' });
+    assertEqual(button.textContent, 'FW 1.44.0.a', 'firmware version once activated');
+    button.click();
+    assertDeepEqual(calls, ['connect', 'disconnect'], 'intents');
+  } finally {
+    runtime.destroy();
+    container.remove();
+  }
+});
+
 it('layout: amp cabinets are in device index order (SpkSimType)', () => {
   assertEqual(RUNTIME_LAYOUT.cabinets[2], 'Brown 4x12', 'index 2');
   assertEqual(RUNTIME_LAYOUT.cabinets.length, 17, 'cabinet count');

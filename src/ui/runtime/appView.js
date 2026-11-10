@@ -12,7 +12,8 @@ export class AppView {
     this.modules = new Map();
     this.memory = new MemoryView({
       presetMenu: layout.presetMenu,
-      onSelectSlot: slot => this.intents.selectSlot(slot)
+      onSelectSlot: slot => this.intents.selectSlot(slot),
+      onConnect: connected => (connected ? this.intents.disconnect() : this.intents.connect())
     });
     this.build();
   }

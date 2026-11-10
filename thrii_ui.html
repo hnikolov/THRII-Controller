@@ -10,19 +10,10 @@
 <body>
   <div id="app"></div>
   <script type="module">
-    import { flags } from './src/core/flags.js';
-    import { createEmptyDeviceState, createStore } from './src/state/shadowStore.js';
-    import { createRuntimeIntents } from './src/ui/runtime/intents.js';
-    import { mountRuntime } from './src/ui/runtime/mount.js';
+    import { boot } from './src/app/boot.js';
 
-    // Runtime page without a device: the store stays empty until a device is connected.
-    const store = createStore(createEmptyDeviceState());
-    const intents = createRuntimeIntents({
-      store,
-      flags,
-      sendParam: () => {}
-    });
-    mountRuntime(document.getElementById('app'), { store, intents });
+    // The store stays empty until the CONNECT button connects an amp; the activation and the Actual read then fill it.
+    boot(document.getElementById('app'), { onStatus: text => console.info(text) });
   </script>
 </body>
 </html>

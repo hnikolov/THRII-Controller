@@ -13,6 +13,11 @@ export function parseIdentityReply(frame) {
   return { family: frame[8], model: frame[10], version: [frame[12], frame[13], frame[14], frame[15]] };
 }
 
+// V1..V4 arrive lowest part first: 61 00 2c 01 is 1.44.0.a (major, minor, patch, then an ASCII letter).
+export function formatFirmwareVersion([letter, patch, minor, major]) {
+  return `${major}.${minor}.${patch}.${String.fromCharCode(letter)}`;
+}
+
 // Session context shared by the frame builders and the activation runner. Set only from a device reply.
 export function setDeviceIdentity(identity) {
   deviceIdentity = identity ? { family: identity.family, model: identity.model } : null;

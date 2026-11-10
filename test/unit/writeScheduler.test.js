@@ -18,9 +18,9 @@ function setup(overrides = {}) {
   return { clock, store, emitted, scheduler };
 }
 
-it('flags: coalesceWrites is on (burst protection); autoActivate and slotSync stay off', () => {
+it('flags: coalesceWrites (burst protection) and autoActivate (H6) are on; slotSync stays off', () => {
   assertEqual(flags.coalesceWrites, true, 'coalesceWrites');
-  assertEqual(flags.autoActivate, false, 'autoActivate');
+  assertEqual(flags.autoActivate, true, 'autoActivate');
   assertEqual(flags.slotSync, false, 'slotSync');
 });
 
