@@ -72,6 +72,8 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {}, sleep:
   });
 
   // A memory slot pick: select the slot, then read the Actual settings back. The slot becomes active when that read completes.
+  // pendingSlot is dropped when the read fails, when the amp reports a slot of its own, and on disconnect: a later dump
+  // must not mark this slot active.
   let pendingSlot = null;
   const selectPreset = async slot => {
     if (!sync) {
@@ -118,6 +120,7 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {}, sleep:
         return;
       }
       const event = decodeIncomingEvent(frame);
+      if (event && event.kind === 'settings_notification') pendingSlot = null;
       if (event) applyDeviceEvent(store, event, nameOf);
       if (sync && (flags.slotSync || sync.state !== 'idle')) sync.onFrame(frame, event);
     });
@@ -197,6 +200,8 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {}, sleep:
 
   function disconnect() {
     transports.disconnect();
+    pendingSlot = null;
+    if (sync) sync.cancel();
     setDeviceIdentity(null);
     onStatus('Disconnected');
     connection = {};

@@ -3,6 +3,7 @@ import { loadInboundFrames } from '../support/transcripts.js';
 import { boot } from '../../src/app/boot.js';
 import { toHex, parseSysExHex } from '../../src/core/bytes.js';
 import { thrActivateSequenceHex } from '../../src/protocol/constants.js';
+import { decodeIncomingEvent } from '../../src/protocol/incoming.js';
 
 const until = async (condition, label) => {
   for (let i = 0; i < 200; i += 1) {
@@ -40,18 +41,24 @@ function fakeAmp(identityReply, dumpFrames) {
     addEventListener(type, fn) { onState = fn; },
     removeEventListener() { onState = null; }
   };
-  return { sent, access, unplug: () => onState({ port: { id: 'out', state: 'disconnected' } }) };
+  return { sent, access, deliver, unplug: () => onState({ port: { id: 'out', state: 'disconnected' } }) };
 }
 
 it('boot: the CONNECT button connects, activates, reads the Actual settings and shows them; a pulled cable disconnects', async () => {
   const [identityReply] = await loadInboundFrames('/test/fixtures/transcripts/activation_req_resp.txt');
-  const amp = fakeAmp(identityReply, await loadInboundFrames('/test/fixtures/transcripts/actual_dump.txt'));
+  const dumpFrames = await loadInboundFrames('/test/fixtures/transcripts/actual_dump.txt');
+  const slotPress = (await loadInboundFrames('/test/fixtures/transcripts/slot_press.txt'))
+    .find(frame => (decodeIncomingEvent(frame) || {}).kind === 'settings_notification');
+  const ampSlot = decodeIncomingEvent(slotPress).slot + 1;
+  const amp = fakeAmp(identityReply, dumpFrames);
   // Without Bluetooth the BLE-first connect falls back to USB.
   Object.defineProperty(navigator, 'bluetooth', { value: undefined, configurable: true });
   Object.defineProperty(navigator, 'requestMIDIAccess', { value: async () => amp.access, configurable: true });
   const container = document.createElement('div');
   document.body.append(container);
-  const app = await boot(container, { sleep: async () => {} });
+  const statuses = [];
+  const dumpsApplied = () => statuses.filter(text => text.includes('dump complete')).length;
+  const app = await boot(container, { sleep: async () => {}, onStatus: text => statuses.push(text) });
   const labels = [];
   app.transports.bus.on('raw:out', ({ label }) => labels.push(label));
   try {
@@ -66,6 +73,19 @@ it('boot: the CONNECT button connects, activates, reads the Actual settings and 
     assertEqual(button.textContent, 'FW 1.44.0.a', 'firmware version on the button');
     assertEqual(container.querySelector('[aria-label="MASTER control"]').getAttribute('aria-valuenow'), '67', 'MASTER from the dump');
     assertEqual(container.querySelector('[aria-label="User memory label"]').value, 'Crunch Ico LP', 'preset name');
+
+    // A slot picked in the app, then a slot pressed on the amp before the read-back is done: the amp's slot wins,
+    // and the dump that was running is replaced by a new one.
+    const appSlot = ampSlot === 5 ? 4 : 5;
+    container.querySelectorAll('.footer-memory-button')[appSlot - 1].click();
+    await until(() => amp.sent.length === 7, 'the slot select and its dump request');
+    amp.deliver([slotPress]);
+    amp.deliver(dumpFrames);
+    await until(() => amp.sent.length === 8, 'the new dump request');
+    amp.deliver(dumpFrames);
+    await until(() => dumpsApplied() === 2, 'the new dump');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assertEqual(container.querySelector('.footer-memory-button.is-selected').textContent, String(ampSlot), 'the amp\'s slot is highlighted');
 
     amp.unplug();
     assertEqual(button.textContent, 'CONNECT', 'a pulled USB cable ends the session');

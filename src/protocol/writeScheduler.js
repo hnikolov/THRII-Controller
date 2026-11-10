@@ -1,8 +1,4 @@
-const realClock = {
-  now: () => Date.now(),
-  setTimeout: (fn, ms) => setTimeout(fn, ms),
-  clearTimeout: id => clearTimeout(id)
-};
+import { realClock } from '../core/clock.js';
 
 // Last-write-wins coalescing per key. A key is written once, when its burst settles
 // (quietMs without a new request) or when maxMs has passed since the burst started.

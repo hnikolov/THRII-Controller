@@ -1,22 +1,41 @@
+import { realClock } from '../core/clock.js';
 import { buildRequestUserSettingsDump } from './builders.js';
 import { createDumpAssembler } from './dumpAssembly.js';
 import { parseIncomingThrFrame } from './frames.js';
 import { parseDumpPatch, parsePatchName } from './dumpParser.js';
 
 const DUMP_HEADER_BYTES = 16;
-const STALE_MS = 8000;
+const DUMP_TIMEOUT_MS = 4000;
+const MAX_ATTEMPTS = 2;
 
-// Slot-driven sync (flag slotSync). A slot press requests the Actual dump, which is parsed into entries for
-// applyDumpPatch. The amp's "settings changed?" answer is not used: after a memory switch it reports no change.
+// Reads the amp's Actual settings: after activation, after a slot pick in the app (requestDump), and after a slot
+// press on the amp (flag slotSync). The completed dump is parsed into entries for applyDumpPatch.
+// The amp's "settings changed?" answer is not used: after a memory switch it reports no change.
 // Only dump requests are sent, so no parameter writes can echo back from here.
-export function createSyncFlow({ send, nameOf, onPatch, onError = () => {}, onState = () => {}, now = () => Date.now() }) {
-  const assembler = createDumpAssembler({ now });
+export function createSyncFlow({ send, nameOf, onPatch, onError = () => {}, onState = () => {}, clock = realClock }) {
+  const assembler = createDumpAssembler({ now: clock.now });
   let state = 'idle';
-  let startedAt = 0;
+  let attempt = 0;
+  let timer = null;
+  // A request that arrived while a dump was running. That dump may show the settings from before the request,
+  // so it is dropped and a new one is read.
+  let rerun = false;
 
   function setState(next, note = '') {
     state = next;
     onState(next, note);
+  }
+
+  function finish(note) {
+    clock.clearTimeout(timer);
+    timer = null;
+    rerun = false;
+    setState('idle', note);
+  }
+
+  function fail(err) {
+    finish('error: ' + err.message);
+    onError(err);
   }
 
   function transmit(frame, label) {
@@ -27,20 +46,35 @@ export function createSyncFlow({ send, nameOf, onPatch, onError = () => {}, onSt
     }
   }
 
-  function fail(err) {
-    setState('idle', 'error: ' + err.message);
-    onError(err);
+  function startDump(nextAttempt = 1) {
+    attempt = nextAttempt;
+    rerun = false;
+    clock.clearTimeout(timer);
+    timer = clock.setTimeout(onTimeout, DUMP_TIMEOUT_MS);
+    setState('awaitingDump', attempt > 1 ? 'retry' : '');
+    transmit(buildRequestUserSettingsDump({ kind: 'actual' }), 'TX sync: actual dump');
   }
 
-  function startDump() {
-    setState('awaitingDump');
-    startedAt = now();
-    transmit(buildRequestUserSettingsDump({ kind: 'actual' }), 'TX sync: actual dump');
+  // A dump that does not complete (a lost BLE packet, for example) is asked for once more, then reported.
+  // Either way the flow returns to idle, so later requests are not blocked.
+  function onTimeout() {
+    if (rerun) startDump();
+    else if (attempt < MAX_ATTEMPTS) startDump(attempt + 1);
+    else fail(new Error('the amp sent no complete settings dump'));
+  }
+
+  function request() {
+    if (state === 'idle') startDump();
+    else rerun = true;
   }
 
   function onDumpPayload(payloadBytes) {
     if (state !== 'awaitingDump') return;
-    setState('idle', 'dump complete');
+    if (rerun) {
+      startDump();
+      return;
+    }
+    finish('dump complete');
     const patch = payloadBytes.slice(DUMP_HEADER_BYTES);
     onPatch(parseDumpPatch(patch, nameOf), parsePatchName(patch));
   }
@@ -50,9 +84,12 @@ export function createSyncFlow({ send, nameOf, onPatch, onError = () => {}, onSt
       return state;
     },
 
-    // Asks the amp for its Actual settings (used after activation to fill the UI). Ignored while a dump is running.
-    requestDump() {
-      if (state === 'idle') startDump();
+    // Asks the amp for its Actual settings. During a running dump the request is kept and answered with a new dump.
+    requestDump: request,
+
+    // Drops a running dump without reporting it (the link is gone).
+    cancel() {
+      if (state !== 'idle') finish('cancelled');
     },
 
     // Called for every complete inbound frame, with the event decodeIncomingEvent gave for it (or null).
@@ -78,10 +115,6 @@ export function createSyncFlow({ send, nameOf, onPatch, onError = () => {}, onSt
       });
     }
 
-    if (!event) return;
-    if (event.kind === 'settings_notification') {
-      // A press during a running dump is ignored until that dump goes stale.
-      if (state === 'idle' || now() - startedAt >= STALE_MS) startDump();
-    }
+    if (event && event.kind === 'settings_notification') request();
   }
 }

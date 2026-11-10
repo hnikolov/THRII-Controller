@@ -4,23 +4,35 @@ import { createSyncFlow } from '../../src/protocol/syncFlow.js';
 import { setDeviceIdentity } from '../../src/protocol/identity.js';
 import { loadNameOf } from '../../src/protocol/symbolTable.js';
 import { loadInboundFrames } from '../support/transcripts.js';
+import { createFakeClock } from '../support/fakeClock.js';
 
 const SYMBOLS = '../doc/thr10ii_w_symbol_table_1_44_0_a.json';
 
 function harness() {
   const sent = [];
   const patches = [];
+  const errors = [];
+  const clock = createFakeClock();
   return {
     sent,
     patches,
+    errors,
+    clock,
     make: nameOf => createSyncFlow({
       send: (bytes, label) => { sent.push({ bytes, label }); },
       nameOf,
       onPatch: entries => patches.push(entries),
-      now: () => 0
+      onError: err => errors.push(err.message),
+      clock
     })
   };
 }
+
+const feedDump = async sync => {
+  for (const frame of await loadInboundFrames('/test/fixtures/transcripts/actual_dump.txt')) {
+    sync.onFrame(frame, decodeIncomingEvent(frame));
+  }
+};
 
 it('sync: a slot press requests the actual dump, which is parsed once', async () => {
   setDeviceIdentity({ family: 0x24, model: 0x01 });
@@ -51,7 +63,7 @@ it('sync: a send failure resets the sync and is reported', async () => {
     nameOf: await loadNameOf(SYMBOLS),
     onPatch: () => {},
     onError: err => errors.push(err.message),
-    now: () => 0
+    clock: createFakeClock()
   });
   const slotPress = (await loadInboundFrames('/test/fixtures/transcripts/slot_press.txt'))[0];
   sync.onFrame(slotPress, decodeIncomingEvent(slotPress));
@@ -65,8 +77,7 @@ it('sync: requestDump asks for the actual dump once, and the dump fills the stor
   const { sent, patches, make } = harness();
   const sync = make(nameOf);
   sync.requestDump();
-  sync.requestDump();
-  assertEqual(sent.length, 1, 'one request while idle');
+  assertEqual(sent.length, 1, 'one request');
   for (const frame of await loadInboundFrames('/test/fixtures/transcripts/actual_dump.txt')) {
     sync.onFrame(frame, decodeIncomingEvent(frame));
   }
@@ -85,14 +96,51 @@ it('sync: a unit type change does not request a dump: the amp sends the new para
   assertEqual(sync.state, 'idle', 'still idle');
 });
 
-it('sync: a second slot press during a running dump is ignored', async () => {
+it('sync: a request during a running dump drops that dump and reads a new one', async () => {
   setDeviceIdentity({ family: 0x24, model: 0x01 });
-  const { sent, make } = harness();
+  const { sent, patches, make } = harness();
   const sync = make(await loadNameOf(SYMBOLS));
   const slotPress = (await loadInboundFrames('/test/fixtures/transcripts/slot_press.txt'))[0];
+  sync.requestDump();
   sync.onFrame(slotPress, decodeIncomingEvent(slotPress));
-  sync.onFrame(slotPress, decodeIncomingEvent(slotPress));
-  assertEqual(sent.length, 1, 'one dump request');
+  assertEqual(sent.length, 1, 'no second request while the dump runs');
+  await feedDump(sync);
+  assertEqual(patches.length, 0, 'the running dump may predate the slot press: not applied');
+  assertEqual(sent.length, 2, 'a new dump is requested');
+  await feedDump(sync);
+  assertEqual(patches.length, 1, 'the new dump is applied');
+  assertEqual(sync.state, 'idle', 'idle at the end');
+});
+
+it('sync: a dump that never completes is requested once more, then reported; later requests work', async () => {
+  setDeviceIdentity({ family: 0x24, model: 0x01 });
+  const { sent, patches, errors, clock, make } = harness();
+  const sync = make(await loadNameOf(SYMBOLS));
+  sync.requestDump();
+  clock.advance(8000);
+  assertEqual(sent.length, 2, 'retry after the timeout');
+  assertEqual(errors.length, 0, 'no error yet');
+  clock.advance(8000);
+  assertEqual(errors.length, 1, 'reported after the second timeout');
+  assertEqual(sync.state, 'idle', 'idle, not stuck');
+  sync.requestDump();
+  assertEqual(sent.length, 3, 'a later request is sent');
+  await feedDump(sync);
+  assertEqual(patches.length, 1, 'and its dump is applied');
+  assertEqual(clock.pendingCount(), 0, 'no timer left');
+});
+
+it('sync: cancel drops a running dump without an error', async () => {
+  setDeviceIdentity({ family: 0x24, model: 0x01 });
+  const { patches, errors, clock, make } = harness();
+  const sync = make(await loadNameOf(SYMBOLS));
+  sync.requestDump();
+  sync.cancel();
+  await feedDump(sync);
+  clock.advance(20000);
+  assertEqual(patches.length, 0, 'nothing applied');
+  assertEqual(errors.length, 0, 'nothing reported');
+  assertEqual(sync.state, 'idle', 'idle');
 });
 
 it('sync: only slot presses start a sync; the dump report is classified separately', async () => {
