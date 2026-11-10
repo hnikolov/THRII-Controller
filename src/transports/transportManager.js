@@ -13,6 +13,15 @@ export function createTransportManager({ useReportedPacketSize, bleFrameGapMs = 
   const usb = createUsbTransport(onBytes);
   const ble = createBleTransport(onBytes, { useReportedPacketSize });
   let bleDevice = null;
+  let midiAccess = null;
+  // The link was lost from the amp's side: BLE out of range or switched off, or the USB cable pulled.
+  // A disconnect() call removes both listeners first, so it does not report itself.
+  const onBleDropped = () => bus.emit('transport:status', { connected: false, kind: 'ble' });
+  const onMidiState = ({ port }) => {
+    const { output, input } = usb.ports();
+    const ours = [output, input].some(used => used && used.id === port.id);
+    if (ours && port.state === 'disconnected') bus.emit('transport:status', { connected: false, kind: 'usb' });
+  };
   // Every send waits for the one before it: frames never interleave on the wire.
   let queue = Promise.resolve();
 
@@ -37,8 +46,9 @@ export function createTransportManager({ useReportedPacketSize, bleFrameGapMs = 
 
     async connectUsb() {
       if (!navigator.requestMIDIAccess) throw new Error('Web MIDI is not supported in this browser.');
-      const access = await navigator.requestMIDIAccess({ sysex: true });
-      return usb.attach(access);
+      midiAccess = await navigator.requestMIDIAccess({ sysex: true });
+      midiAccess.addEventListener('statechange', onMidiState);
+      return usb.attach(midiAccess);
     },
 
     async connectBle() {
@@ -46,6 +56,7 @@ export function createTransportManager({ useReportedPacketSize, bleFrameGapMs = 
       bleDevice = await navigator.bluetooth.requestDevice({
         filters: [{ services: [MIDI_SERVICE_UUID] }]
       });
+      bleDevice.addEventListener('gattserverdisconnected', onBleDropped);
       const server = await bleDevice.gatt.connect();
       ble.setMaxPacketBytes(server.maxWriteWithoutResponseSize);
       const service = await server.getPrimaryService(MIDI_SERVICE_UUID);
@@ -60,10 +71,13 @@ export function createTransportManager({ useReportedPacketSize, bleFrameGapMs = 
     },
 
     disconnect() {
+      if (midiAccess) midiAccess.removeEventListener('statechange', onMidiState);
+      midiAccess = null;
       usb.detach();
       ble.detach();
-      if (bleDevice && bleDevice.gatt && bleDevice.gatt.connected) {
-        bleDevice.gatt.disconnect();
+      if (bleDevice) {
+        bleDevice.removeEventListener('gattserverdisconnected', onBleDropped);
+        if (bleDevice.gatt && bleDevice.gatt.connected) bleDevice.gatt.disconnect();
       }
       bleDevice = null;
     },

@@ -35,7 +35,7 @@
     import { mountRawTracePanel } from './src/ui/debug/rawTracePanel.js';
     import { flags } from './src/core/flags.js';
 
-    // Dev-only: ?flag=slotSync turns that switch on for this page.
+    // Dev-only: ?flag=<name> turns on a switch from src/core/flags.js that is still off by default.
     for (const name of new URLSearchParams(location.search).getAll('flag')) {
       if (name in flags) flags[name] = true;
     }

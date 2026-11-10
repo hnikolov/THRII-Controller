@@ -28,7 +28,8 @@ const DEFAULT_WRITE_GAP_MS = 50;
 
 // Composition root shared by the shells: transports, store, sync flow, write scheduler, intents, and the mounted runtime.
 // fixture (dev only) is a captured device model { units, activeSlot, identity }; with it a slot press simulates the device's slot event.
-export async function boot(rootEl, { fixture = null, onStatus = () => {} } = {}) {
+// sleep is replaceable so tests do not wait out the protocol pauses.
+export async function boot(rootEl, { fixture = null, onStatus = () => {}, sleep: pause = sleep } = {}) {
   const transports = createTransportManager();
   const note = text => { onStatus(text); transports.bus.emit('note', { text }); };
 
@@ -44,6 +45,32 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {} } = {})
   const liveIdOf = symbolIds ? makeLiveIdOf(symbolIds) : (id => id);
   const typeKeyOf = symbolIds ? makeIdOfName(symbolIds) : (() => null);
 
+  const sendParam = (unitId, paramId, value) => {
+    try {
+      const param = findParamById(store.getState(), unitId, paramId);
+      if (!param) return;
+      buildParamWriteFrames(unitId, paramId, param.typeCode, value, param.rawU32).forEach(frame => {
+        transports.send(frame, `TX param ${unitId}:${paramId}`).catch(err => onStatus('Write failed: ' + err.message));
+      });
+    } catch (err) {
+      onStatus('Write failed: ' + err.message);
+    }
+  };
+
+  // Pending knob writes are flushed before every command that is not coalesced (slot select, unit type, activation, dump request),
+  // so a late write cannot land after it.
+  const scheduler = createWriteScheduler({
+    readValue: key => {
+      const [unitId, paramId] = key.split(':').map(Number);
+      const param = findParamById(store.getState(), unitId, paramId);
+      return param ? param.value : null;
+    },
+    emitWrite: (key, value) => {
+      const [unitId, paramId] = key.split(':').map(Number);
+      sendParam(unitId, paramId, value);
+    }
+  });
+
   // A memory slot pick: select the slot, then read the Actual settings back. The slot becomes active when that read completes.
   let pendingSlot = null;
   const selectPreset = async slot => {
@@ -53,6 +80,7 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {} } = {})
     }
     try {
       pendingSlot = slot;
+      scheduler.flushAll();
       await transports.send(buildSelectPreset(slot - 1), `TX memory slot ${slot}`);
       sync.requestDump();
     } catch (err) {
@@ -72,7 +100,10 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {} } = {})
         store.commit(state => { state.activeSlot = slot; }, 'device');
       }
     },
-    onError: err => note('Sync failed: ' + err.message),
+    onError: err => {
+      pendingSlot = null;
+      note('Sync failed: ' + err.message);
+    },
     onState: (s, detail) => note('Sync: ' + s + (detail ? ' (' + detail + ')' : ''))
   }) : null;
 
@@ -111,10 +142,11 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {} } = {})
 
   async function activate() {
     try {
+      scheduler.flushAll();
       const identity = await runActivation({
         send: (bytes, label) => transports.send(bytes, label),
         awaitIdentity: () => waitForIdentity(),
-        sleep,
+        sleep: pause,
         setIdentity: setDeviceIdentity
       });
       onStatus(`Activated: family 0x${identity.family.toString(16)}, model 0x${identity.model.toString(16)}`);
@@ -123,6 +155,7 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {} } = {})
         runtime.setConnection(connection);
       }
       // The amp's current settings fill the UI (the knobs, names, and preset name), as after a slot press.
+      scheduler.flushAll();
       if (sync) sync.requestDump();
     } catch (err) {
       onStatus('Activation failed: ' + err.message);
@@ -170,34 +203,28 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {} } = {})
     runtime.setConnection(connection);
   }
 
-  const sendParam = (unitId, paramId, value) => {
-    try {
-      const param = findParamById(store.getState(), unitId, paramId);
-      if (!param) return;
-      buildParamWriteFrames(unitId, paramId, param.typeCode, value, param.rawU32).forEach(frame => {
-        transports.send(frame, `TX param ${unitId}:${paramId}`).catch(err => onStatus('Write failed: ' + err.message));
-      });
-    } catch (err) {
-      onStatus('Write failed: ' + err.message);
-    }
-  };
+  // A lost link (amp switched off, BLE out of range, USB cable pulled) ends the session like a press on the button.
+  transports.bus.on('transport:status', ({ connected, kind }) => {
+    if (!connected && kind === connection.kind) disconnect();
+  });
 
   // Unit type pick: the select frames, then the type's default values and the module's enable, each frame awaited in order.
   const sendUnitType = async (unitId, typeKey, writes, enable) => {
     try {
-      await sleep(EFFECT_MODE_BEFORE_MS);
+      scheduler.flushAll();
+      await pause(EFFECT_MODE_BEFORE_MS);
       for (const frame of buildSelectUnitType(unitId, typeKey)) {
         await transports.send(frame, `TX unit type ${unitId}:${typeKey}`);
       }
-      await sleep(EFFECT_MODE_AFTER_MS);
+      await pause(EFFECT_MODE_AFTER_MS);
       for (const [index, write] of writes.entries()) {
-        if (index > 0) await sleep(DEFAULT_WRITE_GAP_MS);
+        if (index > 0) await pause(DEFAULT_WRITE_GAP_MS);
         for (const frame of buildParamWriteFrames(write.unitId, write.paramId, thrTypeCode.float32, write.value)) {
           await transports.send(frame, `TX default ${write.unitId}:${write.paramId}`);
         }
       }
       if (enable) {
-        if (writes.length) await sleep(DEFAULT_WRITE_GAP_MS);
+        if (writes.length) await pause(DEFAULT_WRITE_GAP_MS);
         for (const frame of buildParamWriteFrames(enable.unitId, enable.paramId, enable.typeCode, true)) {
           await transports.send(frame, `TX enable ${enable.unitId}:${enable.paramId}`);
         }
@@ -206,18 +233,6 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {} } = {})
       onStatus('Write failed: ' + err.message);
     }
   };
-
-  const scheduler = createWriteScheduler({
-    readValue: key => {
-      const [unitId, paramId] = key.split(':').map(Number);
-      const param = findParamById(store.getState(), unitId, paramId);
-      return param ? param.value : null;
-    },
-    emitWrite: (key, value) => {
-      const [unitId, paramId] = key.split(':').map(Number);
-      sendParam(unitId, paramId, value);
-    }
-  });
 
   const intents = createRuntimeIntents({
     store,

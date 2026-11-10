@@ -82,9 +82,10 @@ body {
   text-transform: uppercase;
 }
 
+/* Above the amp card (.amp-head, 95), so the open preset menu is not painted under it. */
 .top-strip {
   position: relative;
-  z-index: 50;
+  z-index: 100;
   grid-template-columns: auto 1fr auto;
   gap: 14px;
   padding: 0 8px;
