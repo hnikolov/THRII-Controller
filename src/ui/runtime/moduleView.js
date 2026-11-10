@@ -13,6 +13,7 @@ export class ModuleView {
     this.handlers = handlers;
     this.knobViews = [];
     this.unitSelector = null;
+    this.tapButton = null;
     this.build();
   }
 
@@ -46,9 +47,10 @@ export class ModuleView {
       leftGroup.append(title);
 
       if (config.badge) {
-        const badge = document.createElement('div');
+        const badge = document.createElement(config.tap ? 'button' : 'div');
         badge.className = 'module-badge';
         badge.textContent = config.badge;
+        if (config.tap) this.makeTapButton(badge);
         leftGroup.append(badge);
       }
       inner.append(leftGroup);
@@ -87,6 +89,17 @@ export class ModuleView {
     }
   }
 
+  // Taps are timed on pointerdown (a click arrives only on release); a click without a pointer is a keyboard press.
+  makeTapButton(badge) {
+    badge.type = 'button';
+    badge.setAttribute('aria-label', `${this.config.title} tap tempo`);
+    badge.addEventListener('pointerdown', () => this.handlers.onTap());
+    badge.addEventListener('click', (event) => {
+      if (event.detail === 0) this.handlers.onTap();
+    });
+    this.tapButton = badge;
+  }
+
   unitOptionsFor(typeName) {
     const options = this.config.unitOptions || [];
     const known = options.some(option => option.value === typeName);
@@ -99,6 +112,7 @@ export class ModuleView {
     if (this.unitSelector) {
       this.unitSelector.update({ value: model.typeName, items: this.unitOptionsFor(model.typeName) });
     }
+    if (this.tapButton) this.tapButton.disabled = !model.tapRef;
     this.knobViews.forEach((view, index) => {
       const knob = model.knobs[index];
       view.setHidden(!knob);

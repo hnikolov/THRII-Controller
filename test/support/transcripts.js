@@ -1,12 +1,13 @@
 import { parseSysExHex } from '../../src/core/bytes.js';
 
-// Inbound frames from a captured transcript ("RX USB raw: " lines), as bytes.
+// Inbound frames from a captured transcript ("RX USB raw: " or "RX USB: " lines), as bytes.
 export async function loadInboundFrames(path) {
   const text = await (await fetch(path)).text();
   return text
     .split('\n')
-    .filter(line => line.includes('RX USB raw: '))
-    .map(line => parseSysExHex(line.split('RX USB raw: ')[1]));
+    .map(line => line.match(/RX USB(?: raw)?: (.*)/))
+    .filter(Boolean)
+    .map(match => parseSysExHex(match[1]));
 }
 
 export async function sha256Text(text) {

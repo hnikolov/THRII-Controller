@@ -100,6 +100,7 @@ function selectModule(state, module) {
     typeName: unit ? (unit.typeName || null) : null,
     active: enable.active,
     enableRef: enable.ref,
+    tapRef: module.tap ? selectKnob(state, unit, { param: module.tap.param }).ref : null,
     knobs: knobConfigs.map(knob => selectKnob(state, unit, knob))
   };
 }

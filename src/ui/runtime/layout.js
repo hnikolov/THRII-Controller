@@ -176,6 +176,9 @@ export const RUNTIME_LAYOUT = {
         key: 'echo',
         title: 'ECHO',
         badge: 'TAP',
+        // Tap tempo sets the echo time: the amp reports its own TAP button as FX3.Time = interval / 1000 ms, the same for
+        // both echo types (captures tap_tempo_*.txt: 60 BPM gives 1.0, 120 BPM 0.5, 240 BPM 0.25).
+        tap: { param: 'Time', fullScaleMs: 1000 },
         unit: 'FX3',
         enable: 'FX3EnableState',
         unitOptions: [

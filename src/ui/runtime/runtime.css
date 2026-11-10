@@ -563,6 +563,23 @@ body {
 
 .module-section.is-off .module-title,
 .module-section.is-off .module-mode,
+button.module-badge {
+  border: 0;
+  margin: 0;
+  font-family: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+button.module-badge:active:not(:disabled) {
+  background: var(--gold-light);
+}
+
+button.module-badge:disabled {
+  cursor: default;
+}
+
 .module-section.is-off .module-badge,
 .module-section.is-off .label,
 .module-section.is-off .center-value,

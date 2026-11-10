@@ -1,6 +1,7 @@
 import { AmpView } from './ampView.js';
 import { MemoryView } from './memoryView.js';
 import { ModuleView } from './moduleView.js';
+import { createTapTimer, tapValue } from './tapTempo.js';
 import { defaultsForType, knobToValue, nextFamilyModel } from './viewModel.js';
 
 // Whole runtime tree. Built once; update() applies a view model. User actions become intents here.
@@ -55,7 +56,9 @@ export class AppView {
   }
 
   mountModule(parent, config) {
+    const tapTimer = config.tap ? createTapTimer() : null;
     const view = new ModuleView(config, {
+      onTap: () => this.tapTempo(config, tapTimer.tap()),
       onKnob: (index, percent) => this.setKnob(config.key, index, percent),
       onEnable: next => this.setEnable(config.key, next),
       onUnit: name => this.selectUnit(config, name)
@@ -82,6 +85,13 @@ export class AppView {
     const ref = this.model.modules[moduleKey].enableRef;
     if (!ref) return;
     this.intents.setParam(ref, next);
+  }
+
+  // The second and later taps of a run set the tapped interval, through the same intent as a knob turn.
+  tapTempo(config, intervalMs) {
+    const ref = this.model.modules[config.key].tapRef;
+    if (!ref || intervalMs === null) return;
+    this.intents.setParam(ref, tapValue(intervalMs, config.tap.fullScaleMs));
   }
 
   selectModel(name) {
