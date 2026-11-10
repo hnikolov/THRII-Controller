@@ -267,6 +267,32 @@ it('mount: the CONNECT button connects, and disconnects once the shell reports a
   }
 });
 
+it('mount: the open preset menu is painted above the amp card', async () => {
+  const css = document.createElement('link');
+  css.rel = 'stylesheet';
+  css.href = '/src/ui/runtime/runtime.css';
+  await new Promise((resolve, reject) => { css.onload = resolve; css.onerror = reject; document.head.append(css); });
+  const store = createStore(await loadMock());
+  const intents = createRuntimeIntents({ store, flags, sendParam: () => {} });
+  const container = document.createElement('div');
+  container.style.cssText = 'position: fixed; top: 0; left: 0; width: 390px; z-index: 1000;';
+  document.body.append(container);
+  const runtime = mountRuntime(container, { store, intents });
+  try {
+    container.querySelector('[aria-label="PRESETS actions"]').click();
+    const option = container.querySelectorAll('.top-strip .unit-selector-option')[1];
+    const box = option.getBoundingClientRect();
+    const ampHead = container.querySelector('.amp-head').getBoundingClientRect();
+    assertTrue(box.top >= ampHead.top && box.bottom <= ampHead.bottom, 'the option lies over the amp card');
+    assertEqual(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2), option, 'topmost element at the option');
+  } finally {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    runtime.destroy();
+    container.remove();
+    css.remove();
+  }
+});
+
 it('layout: amp cabinets are in device index order (SpkSimType)', () => {
   assertEqual(RUNTIME_LAYOUT.cabinets[2], 'Brown 4x12', 'index 2');
   assertEqual(RUNTIME_LAYOUT.cabinets.length, 17, 'cabinet count');

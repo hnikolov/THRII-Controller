@@ -18,10 +18,10 @@ function setup(overrides = {}) {
   return { clock, store, emitted, scheduler };
 }
 
-it('flags: coalesceWrites (burst protection) and autoActivate (H6) are on; slotSync stays off', () => {
+it('flags: coalesceWrites (burst protection), autoActivate (H6) and slotSync (H5) are on', () => {
   assertEqual(flags.coalesceWrites, true, 'coalesceWrites');
   assertEqual(flags.autoActivate, true, 'autoActivate');
-  assertEqual(flags.slotSync, false, 'slotSync');
+  assertEqual(flags.slotSync, true, 'slotSync');
 });
 
 it('a burst that settles emits once with the last value, after the quiet window', () => {

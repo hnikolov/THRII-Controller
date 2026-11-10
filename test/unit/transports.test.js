@@ -48,7 +48,12 @@ function fakeMidi() {
   return {
     order,
     sent,
-    access: { outputs: new Map([['o', output]]), inputs: new Map([['i', input]]) },
+    access: {
+      outputs: new Map([['o', output]]),
+      inputs: new Map([['i', input]]),
+      addEventListener() {},
+      removeEventListener() {}
+    },
     deliver: data => listeners.midimessage({ data }),
     listenerCount: () => Object.keys(listeners).length
   };
