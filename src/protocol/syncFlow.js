@@ -5,7 +5,7 @@ import { parseIncomingThrFrame } from './frames.js';
 import { parseDumpPatch, parsePatchName } from './dumpParser.js';
 
 const DUMP_HEADER_BYTES = 16;
-const DUMP_TIMEOUT_MS = 4000;
+export const DUMP_TIMEOUT_MS = 4000;
 const MAX_ATTEMPTS = 2;
 
 // Reads the amp's Actual settings: after activation, after a slot pick in the app (requestDump), and after a slot

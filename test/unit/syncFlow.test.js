@@ -1,6 +1,6 @@
 import { it, assertEqual } from '../support/assert.js';
 import { decodeIncomingEvent } from '../../src/protocol/incoming.js';
-import { createSyncFlow } from '../../src/protocol/syncFlow.js';
+import { createSyncFlow, DUMP_TIMEOUT_MS } from '../../src/protocol/syncFlow.js';
 import { setDeviceIdentity } from '../../src/protocol/identity.js';
 import { loadNameOf } from '../../src/protocol/symbolTable.js';
 import { loadInboundFrames } from '../support/transcripts.js';
@@ -117,10 +117,10 @@ it('sync: a dump that never completes is requested once more, then reported; lat
   const { sent, patches, errors, clock, make } = harness();
   const sync = make(await loadNameOf(SYMBOLS));
   sync.requestDump();
-  clock.advance(8000);
+  clock.advance(DUMP_TIMEOUT_MS);
   assertEqual(sent.length, 2, 'retry after the timeout');
   assertEqual(errors.length, 0, 'no error yet');
-  clock.advance(8000);
+  clock.advance(DUMP_TIMEOUT_MS);
   assertEqual(errors.length, 1, 'reported after the second timeout');
   assertEqual(sync.state, 'idle', 'idle, not stuck');
   sync.requestDump();

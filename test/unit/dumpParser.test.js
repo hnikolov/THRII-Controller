@@ -9,6 +9,8 @@ import { createStore, createEmptyDeviceState } from '../../src/state/shadowStore
 import { findParamByName, findParamById, findUnitByName } from '../../src/state/selectors.js';
 import { selectRuntimeModel } from '../../src/ui/runtime/viewModel.js';
 import { loadInboundFrames, sha256Text } from '../support/transcripts.js';
+import { decodeIncomingEvent } from '../../src/protocol/incoming.js';
+import { applyDeviceEvent } from '../../src/state/applyDeviceEvent.js';
 
 const ACTUAL_DUMP = '/test/fixtures/transcripts/actual_dump.txt';
 const SYMBOLS = '../doc/thr10ii_w_symbol_table_1_44_0_a.json';
@@ -120,4 +122,29 @@ it('dump parser: applyDumpPatch commits with source dump', async () => {
   applyDumpPatch(store, entries, nameOf);
   await Promise.resolve();
   assertEqual(source, 'dump', 'commit source');
+});
+
+// The amp's ECHO/REV knob swept from off to full (echo_reverb.txt), replayed on top of the Actual dump.
+// The amp reports a type change only for the reverb (Spring, then Hall). It never reports one for the echo:
+// the knob changes the echo's values and its on/off state, and the echo type stays as it was.
+it('amp ECHO/REV knob sweep: the reverb type follows the amp, the echo type is not changed by it', async () => {
+  const table = await loadSymbolTable(SYMBOLS);
+  const nameOf = makeNameOf(table);
+  const store = createStore(createEmptyDeviceState());
+  applyDumpPatch(store, parseDumpPatch(await dumpPatchFromTranscript(ACTUAL_DUMP), nameOf), nameOf, null, makeLiveIdOf(table));
+  const echoTypeBefore = findUnitByName(store.getState(), 'FX3').typeName;
+
+  const events = (await loadInboundFrames('/test/fixtures/transcripts/echo_reverb.txt')).map(decodeIncomingEvent).filter(Boolean);
+  events.forEach(event => applyDeviceEvent(store, event, nameOf));
+
+  const typeChanges = events.filter(event => event.kind === 'unit_type_change').map(event => `${nameOf(event.unitId)}:${nameOf(event.typeKey)}`);
+  assertEqual(typeChanges.join(','), 'FX4:StandardSpring,FX4:ReallyLargeHall', 'type changes in the capture');
+
+  const { echo, reverb } = selectRuntimeModel(store.getState()).modules;
+  assertEqual(echo.typeName, echoTypeBefore, 'echo type unchanged');
+  assertEqual(echo.active, false, 'echo switched off at the reverb end of the knob');
+  assertEqual(echo.knobs.map(k => `${k.label} ${k.value}`).join(', '), 'TIME 39, FEEDBACK 38, BASS 10, TREBLE 40, MIX 39', 'echo values from the knob');
+  assertEqual(reverb.typeName, 'ReallyLargeHall', 'reverb type');
+  assertEqual(reverb.active, true, 'reverb on');
+  assertEqual(reverb.knobs.map(k => `${k.label} ${k.value}`).join(', '), 'DECAY 41, PRE DELAY 10, TONE 25, MIX 76', 'hall values from the knob');
 });
