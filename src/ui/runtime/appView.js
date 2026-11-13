@@ -4,6 +4,8 @@ import { ModuleView } from './moduleView.js';
 import { createTapTimer, tapValue } from './tapTempo.js';
 import { defaultsForType, knobToValue, nextFamilyModel } from './viewModel.js';
 
+const STATUS_SHOWN_MS = 6000;
+
 // Whole runtime tree. Built once; update() applies a view model. User actions become intents here.
 export class AppView {
   constructor(layout, intents) {
@@ -14,8 +16,11 @@ export class AppView {
     this.memory = new MemoryView({
       presetMenu: layout.presetMenu,
       onSelectSlot: slot => this.intents.selectSlot(slot),
-      onConnect: connected => (connected ? this.intents.disconnect() : this.intents.connect())
+      onConnect: connected => (connected ? this.intents.disconnect() : this.intents.connect()),
+      onPreset: action => this.intents.presetAction(action),
+      onName: name => this.intents.setPresetName(name)
     });
+    this.statusTimer = null;
     this.build();
   }
 
@@ -52,7 +57,24 @@ export class AppView {
       body.append(rowEl);
     });
 
-    this.root.append(body, this.memory.buildFooter());
+    this.status = document.createElement('div');
+    this.status.className = 'status-toast';
+    this.status.setAttribute('role', 'status');
+    this.status.hidden = true;
+    this.root.append(body, this.memory.buildFooter(), this.status);
+  }
+
+  // Shell-driven feedback (operation progress, results, errors): a short text over the bottom of the body, gone after a while.
+  setStatus(text) {
+    clearTimeout(this.statusTimer);
+    this.status.textContent = text;
+    this.status.hidden = !text;
+    if (text) this.statusTimer = setTimeout(() => { this.status.hidden = true; }, STATUS_SHOWN_MS);
+  }
+
+  // Shell-driven: while a long operation runs (import, save, restore) the controls do not take input.
+  setBusy(busy) {
+    this.root.classList.toggle('is-busy', busy);
   }
 
   mountModule(parent, config) {

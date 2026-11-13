@@ -56,6 +56,7 @@ body {
 }
 
 .thr-app {
+  position: relative;
   width: min(100%, var(--app-width));
   background: var(--shell);
   border: 1px solid #59451a;
@@ -187,6 +188,35 @@ body {
 .footer-memory-button.is-selected {
   background: var(--paper);
   color: var(--ink);
+}
+
+/* Shell feedback: over the bottom of the body, above the footer strip. It never takes input. */
+.status-toast {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(var(--header-height) + 8px);
+  z-index: 200;
+  padding: 6px 10px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--ui-font-family);
+  font-size: 12px;
+  line-height: 1.3;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.status-toast[hidden] {
+  display: none;
+}
+
+.thr-app.is-busy .top-strip,
+.thr-app.is-busy .ui-body,
+.thr-app.is-busy .footer-strip {
+  pointer-events: none;
+  opacity: 0.6;
 }
 
 .ui-body {
@@ -675,6 +705,12 @@ button.module-badge:disabled {
 .unit-selector-option:focus-visible {
   background: rgba(154, 111, 8, 0.12);
   outline: none;
+}
+
+.unit-selector-option:disabled {
+  opacity: 0.45;
+  cursor: default;
+  background: transparent;
 }
 
 .unit-selector-option.is-selected {

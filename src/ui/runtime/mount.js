@@ -11,7 +11,11 @@ export function mountRuntime(rootEl, { store, intents, layout = RUNTIME_LAYOUT }
   return {
     // Connection status from the shell: { kind: 'ble' | 'usb' (connected) or null, version, busy, error }.
     setConnection: status => app.memory.setConnection(status),
+    // Feedback from the shell: a short status text, and the busy state of a long operation.
+    setStatus: text => app.setStatus(text),
+    setBusy: busy => app.setBusy(busy),
     destroy() {
+      app.setStatus('');
       unsubscribe();
       rootEl.replaceChildren();
     }

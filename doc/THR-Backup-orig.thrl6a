@@ -1,0 +1,19 @@
+{
+ "compression" : {
+  "crc32" : 2021298989,
+  "decompressed_size" : 6787,
+  "type" : "zlib"
+ },
+ "encoded_data" : "eNrtl21v4kYQx9/zKSxep9E+P/RVWnJJTsqpKKCqUlVFC0yCFWP71ibX6JTv3rUBY8quEq5nLpWCEIKd9ezM7syP/37tRf0FlKYf/Rx97UVRPzULqH70R3k8Axt9/D0aQZnERdnvRc8nbnpuoYCyqCb96Z6onor6M3iMp/WDhHJNtDxpDd8+gi3iLK3NmFAqBV7Z20u3Fx8kYNLoE9ybGZTz/snKXKbxrDKj6ufzykOZpdDyML66ubTZMv9lkW9Ho/6ZKVzMtWs3A6PB7Tkky79h7Tnq/+om1K5PqUJUk834uY0fYWXgSEjONoZPpijBVhZ8iprBdXynQhDJ+GZ4bGGSbLwI5Wy14flkN+aBmQRiLnIwD2BH8WKZmDKzTdij/MENjp/y2jvmXr8Xf+BBtqiOrchsYIUbmFVzGsdnkBoXc53OnUkK2Biu4RGSVSoKISqb3EfLojRxujIhxbHiJBAO+XB3B9MyEMrI7Stko89LY2Ewz+yy8EZV2mUT1NkXKM/t02ptxjjTTVjnkLsCqg2EYiwawwXAbGKmDysbJkqi5tQvLHxej2OhsdqMD21TC4HU6Cq1D9N5Fqo/k0NtfnGrd7LiaL9UeSAZQRvDOF6sQ6YaI19BhjJhq0xu3HnbSbBqTJI8XRt7D1fu24HnxJFWrXOamrUB73Sg23PXq41tm8O68V26mGPMvGlcmhICsadZXEBtf/EgWrFt62c8dw1VV9ZPVP1rF++TbGKS9sIuoGHNzaGxZjGGRV7XB8brB3vrj9pDN0i1y3Q6jz5Os+h62AlRBxT5eKoJ5tLDU6ZVqyS3PK3o6V5yD6pSCySVr4aFRFypjqCKOoFquy1aTOWIIcm8TGWVBXeJ1DB93NKKUR9TJWUhpGKqtQ+pzpciR0NqkD+ubTTDr6cqJVJq+XqwEom1pP+BrjVXh642AR+WmasT1xDah9ZtcrtcpR6uKqZZoKveudpwtQLqKEuyCH9vqFJ06xrXJI0Ablcp2yqvFlOxcOPCx1SmXLZ0j6mt7t0BKuoGpvSYLBXaL05JEDUdUxQzrywN8XPbk1t4IobeADmFR4yyUB7cI0b9VcfZDxOjrc1uUSlES+6hZeAUvpmU7VBbIREvKKkbf/Ok/C2FCEdf4vyo93mEggpUMIqp9NFS1ffXPVoiXYlW771eaMI1fb/Xd3ev5/8reIb/Baiq/ooP0J2cccJfrzspoxLjHwVSpChCwqc9kSAuYu0nKtLOKqhPhLpqfL/cv4DWq8toaM20rHweU4WSnZt6W4hKwpn2CtGdq2SDVuUu8IT56lnW+O6IrEfVo4pzLrxcrWqA62/C6nBuCrAHK1Hl3gF0KuJe2/0CmL0G/m+el0x0g8tRadKZsbNRbuP0/lDZ2b6VtdiuqJZ4n4aUO5GhjyQ0eUBqfjcc9qK/es+9fwBNG2Vh",
+ "encoding" : "Base64",
+ "meta" : {
+  "application" : "",
+  "appversion" : 0,
+  "device" : 2359297,
+  "device_version" : 21233761,
+  "modifieddate" : 1777806048,
+  "name" : "Spider IV Setlist"
+ },
+ "schema" : "L6Setlist",
+ "version" : 2
+}

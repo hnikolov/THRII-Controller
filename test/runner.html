@@ -30,6 +30,8 @@
     import './unit/transportQueue.test.js';
     import './unit/boot.test.js';
     import './unit/tapTempo.test.js';
+    import './unit/preset.test.js';
+    import './unit/presetFlow.test.js';
 
     const result = await runAll();
     document.getElementById('summary').textContent = `PASS ${result.pass} FAIL ${result.fail}`;

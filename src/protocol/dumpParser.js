@@ -1,5 +1,6 @@
 import { thrKeys, thrTypeCode } from './constants.js';
 import { readF32LEFromU32, readU32LEFromBytes } from './frames.js';
+import { writeU32LE } from '../core/bytes.js';
 
 const TRTG = [0x54, 0x52, 0x54, 0x47];
 // Dump type codes (1 bool, 2 enum, 3 float32) are mapped to the wire codes used by the store and the write path.
@@ -130,8 +131,9 @@ function wordTypeCode(word) {
   return null;
 }
 
-// Preset name: the first short string (type 4) after the PSRP marker. Same scan as the legacy parser.
-export function parsePatchName(raw) {
+// Preset name field: the first short string (type 4) after the PSRP marker. Same scan as the legacy parser.
+// The field is a u32 byte length followed by that many bytes (the text and its closing zero).
+function locatePatchName(raw) {
   const marker = [0x50, 0x53, 0x52, 0x50];
   for (let i = 0; i + marker.length <= raw.length; i += 1) {
     if (!matchesAt(raw, i, marker)) continue;
@@ -142,8 +144,28 @@ export function parsePatchName(raw) {
       const bytes = raw.slice(p + 8, p + 8 + len);
       const zero = bytes.indexOf(0);
       const text = new TextDecoder().decode(zero >= 0 ? bytes.slice(0, zero) : bytes).trim();
-      if (text) return text;
+      if (text) return { text, lengthOffset: p + 4, start: p + 8, length: len };
     }
   }
   return null;
+}
+
+export function parsePatchName(raw) {
+  const field = locatePatchName(raw);
+  return field ? field.text : null;
+}
+
+// A copy of the patch with another preset name. Only the name field changes (its length word and its bytes); the patch
+// is a token stream without byte counts around it, so the rest is copied as it is. The same name gives the same bytes.
+export function withPatchName(raw, name) {
+  const field = locatePatchName(raw);
+  if (!field) throw new Error('The patch has no name field.');
+  if (field.text === name) return raw;
+  const text = Uint8Array.of(...new TextEncoder().encode(name), 0);
+  const out = new Uint8Array(raw.length - field.length + text.length);
+  out.set(raw.subarray(0, field.lengthOffset), 0);
+  out.set(writeU32LE(text.length), field.lengthOffset);
+  out.set(text, field.start);
+  out.set(raw.subarray(field.start + field.length), field.start + text.length);
+  return out;
 }

@@ -37,10 +37,12 @@ export function decodeIncomingEvent(rawFrame) {
       return { kind: 'parameter_change', unitId, paramId, typeCode, rawU32, value: decodeValue(typeCode, rawU32) };
     }
     case OPCODE.settingsNotification: {
-      // Word 1 is the 0-based user memory slot (confirmed: memory 2 gives 1). Dump reports also use opcode 02,
-      // with the Actual target (0xffffffff) in word 1; they are not slot presses.
+      // Word 1 is the 0-based user memory slot (confirmed: memory 2 gives 1). Dump reports also use opcode 02; they are
+      // not slot presses. A report has the Actual target (0xffffffff) in word 1, or code 1 in word 3 ("downloaded":
+      // the captures show code 0 for a slot press and code 1 for the Actual dump report; a memory dump is expected
+      // to report its slot with code 1).
       if (words.length < 4) return null;
-      if ((words[1] >>> 0) === thrDumpProtocol.actualTargetU32) return { kind: 'dump_report', code: words[3] };
+      if ((words[1] >>> 0) === thrDumpProtocol.actualTargetU32 || words[3] === 1) return { kind: 'dump_report', code: words[3] };
       return { kind: 'settings_notification', slot: words[1], code: words[3] };
     }
     case OPCODE.answer: {

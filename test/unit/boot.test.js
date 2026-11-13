@@ -1,47 +1,20 @@
 import { it, assertEqual, assertDeepEqual } from '../support/assert.js';
 import { loadInboundFrames } from '../support/transcripts.js';
+import { createFakeAmp, until } from '../support/fakeAmp.js';
 import { boot } from '../../src/app/boot.js';
 import { toHex, parseSysExHex } from '../../src/core/bytes.js';
 import { thrActivateSequenceHex } from '../../src/protocol/constants.js';
 import { decodeIncomingEvent } from '../../src/protocol/incoming.js';
 
-const until = async (condition, label) => {
-  for (let i = 0; i < 200; i += 1) {
-    if (condition()) return;
-    await new Promise(resolve => setTimeout(resolve, 10));
-  }
-  throw new Error('timed out waiting for ' + label);
-};
-
 // A MIDI port that answers like the amp in the captures: the identity reply to the identity request,
 // and the Actual dump to the fifth frame (the dump request that follows the four activation frames).
 function fakeAmp(identityReply, dumpFrames) {
-  const sent = [];
-  let onMessage = null;
-  let onState = null;
-  const deliver = frames => setTimeout(() => frames.forEach(data => onMessage({ data })), 0);
-  const output = {
-    id: 'out',
-    name: 'THR',
-    send(bytes) {
-      sent.push(toHex(Uint8Array.from(bytes)));
-      if (sent.length === 1) deliver([identityReply]);
-      if (sent.length === 5) deliver(dumpFrames);
-    }
+  const amp = createFakeAmp();
+  amp.onSend = (frame, count) => {
+    if (count === 1) amp.deliver([identityReply]);
+    if (count === 5) amp.deliver(dumpFrames);
   };
-  const input = {
-    id: 'in',
-    name: 'THR',
-    addEventListener(type, fn) { onMessage = fn; },
-    removeEventListener() { onMessage = null; }
-  };
-  const access = {
-    outputs: new Map([['o', output]]),
-    inputs: new Map([['i', input]]),
-    addEventListener(type, fn) { onState = fn; },
-    removeEventListener() { onState = null; }
-  };
-  return { sent, access, deliver, unplug: () => onState({ port: { id: 'out', state: 'disconnected' } }) };
+  return amp;
 }
 
 it('boot: the CONNECT button connects, activates, reads the Actual settings and shows them; a pulled cable disconnects', async () => {
@@ -51,9 +24,7 @@ it('boot: the CONNECT button connects, activates, reads the Actual settings and 
     .find(frame => (decodeIncomingEvent(frame) || {}).kind === 'settings_notification');
   const ampSlot = decodeIncomingEvent(slotPress).slot + 1;
   const amp = fakeAmp(identityReply, dumpFrames);
-  // Without Bluetooth the BLE-first connect falls back to USB.
-  Object.defineProperty(navigator, 'bluetooth', { value: undefined, configurable: true });
-  Object.defineProperty(navigator, 'requestMIDIAccess', { value: async () => amp.access, configurable: true });
+  amp.install();
   const container = document.createElement('div');
   document.body.append(container);
   const statuses = [];
@@ -92,7 +63,6 @@ it('boot: the CONNECT button connects, activates, reads the Actual settings and 
   } finally {
     app.disconnect();
     container.remove();
-    delete navigator.bluetooth;
-    delete navigator.requestMIDIAccess;
+    amp.uninstall();
   }
 });

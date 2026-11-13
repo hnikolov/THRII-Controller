@@ -1,4 +1,4 @@
-function ensureUnit(state, unitKey, name) {
+export function ensureUnit(state, unitKey, name) {
   const key = String(unitKey);
   if (!state.units[key]) {
     state.units[key] = { id: unitKey, name: name || ('u#' + key), typeKey: null, typeName: null, parameters: {} };

@@ -5,18 +5,22 @@ import { createEmptyDeviceState, createStore } from '../state/shadowStore.js';
 import { findParamById } from '../state/selectors.js';
 import { applyDeviceEvent } from '../state/applyDeviceEvent.js';
 import { applyDumpPatch } from '../state/applyDumpPatch.js';
+import { typeCodeOfKind } from '../state/applyPreset.js';
 import { createWriteScheduler } from '../protocol/writeScheduler.js';
 import { buildParamWriteFrames } from '../protocol/paramWrite.js';
 import { buildSelectUnitType, buildSelectPreset } from '../protocol/builders.js';
 import { thrTypeCode } from '../protocol/constants.js';
 import { decodeIncomingEvent } from '../protocol/incoming.js';
 import { extractSysexFrames } from '../protocol/frames.js';
-import { formatFirmwareVersion, parseIdentityReply, setDeviceIdentity } from '../protocol/identity.js';
+import { formatFirmwareVersion, getDeviceIdentity, parseIdentityReply, setDeviceIdentity } from '../protocol/identity.js';
 import { runActivation } from '../protocol/activation.js';
 import { loadSymbolTable, makeNameOf, makeLiveIdOf, makeIdOfName } from '../protocol/symbolTable.js';
 import { createSyncFlow } from '../protocol/syncFlow.js';
 import { createRuntimeIntents } from '../ui/runtime/intents.js';
+import { RUNTIME_LAYOUT } from '../ui/runtime/layout.js';
 import { mountRuntime } from '../ui/runtime/mount.js';
+import { choose, download, pickText } from './files.js';
+import { createPresetFlow } from './presetFlow.js';
 
 const SYMBOL_TABLE_URL = new URL('../../doc/thr10ii_w_symbol_table_1_44_0_a.json', import.meta.url);
 
@@ -28,10 +32,18 @@ const DEFAULT_WRITE_GAP_MS = 50;
 
 // Composition root shared by the shells: transports, store, sync flow, write scheduler, intents, and the mounted runtime.
 // fixture (dev only) is a captured device model { units, activeSlot, identity }; with it a slot press simulates the device's slot event.
-// sleep is replaceable so tests do not wait out the protocol pauses.
-export async function boot(rootEl, { fixture = null, onStatus = () => {}, sleep: pause = sleep } = {}) {
+// sleep, files and confirm are replaceable so tests do not wait out the protocol pauses or open browser dialogs.
+export async function boot(rootEl, {
+  fixture = null,
+  onStatus = () => {},
+  sleep: pause = sleep,
+  files = { pickText, choose, download },
+  confirm = text => window.confirm(text)
+} = {}) {
   const transports = createTransportManager();
   const note = text => { onStatus(text); transports.bus.emit('note', { text }); };
+  // What the user must see on the runtime page (results and failures); onStatus carries everything, for the dev page.
+  const notify = text => { runtime.setStatus(text); onStatus(text); };
 
   if (fixture && fixture.identity) setDeviceIdentity(fixture.identity);
   const store = createStore(fixture ? { units: fixture.units, activeSlot: fixture.activeSlot } : createEmptyDeviceState());
@@ -45,15 +57,17 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {}, sleep:
   const liveIdOf = symbolIds ? makeLiveIdOf(symbolIds) : (id => id);
   const typeKeyOf = symbolIds ? makeIdOfName(symbolIds) : (() => null);
 
+  // Without an amp the edits stay in the store (an imported preset can be changed and exported offline).
   const sendParam = (unitId, paramId, value) => {
+    if (!transports.isConnected()) return;
     try {
       const param = findParamById(store.getState(), unitId, paramId);
       if (!param) return;
       buildParamWriteFrames(unitId, paramId, param.typeCode, value, param.rawU32).forEach(frame => {
-        transports.send(frame, `TX param ${unitId}:${paramId}`).catch(err => onStatus('Write failed: ' + err.message));
+        transports.send(frame, `TX param ${unitId}:${paramId}`).catch(err => notify('Write failed: ' + err.message));
       });
     } catch (err) {
-      onStatus('Write failed: ' + err.message);
+      notify('Write failed: ' + err.message);
     }
   };
 
@@ -74,21 +88,24 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {}, sleep:
   // A memory slot pick: select the slot, then read the Actual settings back. The slot becomes active when that read completes.
   // pendingSlot is dropped when the read fails, when the amp reports a slot of its own, and on disconnect: a later dump
   // must not mark this slot active.
+  // Resolves to the Actual patch read after the switch, or null when the switch or the read failed.
   let pendingSlot = null;
   const selectPreset = async slot => {
-    if (!sync) {
-      onStatus('Memory slot switch needs the symbol table (the read-back uses it).');
-      return;
+    if (!sync || !transports.isConnected()) {
+      notify(sync ? 'Connect the amp to switch memories' : 'Memory slot switch needs the symbol table (the read-back uses it).');
+      return null;
     }
     try {
       pendingSlot = slot;
       scheduler.flushAll();
       await transports.send(buildSelectPreset(slot - 1), `TX memory slot ${slot}`);
-      sync.requestDump();
     } catch (err) {
       pendingSlot = null;
-      onStatus('Write failed: ' + err.message);
+      notify('Write failed: ' + err.message);
+      return null;
     }
+    // A failed read is reported by the sync flow (onError).
+    return sync.requestDump().catch(() => null);
   };
 
   const sync = nameOf ? createSyncFlow({
@@ -104,6 +121,7 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {}, sleep:
     },
     onError: err => {
       pendingSlot = null;
+      runtime.setStatus('Reading the amp failed: ' + err.message);
       note('Sync failed: ' + err.message);
     },
     onState: (s, detail) => note('Sync: ' + s + (detail ? ' (' + detail + ')' : ''))
@@ -120,7 +138,13 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {}, sleep:
         return;
       }
       const event = decodeIncomingEvent(frame);
-      if (event && event.kind === 'settings_notification') pendingSlot = null;
+      const slotEvent = event && event.kind === 'settings_notification';
+      // During an import, save or restore the amp's memory notifications belong to that operation: they are not slot presses.
+      if (slotEvent && busy) {
+        if (sync) sync.onFrame(frame, null);
+        return;
+      }
+      if (slotEvent) pendingSlot = null;
       if (event) applyDeviceEvent(store, event, nameOf);
       if (sync && (flags.slotSync || sync.state !== 'idle')) sync.onFrame(frame, event);
     });
@@ -161,7 +185,7 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {}, sleep:
       scheduler.flushAll();
       if (sync) sync.requestDump();
     } catch (err) {
-      onStatus('Activation failed: ' + err.message);
+      notify('Activation failed: ' + err.message);
     }
   }
 
@@ -193,7 +217,7 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {}, sleep:
       if (flags.autoActivate) await activate();
       runtime.setConnection(connection);
     } catch (err) {
-      onStatus(`${used.toUpperCase()} failed: ` + err.message);
+      notify(`${used.toUpperCase()} failed: ` + err.message);
       runtime.setConnection({ error: err.message });
     }
   }
@@ -215,6 +239,7 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {}, sleep:
 
   // Unit type pick: the select frames, then the type's default values and the module's enable, each frame awaited in order.
   const sendUnitType = async (unitId, typeKey, writes, enable) => {
+    if (!transports.isConnected()) return;
     try {
       scheduler.flushAll();
       await pause(EFFECT_MODE_BEFORE_MS);
@@ -235,9 +260,70 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {}, sleep:
         }
       }
     } catch (err) {
-      onStatus('Write failed: ' + err.message);
+      notify('Write failed: ' + err.message);
     }
   };
+
+  // One long operation at a time (import, backup, save, restore). The controls take no input meanwhile, pending knob
+  // writes go out first, and the amp's memory notifications are not treated as slot presses (see raw:in above).
+  let busy = false;
+  async function exclusive(label, work) {
+    if (!transports.isConnected()) throw new Error('connect the amp first');
+    if (busy) throw new Error('another operation is still running');
+    busy = true;
+    runtime.setBusy(true);
+    notify(label + '...');
+    try {
+      scheduler.flushAll();
+      await work();
+    } finally {
+      busy = false;
+      runtime.setBusy(false);
+    }
+  }
+
+  // An imported preset goes to the amp with the frames and the pacing of the UI edits: per module the type select
+  // (only when the type changes), then its values, mix and on/off state.
+  async function sendPlan(modules) {
+    for (const module of modules) {
+      if (module.select) {
+        await pause(EFFECT_MODE_BEFORE_MS);
+        for (const frame of buildSelectUnitType(module.unitId, module.typeKey)) {
+          await transports.send(frame, `TX import ${module.unitName} type`);
+        }
+        await pause(EFFECT_MODE_AFTER_MS);
+      }
+      for (const param of module.params.filter(planned => !planned.local)) {
+        for (const frame of buildParamWriteFrames(param.unitId, param.id, typeCodeOfKind(param.kind), param.value)) {
+          await transports.send(frame, `TX import ${module.unitName} ${param.name}`);
+        }
+        await pause(DEFAULT_WRITE_GAP_MS);
+      }
+    }
+  }
+
+  // Unit types an import may select: the ones the dropdowns offer.
+  const knownTypes = { [RUNTIME_LAYOUT.amp.unit]: RUNTIME_LAYOUT.ampGroups.flatMap(group => group.items.map(item => item.value)) };
+  RUNTIME_LAYOUT.rows.flatMap(row => (row.type === 'dual' ? row.modules : [row.module])).forEach(module => {
+    if (module.unitOptions) knownTypes[module.unit] = module.unitOptions.map(option => option.value);
+  });
+
+  const runPresetAction = sync ? createPresetFlow({
+    store,
+    sync,
+    files,
+    confirm,
+    notify,
+    log: note,
+    pause,
+    exclusive,
+    sendPlan,
+    send: (frame, label) => transports.send(frame, label),
+    selectSlot: selectPreset,
+    isConnected: () => transports.isConnected(),
+    device: () => ({ firmware: connection.version || null, identity: getDeviceIdentity() }),
+    lookups: { idOfName: typeKeyOf, nameOf, isKnownType: (unitName, typeName) => (knownTypes[unitName] || []).includes(typeName) }
+  }) : () => notify('Presets need the symbol table.');
 
   const intents = createRuntimeIntents({
     store,
@@ -255,7 +341,8 @@ export async function boot(rootEl, { fixture = null, onStatus = () => {}, sleep:
     },
     onSelectUnit: sendUnitType,
     onConnect: () => connect(),
-    onDisconnect: disconnect
+    onDisconnect: disconnect,
+    onPresetAction: runPresetAction
   });
 
   const runtime = mountRuntime(rootEl, { store, intents });

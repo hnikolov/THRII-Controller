@@ -1,10 +1,13 @@
+import { PRESET_NAME_MAX } from '../../domain/presetModel.js';
 import { UnitSelectorView } from './unitSelectorView.js';
 
 // Top strip (presets, user memory label, connection) and footer (memory slots 1..5).
-// The active slot, preset name and modified flag come from the store; the label text box is local only.
+// The active slot, preset name and modified flag come from the store; typing in the label sets the preset name there.
 export class MemoryView {
-  constructor({ presetMenu, onSelectSlot, onConnect, slotCount = 5 }) {
+  constructor({ presetMenu, onSelectSlot, onConnect, onPreset, onName, slotCount = 5 }) {
     this.presetMenu = presetMenu;
+    this.onPreset = onPreset;
+    this.onName = onName;
     this.onSelectSlot = onSelectSlot;
     this.onConnect = onConnect;
     this.slotCount = slotCount;
@@ -25,11 +28,13 @@ export class MemoryView {
       className: 'align-left',
       items: this.presetMenu.items,
       displayValue: this.presetMenu.label,
-      onChange: () => {
-        // Preset actions are not wired yet.
+      onChange: (action) => {
+        // The menu is a list of actions, not a choice: no item stays selected.
+        this.presetSelector.update({ value: '' });
+        this.onPreset(action);
       }
     }).mount(presetSlot);
-    this.presetSelector.update({ value: '', items: this.presetMenu.items, displayValue: this.presetMenu.label });
+    this.presetSelector.update({ value: '' });
 
     const labelSlot = document.createElement('div');
     labelSlot.className = 'strip-item center editable-memory';
@@ -38,9 +43,10 @@ export class MemoryView {
     this.labelInput.className = 'strip-editable-input';
     this.labelInput.value = this.label;
     this.labelInput.setAttribute('aria-label', 'User memory label');
-    this.labelInput.addEventListener('input', (event) => {
-      this.label = event.target.value;
-    });
+    this.labelInput.maxLength = PRESET_NAME_MAX;
+    this.labelInput.addEventListener('focus', () => this.labelInput.select());
+    this.labelInput.addEventListener('input', event => this.onName(event.target.value));
+    this.labelInput.addEventListener('blur', () => { this.labelInput.value = this.label; });
     labelSlot.append(this.labelInput);
 
     const connectSlot = document.createElement('div');
@@ -90,11 +96,10 @@ export class MemoryView {
   update({ activeSlot, name, modified }) {
     this.activeSlot = activeSlot;
     this.modified = !!modified && activeSlot !== null;
-    const label = name || labelFor(activeSlot);
-    if (label !== this.label) {
-      this.label = label;
-      if (this.labelInput) this.labelInput.value = label;
-    }
+    this.label = name || labelFor(activeSlot);
+    // While the name is being typed and is empty, the box stays empty; the default label returns when it loses focus.
+    const clearing = !name && document.activeElement === this.labelInput;
+    if (this.labelInput && this.labelInput.value !== this.label && !clearing) this.labelInput.value = this.label;
     this.renderSlots();
   }
 

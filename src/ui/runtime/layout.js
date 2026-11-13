@@ -78,10 +78,15 @@ const DEFAULT_KNOBS = {
 export const RUNTIME_LAYOUT = {
   presetMenu: {
     label: 'PRESETS',
+    // value is the action the shell runs (intents.presetAction). Disabled items are not implemented yet.
     items: [
-      'Export', 'Import', 'Import AI', 'Import Factory',
-      'Save to THR slot 1', 'Save to THR slot 2', 'Save to THR slot 3', 'Save to THR slot 4', 'Save to THR slot 5',
-      'Backup THR', 'Restore THR'
+      { value: 'export', label: 'Export' },
+      { value: 'import', label: 'Import' },
+      { value: 'importAi', label: 'Import AI', disabled: true },
+      { value: 'importFactory', label: 'Import Factory', disabled: true },
+      ...[1, 2, 3, 4, 5].map(slot => ({ value: `save:${slot}`, label: `Save to THR slot ${slot}` })),
+      { value: 'backup', label: 'Backup THR' },
+      { value: 'restore', label: 'Restore THR' }
     ]
   },
   // Amp dropdown: one column per family.

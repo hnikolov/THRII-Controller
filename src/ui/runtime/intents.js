@@ -1,5 +1,6 @@
 import { findParamById, findUnitById, findUnitByName } from '../../state/selectors.js';
 import { setDefaultParam, setUnitType } from '../../state/applyDeviceEvent.js';
+import { sanitizePresetName } from '../../domain/presetModel.js';
 
 export function paramKey(ref) {
   return `${ref.unitId}:${ref.paramId}`;
@@ -19,6 +20,7 @@ export function createRuntimeIntents({
   onRequestDump = () => {},
   onSelectUnit = () => {},
   onConnect = () => {},
+  onPresetAction = () => {},
   onDisconnect = () => {}
 }) {
   return {
@@ -86,6 +88,19 @@ export function createRuntimeIntents({
 
     disconnect() {
       onDisconnect();
+    },
+
+    // A PRESETS menu pick (export, import, save:N, backup, restore). The shell runs it.
+    presetAction(action) {
+      onPresetAction(action);
+    },
+
+    // The name typed in the label. It is part of the settings, so they count as modified.
+    setPresetName(name) {
+      store.commit(state => {
+        state.presetName = sanitizePresetName(name) || null;
+        state.modified = true;
+      }, 'ui');
     }
   };
 }

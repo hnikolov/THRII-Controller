@@ -1,5 +1,5 @@
 // Dropdown control. A user pick calls onChange with the item value; store-driven updates use update() and never call it.
-// Items are strings (value and label alike) or { value, label } objects.
+// Items are strings (value and label alike) or { value, label, disabled } objects.
 const toItem = item => (typeof item === 'string' ? { value: item, label: item } : item);
 
 export class UnitSelectorView {
@@ -82,6 +82,7 @@ export class UnitSelectorView {
     option.type = 'button';
     option.className = 'unit-selector-option';
     option.textContent = item.label;
+    option.disabled = !!item.disabled;
     option.setAttribute('role', 'menuitemradio');
     option.addEventListener('click', (event) => {
       event.stopPropagation();

@@ -36,13 +36,22 @@ function plainIdsByName(byId) {
 
 // Id of a unit type, enum value or parameter by its name (for example StereoSquareChorus = 230, Pre Delay = PreDelay's id), or null.
 // Names match as the store matches them: spaces, case and the 'State' suffix are ignored (same rule as normalizedParamName).
+// The table holds some names twice, with and without a space (PreDelay 252 and Pre Delay 233, TapeEcho and Tape Echo).
+// The amp reports and accepts the one without the space (PreDelay 252 in echo_reverb.txt; a write to 233 is ACKed and
+// ignored, upload_preset_with_amp_reply.txt), so that one wins; otherwise the first id of a name wins.
 export function makeIdOfName(byId) {
   const normalize = name => String(name || '').replace(/\s+/g, '').replace(/State$/, '').toLowerCase();
   const idByName = new Map();
+  const spaced = new Set();
   Object.keys(byId).forEach(key => {
     const name = byId[key];
     if (typeof name !== 'string' || !name || name.endsWith('State')) return;
-    if (!idByName.has(normalize(name))) idByName.set(normalize(name), Number(key) >>> 0);
+    const normalized = normalize(name);
+    const hasSpace = /\s/.test(name);
+    if (idByName.has(normalized) && !(spaced.has(normalized) && !hasSpace)) return;
+    idByName.set(normalized, Number(key) >>> 0);
+    if (hasSpace) spaced.add(normalized);
+    else spaced.delete(normalized);
   });
   return name => (idByName.has(normalize(name)) ? idByName.get(normalize(name)) : null);
 }
