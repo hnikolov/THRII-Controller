@@ -14,7 +14,7 @@ import { decodeIncomingEvent } from '../protocol/incoming.js';
 import { extractSysexFrames } from '../protocol/frames.js';
 import { formatFirmwareVersion, getDeviceIdentity, parseIdentityReply, setDeviceIdentity } from '../protocol/identity.js';
 import { runActivation } from '../protocol/activation.js';
-import { loadSymbolTable, makeNameOf, makeLiveIdOf, makeIdOfName } from '../protocol/symbolTable.js';
+import { loadSymbolTable, makeNameOf, makeLiveIdOf, makeIdOfName, makeStateIdOf } from '../protocol/symbolTable.js';
 import { createSyncFlow } from '../protocol/syncFlow.js';
 import { createRuntimeIntents } from '../ui/runtime/intents.js';
 import { RUNTIME_LAYOUT } from '../ui/runtime/layout.js';
@@ -321,8 +321,9 @@ export async function boot(rootEl, {
     send: (frame, label) => transports.send(frame, label),
     selectSlot: selectPreset,
     isConnected: () => transports.isConnected(),
+    quickImport: () => flags.quickImport,
     device: () => ({ firmware: connection.version || null, identity: getDeviceIdentity() }),
-    lookups: { idOfName: typeKeyOf, nameOf, isKnownType: (unitName, typeName) => (knownTypes[unitName] || []).includes(typeName) }
+    lookups: { idOfName: typeKeyOf, nameOf, stateIdOf: makeStateIdOf(symbolIds), isKnownType: (unitName, typeName) => (knownTypes[unitName] || []).includes(typeName) }
   }) : () => notify('Presets need the symbol table.');
 
   const intents = createRuntimeIntents({

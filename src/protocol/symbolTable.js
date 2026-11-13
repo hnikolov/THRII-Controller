@@ -66,3 +66,16 @@ export function makeLiveIdOf(byId) {
     return plain === undefined ? key : plain;
   };
 }
+
+// The id a dump uses for a parameter: the id of its name with the 'State' suffix (Freq gives FreqState = 227), or null.
+// Spaces and case are ignored, as in makeIdOfName.
+export function makeStateIdOf(byId) {
+  const normalize = name => String(name || '').replace(/\s+/g, '').replace(/State$/, '').toLowerCase();
+  const idByName = new Map();
+  Object.keys(byId).forEach(key => {
+    const name = byId[key];
+    if (typeof name !== 'string' || !name.endsWith('State') || idByName.has(normalize(name))) return;
+    idByName.set(normalize(name), Number(key) >>> 0);
+  });
+  return name => (idByName.has(normalize(name)) ? idByName.get(normalize(name)) : null);
+}

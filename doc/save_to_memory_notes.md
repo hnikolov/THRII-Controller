@@ -109,7 +109,7 @@ Same sound, read from the amp in one session (`dump_slot_1_debug.txt`):
 ## Other open points
 
 - BLE: none of this was captured over BLE. Upload frames are the longest the app sends; see `BLE_USE_REPORTED_PACKET_SIZE` in `src/transports/bleTransport.js`.
-- Whether an upload to the Actual settings (target `0xffffffff`) works is untested; the app does not use it.
+- An upload to the Actual settings (target `0xffffffff`) works: the sound changes at once and a read of the Actual settings shows the uploaded settings, with no stale content (tested with memory dumps on several memories, 2026-11-13). The quick preset import uses it (`uploadPreset` in `src/app/presetFlow.js`, flag `quickImport`).
 
 ## Practical note
 

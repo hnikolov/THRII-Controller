@@ -2,8 +2,8 @@ import { parseThrl6Preset, presetFileName, presetToPlan, presetToText, storeToPr
 import { applyPresetPlan, comparePlan } from '../state/applyPreset.js';
 import { findUnitById } from '../state/selectors.js';
 import { parsePatchName, withPatchName } from '../protocol/dumpParser.js';
-import { memoryDifferences } from '../protocol/memoryPatch.js';
-import { buildSlotUploadFrames, UPLOAD_PACE_MS } from '../protocol/upload.js';
+import { buildPresetPatch, memoryDifferences } from '../protocol/memoryPatch.js';
+import { buildSlotUploadFrames, buildUploadFrames, UPLOAD_PACE_MS } from '../protocol/upload.js';
 
 const SLOT_COUNT = 5;
 // Time the amp gets to store an uploaded memory before it is recalled.
@@ -18,9 +18,12 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 // The PRESETS menu actions. Export and Import work without an amp (on the store); with an amp, Import also sends the
 // preset and reads it back. Backup, Save and Restore need the amp.
+// Import with an amp has two mechanisms. Quick (quickImport() true): one patch built from the preset is uploaded to the
+// Actual settings. Value by value: the type selects and parameter writes of the UI edits, with their pauses. The quick
+// one falls back to the other when its patch cannot be built or sent, or when the amp then differs from the preset.
 // deps: store, sync, send(frame, label), sendPlan(modules), selectSlot(slot) -> the Actual patch after the recall (or null),
-// log(text) for the trace, exclusive(label, fn), isConnected(),
-// device() -> { firmware, identity }, lookups { idOfName, nameOf, isKnownType }, files { pickText, choose, download }, confirm, notify, pause.
+// log(text) for the trace, exclusive(label, fn), isConnected(), quickImport(),
+// device() -> { firmware, identity }, lookups { idOfName, nameOf, stateIdOf, isKnownType }, files { pickText, choose, download }, confirm, notify, pause.
 export function createPresetFlow(deps) {
   const { store, sync, files, notify } = deps;
 
@@ -46,17 +49,12 @@ export function createPresetFlow(deps) {
     }
 
     await deps.exclusive(`Importing ${plan.presetName}`, async () => {
-      // A type the amp already has is not selected again: fewer type switches, and its other settings stay.
-      const current = store.getState();
-      const modules = plan.modules.map(module => ({
-        ...module,
-        select: module.typeKey != null && (findUnitById(current, module.unitId) || {}).typeKey !== module.typeKey
-      }));
-      applyPresetPlan(store, plan);
-      await deps.sendPlan(modules);
-      // The amp's own answer replaces the store; what differs from the preset is reported.
-      await sync.read(ACTUAL, { apply: true });
-      const differences = comparePlan(store.getState(), plan);
+      let differences = deps.quickImport() ? await uploadPreset(plan) : null;
+      if (differences === null || differences.length) {
+        if (differences) deps.log(`Quick import: the amp differs in ${differences.join(', ')}; sending the preset value by value`);
+        differences = await writePreset(plan);
+      }
+      // The amp's own answer has replaced the store; the imported name and the modified state are put back.
       store.commit(state => {
         state.presetName = plan.presetName;
         state.activeSlot = null;
@@ -66,6 +64,40 @@ export function createPresetFlow(deps) {
         ? `Imported ${plan.presetName}, but the amp differs in: ${differences.join(', ')}`
         : `Imported ${plan.presetName}`);
     });
+  }
+
+  // Quick import: the preset as one patch, uploaded to the Actual settings; then the amp is read back.
+  // The patch is built on the amp's current Actual dump (buildPresetPatch). Returns where the amp then differs from
+  // the preset, or null when the patch could not be built or sent.
+  async function uploadPreset(plan) {
+    try {
+      const frames = buildUploadFrames(ACTUAL, buildPresetPatch(await sync.read(ACTUAL), plan, deps.lookups));
+      for (const [index, frame] of frames.entries()) {
+        await deps.send(frame, `TX import upload ${index + 1}/${frames.length}`);
+        await deps.pause(UPLOAD_PACE_MS);
+      }
+      await deps.pause(UPLOAD_SETTLE_MS);
+      await sync.read(ACTUAL, { apply: true });
+      return comparePlan(store.getState(), plan);
+    } catch (err) {
+      deps.log(`Quick import failed (${err.message}); sending the preset value by value`);
+      return null;
+    }
+  }
+
+  // Value-by-value import: the store first, then the type selects and writes, then the amp is read back.
+  // Returns where the amp then differs from the preset.
+  async function writePreset(plan) {
+    // A type the amp already has is not selected again: fewer type switches, and its other settings stay.
+    const current = store.getState();
+    const modules = plan.modules.map(module => ({
+      ...module,
+      select: module.typeKey != null && (findUnitById(current, module.unitId) || {}).typeKey !== module.typeKey
+    }));
+    applyPresetPlan(store, plan);
+    await deps.sendPlan(modules);
+    await sync.read(ACTUAL, { apply: true });
+    return comparePlan(store.getState(), plan);
   }
 
   async function readBackup() {
@@ -159,13 +191,13 @@ export function createPresetFlow(deps) {
     });
   }
 
-  const actions = { export: exportPreset, import: importPreset, backup, restore };
+  const actions = { export: exportPreset, import: importPreset, backup, restore, save };
 
   // action: 'export', 'import', 'backup', 'restore' or 'save:1' .. 'save:5'. Failures are reported, never thrown.
   return async function run(action) {
     const [name, slot] = action.split(':');
     try {
-      await (name === 'save' ? save(Number(slot)) : actions[name]());
+      await actions[name](Number(slot));
     } catch (err) {
       notify(`${name[0].toUpperCase()}${name.slice(1)} failed: ${err.message}`);
     }

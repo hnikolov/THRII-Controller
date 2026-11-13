@@ -7,13 +7,13 @@ import { applyPresetPlan, comparePlan } from '../../src/state/applyPreset.js';
 import { applyDumpPatch } from '../../src/state/applyDumpPatch.js';
 import { createStore, createEmptyDeviceState } from '../../src/state/shadowStore.js';
 import { selectRuntimeModel } from '../../src/ui/runtime/viewModel.js';
-import { loadSymbolTable, makeIdOfName, makeLiveIdOf, makeNameOf } from '../../src/protocol/symbolTable.js';
+import { loadSymbolTable, makeIdOfName, makeLiveIdOf, makeNameOf, makeStateIdOf } from '../../src/protocol/symbolTable.js';
 import { createDumpAssembler } from '../../src/protocol/dumpAssembly.js';
 import { parseIncomingThrFrame } from '../../src/protocol/frames.js';
 import { parseDumpPatch, parsePatchName, withPatchName } from '../../src/protocol/dumpParser.js';
 import { buildCommandFrameFromRawPayload } from '../../src/protocol/builders.js';
 import { buildSlotUploadFrames } from '../../src/protocol/upload.js';
-import { memoryHolds, toMemoryPatch } from '../../src/protocol/memoryPatch.js';
+import { buildPresetPatch, memoryHolds, toMemoryPatch } from '../../src/protocol/memoryPatch.js';
 import { decodeIncomingEvent } from '../../src/protocol/incoming.js';
 import { setDeviceIdentity } from '../../src/protocol/identity.js';
 import { writeU32LE } from '../../src/core/bytes.js';
@@ -203,4 +203,61 @@ it('import capture: every write is ACKed, the amp model select is echoed with it
   assertEqual(typeChanges[0].unitId, 268, 'Amp unit');
   assertEqual(count('dump_report'), 2, 'the report of the dump before the import and of the read-back');
   assertEqual(count('settings_notification'), 0, 'no slot press');
+});
+
+// The patch a quick import uploads: built on a dump from the amp (here the captured Actual dump, another sound).
+async function presetPatchFixture(planOptions) {
+  const table = await loadSymbolTable(SYMBOLS);
+  const nameOf = makeNameOf(table);
+  const template = await actualDumpPatch();
+  const plan = await samplePlan(planOptions);
+  const patch = buildPresetPatch(template, plan, { nameOf, stateIdOf: makeStateIdOf(table) });
+  const store = createStore(createEmptyDeviceState());
+  applyDumpPatch(store, parseDumpPatch(patch, nameOf), nameOf, parsePatchName(patch), makeLiveIdOf(table));
+  return { table, nameOf, template, plan, patch, store };
+}
+
+it('preset patch: built from the sample on another sound, it reads back as the sample', async () => {
+  const { nameOf, plan, patch, store } = await presetPatchFixture();
+  assertEqual(parsePatchName(patch), 'EarlyVH', 'name');
+  assertDeepEqual(comparePlan(store.getState(), plan), [], 'every type and value of the preset is in the patch');
+
+  const entries = parseDumpPatch(patch, nameOf);
+  const namesOf = unit => entries.filter(e => e.kind === 'parameter' && nameOf(e.unitKey) === unit).map(e => nameOf(e.pKey));
+  assertDeepEqual(namesOf('FX2'), ['FeedbackState', 'SpeedState'], 'the new effect type has only its own values, in name order');
+  assertDeepEqual(namesOf('FX4'), ['DecayState', 'PreDelayState', 'ToneState'], 'reverb values');
+  assertDeepEqual(namesOf('GuitarProc'), [
+    'FX1EnableState', 'FX2EnableState', 'FX2MixState', 'FX3EnableState', 'FX3MixState', 'FX4EnableState',
+    'FX4WetSendState', 'GateEnableState', 'SpkSimTypeState', 'DecayState', 'ThreshState'
+  ], 'the eleven shared settings in memory order');
+  assertDeepEqual(Array.from(toMemoryPatch(patch, nameOf)), Array.from(patch), 'the patch has the memory layout');
+});
+
+it('preset patch: a preset exported from a dump builds the memory layout of that dump (same records, same order)', async () => {
+  const table = await loadSymbolTable(SYMBOLS);
+  const nameOf = makeNameOf(table);
+  const template = await actualDumpPatch();
+  const fromAmp = createStore(createEmptyDeviceState());
+  applyDumpPatch(fromAmp, parseDumpPatch(template, nameOf), nameOf, 'Crunch Ico LP', makeLiveIdOf(table));
+  const plan = presetToPlan(parseThrl6Preset(storeToPreset(fromAmp.getState(), 'Crunch Ico LP')), { idOfName: makeIdOfName(table) });
+
+  const patch = buildPresetPatch(template, plan, { nameOf, stateIdOf: makeStateIdOf(table) });
+  const expected = toMemoryPatch(template, nameOf);
+  assertEqual(patch.length, expected.length, 'length');
+  const keys = raw => parseDumpPatch(raw, nameOf).map(e => `${e.unitKey}:${e.kind === 'unit_type' ? 'type ' + e.unitTypeKey : e.pKey}`);
+  assertDeepEqual(keys(patch), keys(expected), 'records');
+  assertDeepEqual(comparePlan(fromAmp.getState(), plan), [], 'values');
+});
+
+it('preset patch: a parameter the dumps do not know stops the build', async () => {
+  const table = await loadSymbolTable(SYMBOLS);
+  const plan = await samplePlan();
+  plan.modules[3].params[0] = { ...plan.modules[3].params[0], name: 'NoSuchParameter' };
+  let message = null;
+  try {
+    buildPresetPatch(await actualDumpPatch(), plan, { nameOf: makeNameOf(table), stateIdOf: makeStateIdOf(table) });
+  } catch (err) {
+    message = err.message;
+  }
+  assertTrue(/NoSuchParameter/.test(message || ''), 'message: ' + message);
 });

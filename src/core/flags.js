@@ -2,9 +2,12 @@
 // coalesceWrites is on so a fast knob or wheel turn sends one write per settled value (a burst over BLE overflowed the amp).
 // autoActivate is on since H6 passed: a connect runs the activation and reads the Actual settings.
 // slotSync is on since H5 passed for the memory slots: a slot press on the amp reads the Actual settings.
+// quickImport is on since the upload to the Actual settings passed on hardware (2026-11-13): a preset import is one
+// patch upload; the value-by-value import stays as the fallback (and is the whole import when this is off).
 // Only the dev composition root may turn these on, from query parameters; runtime code reads them only.
 export const flags = {
   coalesceWrites: true,
   autoActivate: true,
-  slotSync: true
+  slotSync: true,
+  quickImport: true
 };
