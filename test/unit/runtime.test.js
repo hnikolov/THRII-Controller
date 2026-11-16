@@ -84,6 +84,12 @@ it('view model: the gate threshold maps -96..0 dB to a 0..100 knob and back', as
   assertEqual(Math.abs(knobToValue(knob.ref, 60) - (-38.4)) < 1e-9, true, 'knob 60 writes -38.4 dB');
   assertEqual(knobToValue(knob.ref, 0), -96, 'knob 0 is -96 dB');
   assertEqual(knobToValue(knob.ref, 100), 0, 'knob 100 is 0 dB');
+
+  // A gate that is off holds -97 dB (amp dumps, generated presets): below the knob's range.
+  store.commit(state => { state.units[316].parameters[295].value = -97; }, 'dump');
+  const off = selectRuntimeModel(store.getState()).modules.gate.knobs[0];
+  assertEqual(off.value, 0, 'a threshold below the range shows as 0');
+  assertEqual(off.ref.paramId, 295, 'and the knob stays writable');
 });
 
 it('view model: module enable state and unit type', async () => {

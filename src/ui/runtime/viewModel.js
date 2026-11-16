@@ -16,7 +16,8 @@ function findControl(state, unit, paramName) {
 
 // Knobs show 0..100. A knob names one parameter or a list of candidate names (the first one found in the unit wins).
 // A knob with a range (for example the gate threshold, -96..0 dB) maps that range to 0..100.
-// Only parameters inside the range are shown and writable; others show "--".
+// A value outside the range shows as the nearest end and stays writable: the amp keeps -97 dB as the threshold of a
+// gate that is off (seen in its dumps and in generated presets). Only a missing parameter shows "--".
 function findKnobControl(state, unit, names) {
   for (const name of [].concat(names)) {
     const found = findControl(state, unit, name);
@@ -29,10 +30,10 @@ function selectKnob(state, unit, knob) {
   const found = findKnobControl(state, unit, knob.param);
   const [min, max] = knob.range || [0, 1];
   const v = found ? found.param.value : null;
-  const usable = typeof v === 'number' && v >= min && v <= max;
+  const usable = typeof v === 'number' && Number.isFinite(v);
   return {
     label: knob.label,
-    value: usable ? Math.round((v - min) / (max - min) * 100) : null,
+    value: usable ? Math.round((Math.min(max, Math.max(min, v)) - min) / (max - min) * 100) : null,
     ref: usable ? { ...paramRef(found.unit, found.param), range: knob.range || null } : null
   };
 }
