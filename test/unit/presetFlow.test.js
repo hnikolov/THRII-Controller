@@ -78,6 +78,52 @@ it('quick import: the preset goes to the amp as one upload, and the read-back ma
   }
 });
 
+it('import of a text without an amp: the generated sample presets are accepted with the types the menus offer', async () => {
+  const app = await bootApp();
+  try {
+    const walsh = await app.app.importText(await (await fetch('/doc/walsh-hotel-solo.thrl6p')).text());
+    assertDeepEqual(walsh, { ok: true, message: 'Imported Walsh Hotel Solo (amp not connected)' }, 'result');
+    assertEqual(app.status(), walsh.message, 'the status shows the same message');
+    await until(() => app.knob('MASTER').getAttribute('aria-valuenow') === '68', 'MASTER of the preset');
+    assertEqual(app.nameBox().value, 'Walsh Hotel Solo', 'name in the label');
+
+    const fury = await app.app.importText(await (await fetch('/doc/neo-classical-fury.thrl6p')).text());
+    assertDeepEqual(fury, { ok: true, message: 'Imported Neo-Classical Fury (amp not connected)' }, 'second preset');
+    await until(() => app.nameBox().value === 'Neo-Classical Fury', 'the second name');
+  } finally {
+    app.cleanup();
+  }
+});
+
+it('import of a text with an amp: the same frames as the file import; a refused text sends nothing', async () => {
+  const app = await bootApp({ connect: true, takesUploads: true });
+  try {
+    const result = await app.app.importText(await sampleText());
+    assertDeepEqual(result, { ok: true, message: 'Imported EarlyVH' }, 'result');
+    assertEqual(app.status(), 'Imported EarlyVH', 'status');
+    assertDeepEqual(app.labels, [
+      'TX sync: actual dump', ...[1, 2, 3, 4].map(n => `TX import upload ${n}/4`), 'TX sync: actual dump'
+    ], 'one read, one upload, one read-back');
+    await until(() => app.knob('MASTER').getAttribute('aria-valuenow') === '69', 'MASTER from the read-back');
+
+    app.labels.length = 0;
+    const json = JSON.parse(await sampleText());
+    json.data.tone.THRGroupAmp['@asset'] = 'NotAnAmp';
+    const refused = await app.app.importText(JSON.stringify(json));
+    assertEqual(refused.ok, false, 'refused');
+    assertTrue(refused.message.startsWith('Import failed:') && refused.message.includes('NotAnAmp'), 'message: ' + refused.message);
+    assertEqual(app.status(), refused.message, 'the status shows the refusal');
+    assertDeepEqual(app.labels, [], 'nothing sent');
+    assertEqual(app.nameBox().value, 'EarlyVH', 'the settings are unchanged');
+
+    const noJson = await app.app.importText('not a preset');
+    assertEqual(noJson.ok, false, 'text that is not JSON is refused too');
+    assertDeepEqual(app.labels, [], 'still nothing sent');
+  } finally {
+    app.cleanup();
+  }
+});
+
 it('quick import: when the amp then differs, the preset is sent value by value; with the flag off that is the whole import', async () => {
   for (const quick of [true, false]) {
     const app = await bootApp({ connect: true });

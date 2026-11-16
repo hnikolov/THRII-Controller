@@ -85,6 +85,20 @@ it('preset plan: unknown names and unknown types refuse the whole plan', async (
   assertEqual(await messageOf(() => {}), null, 'the unchanged sample is accepted');
 });
 
+// Exports of the amplifier-presets.com generator: other key order than THR Remote's files, and a tempo outside the range.
+it('preset plan: the generated sample presets resolve; their tempo is cut to the range and kept locally', async () => {
+  for (const file of ['walsh-hotel-solo.thrl6p', 'neo-classical-fury.thrl6p']) {
+    const json = await (await fetch('/doc/' + file)).json();
+    const plan = await samplePlan({ json });
+    assertEqual(plan.presetName, json.data.meta.name, file + ' name');
+    assertEqual(plan.modules.length, 8, file + ' modules');
+    assertTrue(plan.modules.every(m => m.unitId != null && m.params.every(p => p.id != null && p.unitId != null)), file + ' ids resolved');
+    const tempo = plan.modules[7].params[0];
+    assertEqual(json.data.tone.global.THRPresetParamTempo, 913, file + ' tempo in the file');
+    assertDeepEqual([tempo.value, tempo.local], [300, true], file + ' tempo in the plan');
+  }
+});
+
 it('preset import without an amp: an empty store shows the preset', async () => {
   const store = createStore(createEmptyDeviceState());
   applyPresetPlan(store, await samplePlan());

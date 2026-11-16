@@ -14,6 +14,8 @@ export function mountRuntime(rootEl, { store, intents, layout = RUNTIME_LAYOUT }
     // Feedback from the shell: a short status text, and the busy state of a long operation.
     setStatus: text => app.setStatus(text),
     setBusy: busy => app.setBusy(busy),
+    // Where a shell-supplied pop-up is drawn: the app frame, so it is sized like the runtime.
+    overlayHost: app.root,
     destroy() {
       app.setStatus('');
       unsubscribe();

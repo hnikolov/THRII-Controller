@@ -33,8 +33,13 @@ const DEFAULT_WRITE_GAP_MS = 50;
 // Composition root shared by the shells: transports, store, sync flow, write scheduler, intents, and the mounted runtime.
 // fixture (dev only) is a captured device model { units, activeSlot, identity }; with it a slot press simulates the device's slot event.
 // sleep, files and confirm are replaceable so tests do not wait out the protocol pauses or open browser dialogs.
+// presetSources maps a PRESETS menu action marked as a source in the layout (importAi) to a function
+// open({ host, importText, ampModel }) that the shell plugs in. host is the element for its pop-up, importText(text)
+// imports a .thrl6p text and resolves to { ok, message }, ampModel() is the connected amp's model code or null.
+// A source item without a source is not in the menu.
 export async function boot(rootEl, {
   fixture = null,
+  presetSources = {},
   onStatus = () => {},
   sleep: pause = sleep,
   files = { pickText, choose, download },
@@ -308,7 +313,7 @@ export async function boot(rootEl, {
     if (module.unitOptions) knownTypes[module.unit] = module.unitOptions.map(option => option.value);
   });
 
-  const runPresetAction = sync ? createPresetFlow({
+  const presets = sync ? createPresetFlow({
     store,
     sync,
     files,
@@ -324,7 +329,15 @@ export async function boot(rootEl, {
     quickImport: () => flags.quickImport,
     device: () => ({ firmware: connection.version || null, identity: getDeviceIdentity() }),
     lookups: { idOfName: typeKeyOf, nameOf, stateIdOf: makeStateIdOf(symbolIds), isKnownType: (unitName, typeName) => (knownTypes[unitName] || []).includes(typeName) }
-  }) : () => notify('Presets need the symbol table.');
+  }) : null;
+  const noPresets = () => {
+    const message = 'Presets need the symbol table.';
+    notify(message);
+    return { ok: false, message };
+  };
+  const runPresetAction = presets ? presets.run : noPresets;
+  // A .thrl6p text from outside the file dialog goes through the same import; resolves to { ok, message }.
+  const importText = presets ? presets.importText : async () => noPresets();
 
   const intents = createRuntimeIntents({
     store,
@@ -343,10 +356,19 @@ export async function boot(rootEl, {
     onSelectUnit: sendUnitType,
     onConnect: () => connect(),
     onDisconnect: disconnect,
-    onPresetAction: runPresetAction
+    onPresetAction: action => {
+      if (!presetSources[action]) return runPresetAction(action);
+      try {
+        presetSources[action]({ host: runtime.overlayHost, importText, ampModel: () => (getDeviceIdentity() || {}).model ?? null });
+      } catch (err) {
+        notify('Preset source failed: ' + err.message);
+      }
+    }
   });
 
-  const runtime = mountRuntime(rootEl, { store, intents });
+  const menu = RUNTIME_LAYOUT.presetMenu;
+  const layout = { ...RUNTIME_LAYOUT, presetMenu: { ...menu, items: menu.items.filter(item => !item.source || presetSources[item.value]) } };
+  const runtime = mountRuntime(rootEl, { store, intents, layout });
 
-  return { transports, connect, disconnect, activate };
+  return { transports, connect, disconnect, activate, importText };
 }

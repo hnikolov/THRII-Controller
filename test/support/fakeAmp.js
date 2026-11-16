@@ -69,11 +69,12 @@ function dumpFramesFor(patch) {
 }
 
 // A booted app with stubbed file dialogs and confirm, for driving the runtime through its DOM.
+// presetSources goes to boot as it is (the plug-in hook of the PRESETS menu).
 // files.next is the file the next Import or Restore pick returns; files.saved collects the downloads.
 // With connect: the fake amp answers the activation and every dump request (Actual and memories) with the captured
 // Actual dump, and the app is connected and filled before this resolves. With takesUploads the fake amp behaves like
 // the real one for an upload to the Actual settings: it then answers Actual reads with the uploaded patch.
-export async function bootApp({ connect = false, takesUploads = false } = {}) {
+export async function bootApp({ connect = false, takesUploads = false, presetSources = {} } = {}) {
   const container = document.createElement('div');
   document.body.append(container);
   const files = {
@@ -89,6 +90,7 @@ export async function bootApp({ connect = false, takesUploads = false } = {}) {
   const app = await boot(container, {
     sleep: async () => {},
     files,
+    presetSources,
     confirm: text => { confirms.push(text); return true; }
   });
 

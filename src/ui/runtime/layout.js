@@ -78,12 +78,13 @@ const DEFAULT_KNOBS = {
 export const RUNTIME_LAYOUT = {
   presetMenu: {
     label: 'PRESETS',
-    // value is the action the shell runs (intents.presetAction). Disabled items are not implemented yet.
+    // value is the action the shell runs (intents.presetAction). A source item is offered only when the shell was
+    // given a preset source for its action (boot's presetSources).
     items: [
       { value: 'export', label: 'Export' },
       { value: 'import', label: 'Import' },
-      { value: 'importAi', label: 'Import AI', disabled: true },
-      { value: 'importFactory', label: 'Import Factory', disabled: true },
+      { value: 'importAi', label: 'Import AI', source: true },
+      { value: 'importFactory', label: 'Import Factory', source: true },
       ...[1, 2, 3, 4, 5].map(slot => ({ value: `save:${slot}`, label: `Save to THR slot ${slot}` })),
       { value: 'backup', label: 'Backup THR' },
       { value: 'restore', label: 'Restore THR' }

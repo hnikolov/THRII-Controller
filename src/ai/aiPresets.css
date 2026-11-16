@@ -1,0 +1,238 @@
+/* Import AI pop-up. Drawn inside the app frame (.thr-app); it uses the runtime's colours, with fallbacks so it also
+   reads without them. Above the top strip and its menus (100), below the status toast (200). */
+.ai-popup {
+  position: absolute;
+  inset: 0;
+  z-index: 150;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 14px;
+  background: rgba(20, 20, 20, 0.55);
+  font-family: var(--ui-font-family, Arial, Helvetica, sans-serif);
+  color: var(--ink, #141414);
+}
+
+.ai-popup [hidden] {
+  display: none !important;
+}
+
+.ai-card {
+  width: 100%;
+  max-width: 340px;
+  max-height: 100%;
+  overflow-y: auto;
+  background: var(--paper, #ede6d2);
+  border: 1px solid var(--line, #3d3525);
+  box-shadow: var(--shadow, 0 14px 30px rgba(0, 0, 0, 0.35));
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.ai-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--header-height, 28px);
+  padding: 0 0 0 10px;
+  background: linear-gradient(180deg, var(--gold-light, #b88c18) 0%, var(--gold, #9a6f08) 100%);
+  color: #fff6da;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.ai-close {
+  min-height: var(--header-height, 28px);
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.ai-close:hover,
+.ai-close:focus-visible {
+  outline: none;
+  background: rgba(255, 246, 218, 0.12);
+}
+
+.ai-request,
+.ai-note,
+.ai-result,
+.ai-earlier,
+.ai-credit {
+  padding: 10px;
+}
+
+.ai-request {
+  display: grid;
+  gap: 8px;
+}
+
+.ai-request label,
+.ai-title {
+  display: grid;
+  gap: 3px;
+  color: var(--muted, #5f553f);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* 16px keeps phones from zooming into a focused field. Text selection is switched off on the app frame. */
+.ai-request select,
+.ai-request input,
+.ai-request textarea {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--line, #3d3525);
+  border-radius: 0;
+  background: #f7f2e3;
+  color: var(--ink, #141414);
+  font: 400 16px/1.3 var(--ui-font-family, Arial, Helvetica, sans-serif);
+  letter-spacing: 0;
+  text-transform: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.ai-request textarea {
+  resize: none;
+}
+
+.ai-request select:focus,
+.ai-request input:focus,
+.ai-request textarea:focus {
+  outline: 2px solid var(--gold, #9a6f08);
+  outline-offset: -1px;
+}
+
+.ai-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ai-button {
+  min-height: 30px;
+  padding: 0 16px;
+  border: 1px solid var(--ink, #141414);
+  background: var(--ink, #141414);
+  color: var(--paper, #ede6d2);
+  font: 700 11px var(--ui-font-family, Arial, Helvetica, sans-serif);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.ai-button.ai-secondary {
+  background: transparent;
+  color: var(--ink, #141414);
+}
+
+.ai-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ai-progress {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-note {
+  margin: 0;
+  padding-top: 0;
+  color: #8a1c14;
+  font-size: 12px;
+}
+
+.ai-result,
+.ai-earlier,
+.ai-credit {
+  border-top: 1px solid var(--line, #3d3525);
+}
+
+.ai-name {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.ai-status {
+  color: var(--muted, #5f553f);
+  font-size: 12px;
+}
+
+.ai-tip {
+  margin: 8px 0 0;
+  padding-left: 8px;
+  border-left: 3px solid var(--gold, #9a6f08);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.ai-earlier {
+  display: grid;
+  gap: 2px;
+}
+
+/* Name, time and the start of the sound text on one line: equal names are told apart by the last two. */
+.ai-entry {
+  display: grid;
+  grid-template-columns: minmax(0, auto) auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  padding: 5px 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ai-entry:hover:not(:disabled),
+.ai-entry:focus-visible {
+  outline: none;
+  background: rgba(154, 111, 8, 0.12);
+}
+
+.ai-entry:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ai-entry span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ai-entry-name {
+  font-weight: 700;
+}
+
+.ai-entry-time,
+.ai-entry-prompt {
+  color: var(--muted, #5f553f);
+  font-size: 12px;
+}
+
+.ai-credit {
+  color: var(--muted, #5f553f);
+  font-size: 11px;
+  text-align: center;
+}
+
+.ai-credit a {
+  color: var(--gold, #9a6f08);
+  font-weight: 700;
+}

@@ -16,7 +16,7 @@ const toBase64 = bytes => btoa(String.fromCharCode(...bytes));
 const fromBase64 = text => Uint8Array.from(atob(text), ch => ch.charCodeAt(0));
 const today = () => new Date().toISOString().slice(0, 10);
 
-// The PRESETS menu actions. Export and Import work without an amp (on the store); with an amp, Import also sends the
+// The PRESETS menu actions (run) and the import of a preset text (importText). Export and Import work without an amp (on the store); with an amp, Import also sends the
 // preset and reads it back. Backup, Save and Restore need the amp.
 // Import with an amp has two mechanisms. Quick (quickImport() true): one patch built from the preset is uploaded to the
 // Actual settings. Value by value: the type selects and parameter writes of the UI edits, with their pauses. The quick
@@ -39,13 +39,19 @@ export function createPresetFlow(deps) {
 
   async function importPreset() {
     const file = await files.pickText('.thrl6p,application/json');
-    if (!file) return;
-    const plan = presetToPlan(parseThrl6Preset(JSON.parse(file.text)), deps.lookups);
+    if (file) await importPresetText(file.text);
+  }
+
+  // The import of a .thrl6p text, wherever it comes from (a file, a preset source). Resolves to the message shown;
+  // throws when the text is refused, before anything changes.
+  async function importPresetText(text) {
+    const plan = presetToPlan(parseThrl6Preset(JSON.parse(text)), deps.lookups);
+    let message = `Imported ${plan.presetName} (amp not connected)`;
 
     if (!deps.isConnected()) {
       applyPresetPlan(store, plan);
-      notify(`Imported ${plan.presetName} (amp not connected)`);
-      return;
+      notify(message);
+      return message;
     }
 
     await deps.exclusive(`Importing ${plan.presetName}`, async () => {
@@ -60,10 +66,12 @@ export function createPresetFlow(deps) {
         state.activeSlot = null;
         state.modified = true;
       }, 'import');
-      notify(differences.length
+      message = differences.length
         ? `Imported ${plan.presetName}, but the amp differs in: ${differences.join(', ')}`
-        : `Imported ${plan.presetName}`);
+        : `Imported ${plan.presetName}`;
+      notify(message);
     });
+    return message;
   }
 
   // Quick import: the preset as one patch, uploaded to the Actual settings; then the amp is read back.
@@ -193,13 +201,29 @@ export function createPresetFlow(deps) {
 
   const actions = { export: exportPreset, import: importPreset, backup, restore, save };
 
-  // action: 'export', 'import', 'backup', 'restore' or 'save:1' .. 'save:5'. Failures are reported, never thrown.
-  return async function run(action) {
-    const [name, slot] = action.split(':');
-    try {
-      await actions[name](Number(slot));
-    } catch (err) {
-      notify(`${name[0].toUpperCase()}${name.slice(1)} failed: ${err.message}`);
+  const failed = (name, err) => {
+    const message = `${name} failed: ${err.message}`;
+    notify(message);
+    return message;
+  };
+
+  return {
+    // action: 'export', 'import', 'backup', 'restore' or 'save:1' .. 'save:5'. Failures are reported, never thrown.
+    async run(action) {
+      const [name, slot] = action.split(':');
+      try {
+        await actions[name](Number(slot));
+      } catch (err) {
+        failed(`${name[0].toUpperCase()}${name.slice(1)}`, err);
+      }
+    },
+    // Imports a .thrl6p text. Resolves to { ok, message }, the message being the one shown; never throws.
+    async importText(text) {
+      try {
+        return { ok: true, message: await importPresetText(text) };
+      } catch (err) {
+        return { ok: false, message: failed('Import', err) };
+      }
     }
   };
 }

@@ -1,6 +1,6 @@
 import { it, assertEqual, assertDeepEqual } from '../support/assert.js';
 import { loadInboundFrames } from '../support/transcripts.js';
-import { createFakeAmp, until } from '../support/fakeAmp.js';
+import { bootApp, createFakeAmp, until } from '../support/fakeAmp.js';
 import { boot } from '../../src/app/boot.js';
 import { toHex, parseSysExHex } from '../../src/core/bytes.js';
 import { thrActivateSequenceHex } from '../../src/protocol/constants.js';
@@ -64,5 +64,42 @@ it('boot: the CONNECT button connects, activates, reads the Actual settings and 
     app.disconnect();
     container.remove();
     amp.uninstall();
+  }
+});
+
+const menuLabels = app => [...app.container.querySelectorAll('.top-strip .unit-selector-option')].map(option => option.textContent);
+
+it('boot: a preset source adds its menu item; a pick opens it with the app frame, the import and the amp model', async () => {
+  const plain = await bootApp();
+  try {
+    assertEqual(menuLabels(plain).some(label => label === 'Import AI' || label === 'Import Factory'), false, 'no source, no item');
+    assertEqual(menuLabels(plain).includes('Import'), true, 'the other items stay');
+  } finally {
+    plain.cleanup();
+  }
+
+  const opened = [];
+  const app = await bootApp({ presetSources: { importAi: context => opened.push(context) } });
+  try {
+    assertEqual(menuLabels(app).includes('Import AI'), true, 'the item of the source');
+    assertEqual(menuLabels(app).includes('Import Factory'), false, 'an item without a source stays out');
+    app.menu('Import AI');
+    assertEqual(opened.length, 1, 'the source is opened once');
+    assertEqual(opened[0].host, app.container.querySelector('.thr-app'), 'the host is the app frame');
+    assertEqual(opened[0].ampModel(), null, 'no amp model before a connect');
+
+    const text = await (await fetch('/doc/walsh-hotel-solo.thrl6p')).text();
+    assertDeepEqual(await opened[0].importText(text), { ok: true, message: 'Imported Walsh Hotel Solo (amp not connected)' }, 'import result');
+    await until(() => app.nameBox().value === 'Walsh Hotel Solo', 'the preset in the store');
+  } finally {
+    app.cleanup();
+  }
+
+  const connected = await bootApp({ connect: true, presetSources: { importAi: context => opened.push(context) } });
+  try {
+    connected.menu('Import AI');
+    assertEqual(opened[1].ampModel(), 1, 'the model code of the connected amp');
+  } finally {
+    connected.cleanup();
   }
 });
