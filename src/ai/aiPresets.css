@@ -63,14 +63,20 @@
 
 .ai-request,
 .ai-note,
-.ai-result,
-.ai-earlier,
+.ai-presets,
 .ai-credit {
   padding: 10px;
 }
 
 .ai-request {
   display: grid;
+  gap: 8px;
+}
+
+/* Amp and guitar share a row. */
+.ai-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
@@ -85,17 +91,18 @@
   text-transform: uppercase;
 }
 
-/* 16px keeps phones from zooming into a focused field. Text selection is switched off on the app frame. */
+/* The fields use the card's text size, like the tip. Text selection is switched off on the app frame. */
 .ai-request select,
 .ai-request input,
 .ai-request textarea {
   width: 100%;
-  padding: 6px 8px;
+  min-width: 0;
+  padding: 5px 6px;
   border: 1px solid var(--line, #3d3525);
   border-radius: 0;
   background: #f7f2e3;
   color: var(--ink, #141414);
-  font: 400 16px/1.3 var(--ui-font-family, Arial, Helvetica, sans-serif);
+  font: 400 13px/1.35 var(--ui-font-family, Arial, Helvetica, sans-serif);
   letter-spacing: 0;
   text-transform: none;
   user-select: text;
@@ -153,44 +160,44 @@
   font-size: 12px;
 }
 
-.ai-result,
-.ai-earlier,
+.ai-presets,
 .ai-credit {
   border-top: 1px solid var(--line, #3d3525);
 }
 
-.ai-name {
-  font-size: 14px;
-  font-weight: 700;
-  text-transform: uppercase;
+.ai-presets {
+  padding-bottom: 6px;
 }
 
-.ai-status {
-  color: var(--muted, #5f553f);
-  font-size: 12px;
+/* About four rows are visible; a longer list scrolls. */
+.ai-list {
+  max-height: 112px;
+  margin-top: 3px;
+  overflow-y: auto;
 }
 
-.ai-tip {
-  margin: 8px 0 0;
-  padding-left: 8px;
+.ai-entry {
+  display: flex;
+  align-items: stretch;
+  border-left: 3px solid transparent;
+}
+
+/* The selected preset and its tip under the list carry the same gold bar and tint. */
+.ai-entry.is-selected,
+.ai-result {
   border-left: 3px solid var(--gold, #9a6f08);
-  user-select: text;
-  -webkit-user-select: text;
-}
-
-.ai-earlier {
-  display: grid;
-  gap: 2px;
+  background: rgba(154, 111, 8, 0.14);
 }
 
 /* Name, time and the start of the sound text on one line: equal names are told apart by the last two. */
-.ai-entry {
+.ai-entry-load {
+  flex: 1;
+  min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, auto) auto minmax(0, 1fr);
   gap: 8px;
   align-items: baseline;
-  width: 100%;
-  padding: 5px 4px;
+  padding: 5px 4px 5px 6px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -199,18 +206,35 @@
   cursor: pointer;
 }
 
-.ai-entry:hover:not(:disabled),
-.ai-entry:focus-visible {
+.ai-entry-delete {
+  width: 28px;
+  border: 0;
+  background: transparent;
+  color: var(--muted, #5f553f);
+  font: 700 16px/1 var(--ui-font-family, Arial, Helvetica, sans-serif);
+  cursor: pointer;
+}
+
+.ai-entry-load:hover:not(:disabled),
+.ai-entry-load:focus-visible {
   outline: none;
   background: rgba(154, 111, 8, 0.12);
 }
 
-.ai-entry:disabled {
+.ai-entry-delete:hover:not(:disabled),
+.ai-entry-delete:focus-visible {
+  outline: none;
+  background: rgba(138, 28, 20, 0.14);
+  color: #8a1c14;
+}
+
+.ai-entry-load:disabled,
+.ai-entry-delete:disabled {
   opacity: 0.45;
   cursor: default;
 }
 
-.ai-entry span {
+.ai-entry-load span {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -226,10 +250,42 @@
   font-size: 12px;
 }
 
-.ai-credit {
+.ai-result {
+  margin: 0 10px 10px;
+  padding: 6px 8px;
+}
+
+.ai-status {
   color: var(--muted, #5f553f);
-  font-size: 11px;
+  font-size: 12px;
+}
+
+.ai-tip {
+  margin: 4px 0 0;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.ai-credit {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
   text-align: center;
+}
+
+.ai-people {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px 14px;
+  color: var(--muted, #5f553f);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ai-people b {
+  color: var(--ink, #141414);
 }
 
 .ai-credit a {

@@ -7,5 +7,11 @@ export const API_BASE = '/api';
 // Wireless) has been seen on hardware; other THR-II amps are picked by hand in the pop-up until their code is known.
 export const AMP_ID_BY_MODEL = { 0x01: 'yamaha-thr-10-ii' };
 
-export const HISTORY_MAX = 5;
-export const CREDIT = { text: 'amplifier-presets.com', url: 'https://amplifier-presets.com' };
+// Generated presets kept in the pop-up's list; beyond this the oldest drops out.
+export const HISTORY_MAX = 20;
+// The generator's site and the people behind it, as named by this app's owner.
+export const CREDIT = {
+  text: 'amplifier-presets.com',
+  url: 'https://amplifier-presets.com',
+  people: [{ name: 'Magnus Bredeli', role: 'development' }, { name: 'Ferdinand Hegelstad', role: 'design' }]
+};

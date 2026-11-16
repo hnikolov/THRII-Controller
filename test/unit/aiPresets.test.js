@@ -63,6 +63,8 @@ function setup({ ampModel = null, storage = fakeStorage(), importResult = text =
     text: selector => (find(selector) && !find(selector).hidden ? find(selector).textContent : null),
     credit: () => find('.ai-card > .ai-credit a'),
     entries: () => [...host.querySelectorAll('.ai-entry')],
+    selected: () => [...host.querySelectorAll('.ai-entry.is-selected')].map(row => row.querySelector('.ai-entry-name').textContent),
+    load: row => row.querySelector('.ai-entry-load').click(),
     cleanup: () => host.remove(),
     // Opens the pop-up and waits for the amp list (or for the note that it could not be loaded).
     async open() {
@@ -94,8 +96,9 @@ it('import AI: the pop-up lists the amps with a preset export and pre-selects th
       assertDeepEqual([...ctx.field('Amplifier').options].map(option => option.value), ['yamaha-thr-10-ii', 'yamaha-thr-30-ii'], 'amps offered');
       assertEqual(ctx.field('Amplifier').value, expected, `selected for model ${ampModel}`);
       assertEqual(ctx.text('.ai-result'), null, 'no result yet');
-      assertEqual(ctx.text('.ai-earlier'), null, 'no earlier results yet');
+      assertEqual(ctx.text('.ai-presets'), null, 'no generated presets yet');
       assertEqual(ctx.credit().href, 'https://amplifier-presets.com/', 'credit link');
+      assertEqual(ctx.text('.ai-people'), 'Magnus Bredeli developmentFerdinand Hegelstad design', 'the people credited');
       assertEqual(/No amp connected/.test(ctx.text('.ai-note') || ''), ampModel === null, 'the note about a missing amp');
     } finally {
       ctx.cleanup();
@@ -128,8 +131,8 @@ it('import AI: Generate asks for a software preset, exports it and hands the tex
     await until(() => ctx.text('.ai-result'), 'the result');
     assertDeepEqual(ctx.backend.calls[2], { url: '/api/presets/abc/export', method: 'GET', body: null }, 'export call');
     assertDeepEqual(ctx.imported, ['file abc'], 'the exported text is imported once');
-    assertEqual(ctx.text('.ai-name'), 'Walsh <b>Hotel</b>', 'the name is shown as text');
-    assertEqual(ctx.find('.ai-name b'), null, 'markup in a name is not rendered');
+    assertDeepEqual(ctx.selected(), ['Walsh <b>Hotel</b>'], 'the new preset is the selected row, its name shown as text');
+    assertEqual(ctx.find('.ai-entry-name b'), null, 'markup in a name is not rendered');
     assertEqual(ctx.text('.ai-status'), 'Imported file abc', 'the import message');
     assertEqual(ctx.text('.ai-tip'), 'Roll the tone back.', 'tip');
     assertTrue(ctx.find('.ai-popup') !== null && ctx.credit() !== null, 'the pop-up stays open, with the credit');
@@ -141,7 +144,7 @@ it('import AI: Generate asks for a software preset, exports it and hands the tex
     assertEqual(ctx.find('.ai-popup'), null, 'a press outside hides it');
     await ctx.open();
     assertDeepEqual([ctx.field('Guitar').value, ctx.field('Sound').value], ['Les Paul', 'Hotel California solo'], 'the request is kept');
-    assertEqual(ctx.text('.ai-name'), 'Walsh <b>Hotel</b>', 'the result is kept');
+    assertDeepEqual(ctx.selected(), ['Walsh <b>Hotel</b>'], 'the selected preset is kept');
     assertEqual(ctx.text('.ai-tip'), 'Roll the tone back.', 'the tip is kept');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     assertEqual(ctx.find('.ai-popup'), null, 'Escape hides it');
@@ -150,22 +153,23 @@ it('import AI: Generate asks for a software preset, exports it and hands the tex
   }
 });
 
-it('import AI: earlier results are kept, equal names stay apart, and a press loads that result without a request', async () => {
+it('import AI: every generated preset is listed with the selected one marked; a press loads a preset without a request', async () => {
   const ctx = setup();
   try {
     await ctx.open();
     await ctx.generate('first try', 'p1', { presetName: 'Same Name', tip: 'tip 1' });
     ctx.time += 6 * 60 * 1000;
     await ctx.generate('second try, brighter', 'p2', { presetName: 'Same Name', tip: 'tip 2' });
-    assertEqual(ctx.text('.ai-tip'), 'tip 2', 'the newest is the result');
-    assertEqual(ctx.entries().length, 1, 'the other one is listed as earlier');
+    assertEqual(ctx.text('.ai-tip'), 'tip 2', 'the tip is the newest preset\'s');
+    assertEqual(ctx.entries().length, 2, 'both are listed');
+    assertTrue(ctx.entries()[0].classList.contains('is-selected') && !ctx.entries()[1].classList.contains('is-selected'), 'only the newest is marked');
 
     for (let n = 3; n <= HISTORY_MAX + 1; n += 1) {
       ctx.time += 60 * 1000;
       await ctx.generate(`try ${n}`, `p${n}`, { presetName: `Preset ${n}`, tip: `tip ${n}` });
     }
     const lines = ctx.entries().map(entry => entry.textContent);
-    assertEqual(lines.length, HISTORY_MAX - 1, 'the list holds the maximum, less the one shown as the result');
+    assertEqual(lines.length, HISTORY_MAX, 'the list holds the maximum');
     assertTrue(!lines.some(line => line.includes('first try')), 'the oldest dropped out');
 
     // Reload: a new source on the same storage. The second "Same Name" is now the oldest entry.
@@ -179,12 +183,13 @@ it('import AI: earlier results are kept, equal names stay apart, and a press loa
       assertTrue(same[0].querySelector('.ai-entry-time').textContent.length > 0, 'and its time');
 
       const calls = reloaded.backend.calls.length;
-      same[0].click();
-      await until(() => reloaded.text('.ai-tip') === 'tip 2', 'the earlier result as the result');
+      reloaded.load(same[0]);
+      await until(() => reloaded.text('.ai-tip') === 'tip 2', 'the tip of the picked preset');
+      assertDeepEqual(reloaded.selected(), ['Same Name'], 'the picked preset is the marked one');
       assertDeepEqual(reloaded.imported, ['file p2'], 'its own stored text is imported');
       assertEqual(reloaded.backend.calls.length, calls, 'no request to the backend');
       assertEqual(reloaded.field('Sound').value, 'second try, brighter', 'its sound text returns to the request');
-      assertEqual(reloaded.entries().length, HISTORY_MAX - 1, 'the list keeps its length');
+      assertEqual(reloaded.entries().length, HISTORY_MAX, 'the list keeps its length and order');
     } finally {
       reloaded.cleanup();
     }
@@ -207,11 +212,37 @@ it('import AI: two results with the same name are two entries, each loading its 
     assertTrue(twins[0].textContent !== twins[1].textContent, 'and they read differently');
 
     ctx.imported.length = 0;
-    twins.find(entry => entry.textContent.includes('take one')).click();
+    ctx.load(twins.find(entry => entry.textContent.includes('take one')));
     await until(() => ctx.text('.ai-tip') === 'tip a', 'the first twin');
-    ctx.entries().find(entry => entry.textContent.includes('take two')).click();
+    assertTrue(ctx.find('.ai-entry.is-selected').textContent.includes('take one'), 'the first twin is marked, not the second');
+    ctx.load(ctx.entries().find(entry => entry.textContent.includes('take two')));
     await until(() => ctx.text('.ai-tip') === 'tip b', 'the second twin');
     assertDeepEqual(ctx.imported, ['file a', 'file b'], 'each loads its own text');
+  } finally {
+    ctx.cleanup();
+  }
+});
+
+it('import AI: a preset can be deleted from the list; the app is not touched, and the tip goes with its preset', async () => {
+  const ctx = setup();
+  try {
+    await ctx.open();
+    await ctx.generate('way off', 'a', { presetName: 'Off', tip: 'tip a' });
+    await ctx.generate('better', 'b', { presetName: 'Better', tip: 'tip b' });
+    const calls = ctx.backend.calls.length;
+    ctx.imported.length = 0;
+
+    ctx.find('[aria-label="Delete Off"]').click();
+    assertDeepEqual(ctx.entries().map(row => row.querySelector('.ai-entry-name').textContent), ['Better'], 'the deleted preset is gone');
+    assertDeepEqual(ctx.selected(), ['Better'], 'the selected preset stays');
+    assertEqual(ctx.text('.ai-tip'), 'tip b', 'with its tip');
+
+    ctx.find('[aria-label="Delete Better"]').click();
+    assertEqual(ctx.text('.ai-presets'), null, 'the list is empty');
+    assertEqual(ctx.text('.ai-result'), null, 'the tip of a deleted preset is not shown');
+    assertDeepEqual([ctx.imported.length, ctx.backend.calls.length], [0, calls], 'nothing imported, nothing requested');
+    assertDeepEqual(JSON.parse(ctx.storage.items['thrii.aiPresets']).history, [], 'the deletion is stored');
+    assertTrue(ctx.credit() !== null, 'credit still there');
   } finally {
     ctx.cleanup();
   }
@@ -244,7 +275,7 @@ it('import AI: failures stay in the pop-up and nothing is imported', async () =>
 
     assertDeepEqual(ctx.imported, [], 'nothing was imported');
     assertEqual(ctx.text('.ai-result'), null, 'no result');
-    assertEqual(ctx.text('.ai-earlier'), null, 'nothing kept');
+    assertEqual(ctx.text('.ai-presets'), null, 'nothing kept');
     assertTrue(ctx.credit() !== null, 'credit with an error');
   } finally {
     ctx.cleanup();
@@ -259,7 +290,7 @@ it('import AI: a preset the app refuses is reported and not kept; an unreachable
     assertDeepEqual(refusing.imported, ['file bad'], 'the import was tried once');
     assertEqual(refusing.text('.ai-note'), 'Import failed: unknown names', 'the refusal');
     assertEqual(refusing.text('.ai-result'), null, 'no result');
-    assertEqual(refusing.text('.ai-earlier'), null, 'not kept');
+    assertEqual(refusing.text('.ai-presets'), null, 'not kept');
   } finally {
     refusing.cleanup();
   }

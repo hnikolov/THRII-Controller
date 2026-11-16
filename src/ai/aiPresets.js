@@ -31,8 +31,9 @@ export function createAiPresetSource({
   const stored = action => {
     try { return action(storage || globalThis.localStorage); } catch { return null; }
   };
-  // history: accepted results, newest first: { id, name, tip, prompt, guitar, time, text }. Equal names are separate
-  // entries; an entry is found by its id. current is the id of the entry loaded last from here, status its import message.
+  // history: the generated presets the app accepted, newest first: { id, name, tip, prompt, guitar, time, text }. Equal
+  // names are separate entries; an entry is found by its id. current is the id of the entry loaded last from here (the
+  // selected one), status its import message.
   const saved = {
     sessionId: null, guitar: '', prompt: '', amp: '', history: [], current: null, status: '',
     ...stored(box => JSON.parse(box.getItem(STORAGE_KEY)))
@@ -62,32 +63,39 @@ export function createAiPresetSource({
     const cancelButton = el('button', { type: 'button', class: 'ai-button ai-secondary', text: 'Cancel' });
     const progress = el('span', { class: 'ai-progress', role: 'status' });
     const noteLine = el('p', { class: 'ai-note', role: 'status' });
+    const listPart = el('div', { class: 'ai-presets' });
     const resultPart = el('div', { class: 'ai-result' });
-    const earlierPart = el('div', { class: 'ai-earlier' });
     const closeButton = el('button', { type: 'button', class: 'ai-close', text: 'Close' });
     const form = el('form', { class: 'ai-request' },
-      el('label', { text: 'Amp' }, ampSelect),
-      el('label', { text: 'Guitar' }, guitarInput),
+      el('div', { class: 'ai-pair' }, el('label', { text: 'Amp' }, ampSelect), el('label', { text: 'Guitar' }, guitarInput)),
       el('label', { text: 'Sound' }, promptInput),
       el('div', { class: 'ai-actions' }, generateButton, cancelButton, progress));
+    const credit = el('footer', { class: 'ai-credit' },
+      el('div', {}, 'Presets by ', el('a', { href: CREDIT.url, target: '_blank', rel: 'noopener', text: CREDIT.text })),
+      el('div', { class: 'ai-people' }, ...CREDIT.people.map(person => el('span', {}, el('b', { text: person.name }), ` ${person.role}`))));
     const card = el('section', { class: 'ai-card', role: 'dialog', 'aria-label': 'Import AI' },
       el('header', { class: 'ai-head' }, el('span', { text: 'Import AI' }), closeButton),
-      form, noteLine, resultPart, earlierPart,
-      el('footer', { class: 'ai-credit' }, 'Presets by ', el('a', { href: CREDIT.url, target: '_blank', rel: 'noopener', text: CREDIT.text })));
+      form, noteLine, listPart, resultPart, credit);
     popup = el('div', { class: 'ai-popup' }, card);
 
     guitarInput.value = saved.guitar;
     promptInput.value = saved.prompt;
 
-    const entryButton = entry => {
+    // One row per generated preset: a press loads it, the cross deletes it. The selected row is the preset the tip
+    // under the list belongs to.
+    const entryRow = (entry, selected) => {
       const time = new Date(entry.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const button = el('button', { type: 'button', class: 'ai-entry' },
+      const loadButton = el('button', { type: 'button', class: 'ai-entry-load', title: entry.prompt },
         el('span', { class: 'ai-entry-name', text: entry.name }),
         el('span', { class: 'ai-entry-time', text: time }),
         el('span', { class: 'ai-entry-prompt', text: entry.prompt }));
-      button.disabled = !!busy;
-      button.addEventListener('click', () => load(entry));
-      return button;
+      const deleteButton = el('button', { type: 'button', class: 'ai-entry-delete', 'aria-label': `Delete ${entry.name}`, title: 'Delete', text: '\u00d7' });
+      loadButton.disabled = deleteButton.disabled = !!busy;
+      loadButton.addEventListener('click', () => load(entry));
+      deleteButton.addEventListener('click', () => remove(entry));
+      const row = el('div', { class: selected ? 'ai-entry is-selected' : 'ai-entry' }, loadButton, deleteButton);
+      if (selected) row.setAttribute('aria-current', 'true');
+      return row;
     };
 
     function render() {
@@ -99,16 +107,27 @@ export function createAiPresetSource({
       noteLine.hidden = !note;
 
       const current = saved.history.find(entry => entry.id === saved.current);
+      listPart.hidden = !saved.history.length;
+      listPart.replaceChildren(
+        el('div', { class: 'ai-title', text: 'Generated presets' }),
+        el('div', { class: 'ai-list' }, ...saved.history.map(entry => entryRow(entry, entry === current))));
       resultPart.hidden = !current;
       resultPart.replaceChildren(...(current ? [
-        el('div', { class: 'ai-name', text: current.name }),
         el('div', { class: 'ai-status', text: saved.status }),
         ...(current.tip ? [el('p', { class: 'ai-tip', text: current.tip })] : [])
       ] : []));
+    }
 
-      const earlier = saved.history.filter(entry => entry !== current);
-      earlierPart.hidden = !earlier.length;
-      earlierPart.replaceChildren(...(earlier.length ? [el('div', { class: 'ai-title', text: 'Earlier' }), ...earlier.map(entryButton)] : []));
+    // Deleting takes a preset out of the list only: the app and the amp keep the settings they have.
+    function remove(entry) {
+      if (busy) return;
+      saved.history = saved.history.filter(other => other !== entry);
+      if (saved.current === entry.id) {
+        saved.current = null;
+        saved.status = '';
+      }
+      save();
+      render();
     }
 
     // Hands a preset text to the app. On success the entry becomes the result shown.
@@ -209,6 +228,8 @@ export function createAiPresetSource({
     const onKey = event => { if (event.key === 'Escape') hide(); };
 
     form.addEventListener('submit', event => { event.preventDefault(); generate(); });
+    // Enter in the sound text is a new line; with Ctrl (or Cmd) it generates.
+    promptInput.addEventListener('keydown', event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) generate(); });
     cancelButton.addEventListener('click', () => controller && controller.abort());
     closeButton.addEventListener('click', hide);
     popup.addEventListener('click', event => { if (event.target === popup) hide(); });
