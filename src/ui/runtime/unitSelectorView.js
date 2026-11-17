@@ -1,14 +1,18 @@
 // Dropdown control. A user pick calls onChange with the item value; store-driven updates use update() and never call it.
-// Items are strings (value and label alike) or { value, label, disabled } objects.
+// Items are strings (value and label alike) or { value, label, title, disabled } objects; title is the spoken name of
+// an item whose label is too short to stand alone. groups are titled lists of items: columns, or with the class
+// is-sections stacked sections. rowLabels name the rows of grouped columns (the n-th item of every group).
 const toItem = item => (typeof item === 'string' ? { value: item, label: item } : item);
 
 export class UnitSelectorView {
   static activeInstance = null;
 
-  constructor({ ariaLabel, className = '', items = [], groups = null, displayValue = null, onChange = null }) {
+  constructor({ ariaLabel, className = '', items = [], groups = null, rowLabels = null, displayValue = null, onChange = null }) {
     this.ariaLabel = ariaLabel;
     this.className = className;
     this.groups = groups;
+    this.rowLabels = rowLabels;
+    this.rowLabelNodes = [];
     this.optionNodes = [];
     this.items = [];
     this.displayValue = displayValue;
@@ -61,29 +65,49 @@ export class UnitSelectorView {
     this.menu.replaceChildren();
     this.optionNodes = [];
     this.menu.classList.toggle('is-grouped', !!this.groups);
+    const labels = this.groups && this.rowLabels;
+    this.menu.classList.toggle('has-row-labels', !!labels);
+    if (labels) {
+      // A legend, not a choice: the row names are read out with each option instead. The menu is one grid with a row
+      // per label under the title row, so the rows line up across the columns.
+      this.menu.style.gridTemplateRows = `repeat(${labels.length + 1}, auto)`;
+      const column = document.createElement('div');
+      column.className = 'unit-selector-column';
+      column.setAttribute('aria-hidden', 'true');
+      this.rowLabelNodes = labels.map((text) => {
+        const node = document.createElement('div');
+        node.className = 'unit-selector-row-label';
+        node.textContent = text;
+        return node;
+      });
+      column.append(document.createElement('div'), ...this.rowLabelNodes);
+      this.menu.append(column);
+    }
     if (this.groups) {
       this.groups.forEach((group) => {
         const column = document.createElement('div');
-        column.className = `unit-selector-column${group.key ? ` family-${group.key}` : ''}`;
+        column.className = `unit-selector-column${group.key ? ` group-${group.key}` : ''}`;
         const title = document.createElement('div');
         title.className = 'unit-selector-column-title';
         title.textContent = group.title;
-        column.append(title, ...group.items.map(item => this.createOption(item)));
+        column.append(title, ...group.items.map(toItem).map((item, row) => (
+          this.createOption(item, labels ? `${group.title}, ${labels[row]}: ${item.label}` : item.title))));
         this.menu.append(column);
       });
     } else {
-      this.items.forEach(item => this.menu.append(this.createOption(item)));
+      this.items.forEach(item => this.menu.append(this.createOption(item, item.title)));
     }
     this.refreshOptionState();
   }
 
-  createOption(item) {
+  createOption(item, spokenName) {
     const option = document.createElement('button');
     option.type = 'button';
     option.className = 'unit-selector-option';
     option.textContent = item.label;
     option.disabled = !!item.disabled;
     option.setAttribute('role', 'menuitemradio');
+    if (spokenName) option.setAttribute('aria-label', spokenName);
     option.addEventListener('click', (event) => {
       event.stopPropagation();
       this.close();
@@ -99,6 +123,9 @@ export class UnitSelectorView {
       node.classList.toggle('is-selected', selected);
       node.setAttribute('aria-checked', String(selected));
     });
+    if (!this.rowLabelNodes.length) return;
+    const row = this.groups.map(group => group.items.findIndex(item => toItem(item).value === this.value)).find(index => index >= 0);
+    this.rowLabelNodes.forEach((node, index) => node.classList.toggle('is-current', index === row));
   }
 
   labelFor(value) {

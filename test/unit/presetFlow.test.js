@@ -46,9 +46,9 @@ it('presets without an amp: a preset with an unknown name is refused and nothing
 
     app.menu('Export');
     await statusHas(app, 'Export failed: There are no settings to export yet.');
-    app.menu('Backup THR');
+    app.menu('Backup');
     await statusHas(app, 'Backup failed: connect the amp first');
-    app.menu('Save to THR slot 1');
+    app.menu('Save to THR memory 1');
     await statusHas(app, 'Save failed: connect the amp first');
     assertEqual(app.confirms.length, 0, 'no question before the amp is connected');
   } finally {
@@ -178,7 +178,7 @@ it('import value by value: the preset is sent with the edit frames, the amp is r
 it('save to a memory: reads the amp settings, uploads them, then recalls the memory and checks what it plays', async () => {
   const app = await bootApp({ connect: true });
   try {
-    app.menu('Save to THR slot 2');
+    app.menu('Save to THR memory 2');
     await statusHas(app, 'Saved to memory 2');
     await until(() => app.container.querySelector('.footer-memory-button.is-selected'), 'the selected memory');
     assertDeepEqual(app.confirms, ['Overwrite memory 2 on the amp?'], 'one question');
@@ -202,7 +202,7 @@ it('save to a memory: when the recalled memory differs, the previous content is 
     box.dispatchEvent(new Event('input', { bubbles: true }));
     await until(() => box.value === 'Nw/name', 'the sanitized name');
 
-    app.menu('Save to THR slot 3');
+    app.menu('Save to THR memory 3');
     await statusHas(app, 'Save failed; memory 3 has its previous content again');
     assertDeepEqual(app.confirms, [
       'Overwrite memory 3 on the amp?', 'Memory 3 does not hold what was sent. Put its previous content back?'
@@ -218,7 +218,7 @@ it('save to a memory: when the recalled memory differs, the previous content is 
 it('backup and restore: five memories go to a file and back, each verified; a file from other firmware is refused', async () => {
   const app = await bootApp({ connect: true });
   try {
-    app.menu('Backup THR');
+    app.menu('Backup');
     await statusHas(app, 'Backup saved');
     assertDeepEqual(app.labels, [1, 2, 3, 4, 5].map(n => `TX read memory ${n}`), 'five reads, nothing written');
     const backup = JSON.parse(app.files.saved[0].text);
@@ -228,14 +228,14 @@ it('backup and restore: five memories go to a file and back, each verified; a fi
 
     app.labels.length = 0;
     app.files.next = { name: 'backup.json', text: app.files.saved[0].text };
-    app.menu('Restore THR');
+    app.menu('Restore');
     await statusHas(app, 'Restored all five memories');
     assertEqual(app.files.saved.length, 2, 'a backup is taken before the restore');
     assertEqual(app.labels.filter(label => label.startsWith('TX save memory')).length, 35, 'five uploads of seven frames');
 
     app.labels.length = 0;
     app.files.next = { name: 'other.json', text: JSON.stringify({ ...backup, firmware: '1.40.0.a' }) };
-    app.menu('Restore THR');
+    app.menu('Restore');
     await statusHas(app, 'Restore failed: the backup is from another amp or firmware');
     assertDeepEqual(app.labels, [], 'nothing sent');
   } finally {

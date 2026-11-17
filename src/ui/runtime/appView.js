@@ -13,8 +13,13 @@ export class AppView {
     this.intents = intents;
     this.model = null;
     this.modules = new Map();
+    // Page hosts by key, and the key of the page shown instead of the knob area (null: the knobs). View state only.
+    this.pages = new Map();
+    this.shownPage = null;
     this.memory = new MemoryView({
       presetMenu: layout.presetMenu,
+      pages: layout.pages,
+      onPage: key => this.togglePage(key),
       onSelectSlot: slot => this.intents.selectSlot(slot),
       onConnect: connected => (connected ? this.intents.disconnect() : this.intents.connect()),
       onPreset: action => this.intents.presetAction(action),
@@ -32,9 +37,11 @@ export class AppView {
 
     const body = document.createElement('div');
     body.className = 'ui-body';
+    this.body = body;
 
     this.amp = new AmpView({
       ampGroups: layout.ampGroups,
+      ampVoices: layout.ampVoices,
       cabinets: layout.cabinets,
       knobs: layout.amp.knobs
     }, {
@@ -61,7 +68,22 @@ export class AppView {
     this.status.className = 'status-toast';
     this.status.setAttribute('role', 'status');
     this.status.hidden = true;
-    this.root.append(body, this.memory.buildFooter(), this.status);
+    layout.pages.forEach(({ key }) => {
+      const host = document.createElement('div');
+      host.className = 'ui-page is-hidden';
+      this.pages.set(key, host);
+    });
+    this.root.append(body, ...this.pages.values(), this.memory.buildFooter(), this.status);
+  }
+
+  // A page button: shows its page in place of the knob area, or the knob area again. The shell fills the page; it is
+  // told on every showing, so the content can be built once and refreshed after that.
+  togglePage(key) {
+    this.shownPage = this.shownPage === key ? null : key;
+    this.body.classList.toggle('is-hidden', this.shownPage !== null);
+    this.pages.forEach((host, pageKey) => host.classList.toggle('is-hidden', pageKey !== this.shownPage));
+    this.memory.setPage(this.shownPage);
+    if (this.shownPage) this.intents.openPage(key, this.pages.get(key));
   }
 
   // Shell-driven feedback (operation progress, results, errors): a short text over the bottom of the body, gone after a while.

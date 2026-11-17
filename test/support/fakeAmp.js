@@ -69,7 +69,8 @@ function dumpFramesFor(patch) {
 }
 
 // A booted app with stubbed file dialogs and confirm, for driving the runtime through its DOM.
-// presetSources goes to boot as it is (the plug-in hook of the PRESETS menu).
+// presetSources goes to boot as it is (the plug-in hook of the pages). menu() takes an item's spoken name, or its
+// label when it has none; page() presses a page button of the top strip.
 // files.next is the file the next Import or Restore pick returns; files.saved collects the downloads.
 // With connect: the fake amp answers the activation and every dump request (Actual and memories) with the captured
 // Actual dump, and the app is connected and filled before this resolves. With takesUploads the fake amp behaves like
@@ -106,7 +107,11 @@ export async function bootApp({ connect = false, takesUploads = false, presetSou
     nameBox: () => container.querySelector('[aria-label="User memory label"]'),
     menu(itemLabel) {
       container.querySelector('[aria-label="PRESETS actions"]').click();
-      [...container.querySelectorAll('.top-strip .unit-selector-option')].find(option => option.textContent === itemLabel).click();
+      [...container.querySelectorAll('.top-strip .unit-selector-option')]
+        .find(option => (option.getAttribute('aria-label') || option.textContent) === itemLabel).click();
+    },
+    page(label) {
+      [...container.querySelectorAll('.strip-page-button')].find(button => button.textContent === label).click();
     },
     cleanup() {
       app.disconnect();

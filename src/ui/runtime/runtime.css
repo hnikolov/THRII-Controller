@@ -176,6 +176,36 @@ body {
   background: rgba(255, 246, 218, 0.08);
 }
 
+/* A page toggle (AI) beside the presets menu; lit like the selected memory while its page is shown. */
+.strip-item.has-pages {
+  gap: 10px;
+}
+
+.strip-page-button {
+  min-width: 40px;
+  min-height: var(--header-height);
+  border: 0;
+  margin: 0;
+  padding: 0 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.strip-page-button:hover,
+.strip-page-button:focus-visible {
+  outline: none;
+  background: rgba(255, 246, 218, 0.08);
+}
+
+.strip-page-button.is-selected {
+  background: var(--paper);
+  color: var(--ink);
+}
+
 /* The firmware version keeps its lower-case letter (1.44.0.a). */
 .strip-button {
   text-transform: none;
@@ -214,14 +244,35 @@ body {
 
 .thr-app.is-busy .top-strip,
 .thr-app.is-busy .ui-body,
+.thr-app.is-busy .ui-page,
 .thr-app.is-busy .footer-strip {
   pointer-events: none;
   opacity: 0.6;
 }
 
-.ui-body {
+/* The knob area and the pages share the middle row; one of them shows. The knob area alone gives the row its height
+   (a page has no size of its own), and a hidden one keeps its place, so the frame does not change with the switch. */
+.ui-body,
+.ui-page {
+  grid-row: 2;
+  grid-column: 1;
   background: var(--paper);
   width: 100%;
+}
+
+.ui-page {
+  contain: size;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.footer-strip {
+  grid-row: 3;
+}
+
+.ui-body.is-hidden,
+.ui-page.is-hidden {
+  visibility: hidden;
 }
 
 /* Above the module rows, so an open amp or cabinet menu is not painted under the next module's selector. */
@@ -545,7 +596,8 @@ body {
   height: calc(var(--led-size) * 0.666);
   border-radius: 50%;
   position: relative;
-  transition: all 0.2s ease-in-out;
+  /* Only the light itself fades. With "all", the lens also faded its visibility and stayed on over a page for that time. */
+  transition: background 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
 }
 
 .led-lens::after {
@@ -742,16 +794,103 @@ button.module-badge:disabled {
 }
 
 /* Family headers use the amp LED colours (Classic red, Modern green, Boutique blue). */
-.unit-selector-column.family-classic .unit-selector-column-title {
+.unit-selector-column.group-classic .unit-selector-column-title {
   color: #ff0000;
 }
 
-.unit-selector-column.family-modern .unit-selector-column-title {
+.unit-selector-column.group-modern .unit-selector-column-title {
   color: #008800;
 }
 
-.unit-selector-column.family-boutique .unit-selector-column-title {
+.unit-selector-column.group-boutique .unit-selector-column-title {
   color: #0066ff;
+}
+
+/* Row names of the amp menu (the positions of the amp's selector): a legend at the left, not a choice. The columns
+   dissolve into the menu's grid, whose rows the view sets, so a name and its models share a row. */
+.unit-selector-menu.has-row-labels {
+  row-gap: 0;
+}
+
+.unit-selector-menu.has-row-labels .unit-selector-column {
+  display: contents;
+}
+
+.unit-selector-menu.has-row-labels .unit-selector-option {
+  padding: 5px 8px;
+}
+
+.unit-selector-row-label {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+  border-right: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.unit-selector-row-label.is-current {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+/* Sections (the presets menu): the groups are stacked, and the items of a group share a row under its title. */
+.unit-selector.is-sections.open .unit-selector-menu {
+  grid-auto-flow: row;
+  gap: 8px;
+  padding: 6px 8px 8px;
+}
+
+.unit-selector.is-sections .unit-selector-column {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+
+.unit-selector.is-sections .unit-selector-option {
+  flex: 1 1 0;
+}
+
+.unit-selector.is-sections .unit-selector-column-title {
+  flex: 0 0 100%;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+}
+
+.unit-selector.is-sections .unit-selector-option {
+  min-height: 28px;
+  border: 1px solid var(--line);
+  text-align: center;
+}
+
+/* The save targets look like the memory buttons of the footer strip. */
+.unit-selector.is-sections .group-save {
+  column-gap: 0;
+}
+
+.unit-selector.is-sections .group-save .unit-selector-option {
+  min-width: 40px;
+  background: linear-gradient(180deg, var(--gold-light) 0%, var(--gold) 100%);
+  color: #fff6da;
+}
+
+.unit-selector.is-sections .group-save .unit-selector-option + .unit-selector-option {
+  border-left: 0;
+}
+
+.unit-selector.is-sections .group-save .unit-selector-option:hover,
+.unit-selector.is-sections .group-save .unit-selector-option:focus-visible {
+  background: var(--gold-light);
 }
 
 .unit-selector.align-left .unit-selector-menu {

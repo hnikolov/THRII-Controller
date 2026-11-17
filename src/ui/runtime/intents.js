@@ -21,6 +21,7 @@ export function createRuntimeIntents({
   onSelectUnit = () => {},
   onConnect = () => {},
   onPresetAction = () => {},
+  onOpenPage = () => {},
   onDisconnect = () => {}
 }) {
   return {
@@ -93,6 +94,11 @@ export function createRuntimeIntents({
     // A PRESETS menu pick (export, import, save:N, backup, restore). The shell runs it.
     presetAction(action) {
       onPresetAction(action);
+    },
+
+    // A page of the layout is shown; host is its element. The shell fills it.
+    openPage(key, host) {
+      onOpenPage(key, host);
     },
 
     // The name typed in the label. It is part of the settings, so they count as modified.

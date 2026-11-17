@@ -35,10 +35,12 @@ export function createApi({ base = API_BASE, fetch = (...args) => globalThis.fet
     // { generatedPresetId, preset: { presetName, tip, ... } }
     // presetType SOFTWARE is the "I use the THR Remote app" option: only then does the backend make a complete preset
     // that can be exported. With PHYSICAL it answers with values for the amp's own knobs and nothing to load.
-    generate: ({ sessionId, prompt, guitar, amplifierId, signal }) => call('/presets/generate', {
+    // pickupConfiguration is optional free text ("single coil"); the site leaves the key out when it is empty (read in
+    // its page script on 2026-11-16, it is not in the contract notes), and so does this call.
+    generate: ({ sessionId, prompt, guitar, pickup = '', amplifierId, signal }) => call('/presets/generate', {
       method: 'POST',
       signal,
-      body: JSON.stringify({ sessionId, presetType: 'SOFTWARE', prompt, guitar, amplifierId })
+      body: JSON.stringify({ sessionId, presetType: 'SOFTWARE', prompt, guitar, pickupConfiguration: pickup || undefined, amplifierId })
     }),
 
     // { fileName, content }: content is the text of a .thrl6p file.

@@ -68,12 +68,14 @@ it('boot: the CONNECT button connects, activates, reads the Actual settings and 
 });
 
 const menuLabels = app => [...app.container.querySelectorAll('.top-strip .unit-selector-option')].map(option => option.textContent);
+const hidden = (app, selector) => app.container.querySelector(selector).classList.contains('is-hidden');
 
-it('boot: a preset source adds its menu item; a pick opens it with the app frame, the import and the amp model', async () => {
+it('boot: a preset source adds its page button; a press shows its page and opens it with the page, the import and the amp model', async () => {
   const plain = await bootApp();
   try {
-    assertEqual(menuLabels(plain).some(label => label === 'Import AI' || label === 'Import Factory'), false, 'no source, no item');
-    assertEqual(menuLabels(plain).includes('Import'), true, 'the other items stay');
+    assertEqual(plain.container.querySelector('.strip-page-button'), null, 'no source, no button');
+    assertEqual(plain.container.querySelector('.ui-page'), null, 'and no page');
+    assertDeepEqual(menuLabels(plain), ['Import', 'Export', '1', '2', '3', '4', '5', 'Backup', 'Restore'], 'the preset menu');
   } finally {
     plain.cleanup();
   }
@@ -81,11 +83,19 @@ it('boot: a preset source adds its menu item; a pick opens it with the app frame
   const opened = [];
   const app = await bootApp({ presetSources: { importAi: context => opened.push(context) } });
   try {
-    assertEqual(menuLabels(app).includes('Import AI'), true, 'the item of the source');
-    assertEqual(menuLabels(app).includes('Import Factory'), false, 'an item without a source stays out');
-    app.menu('Import AI');
+    const button = app.container.querySelector('.strip-page-button');
+    assertDeepEqual([button.textContent, button.getAttribute('aria-pressed')], ['AI', 'false'], 'the button of the source');
+    assertDeepEqual([hidden(app, '.ui-body'), hidden(app, '.ui-page'), opened.length], [false, true, 0], 'the knobs show first');
+
+    app.page('AI');
     assertEqual(opened.length, 1, 'the source is opened once');
-    assertEqual(opened[0].host, app.container.querySelector('.thr-app'), 'the host is the app frame');
+    assertEqual(opened[0].host, app.container.querySelector('.thr-app > .ui-page'), 'the host is the page inside the app');
+    assertDeepEqual([hidden(app, '.ui-body'), hidden(app, '.ui-page'), button.getAttribute('aria-pressed')], [true, false, 'true'], 'the page shows');
+
+    app.page('AI');
+    assertDeepEqual([hidden(app, '.ui-body'), hidden(app, '.ui-page'), opened.length], [false, true, 1], 'the next press returns to the knobs');
+    app.page('AI');
+    assertDeepEqual([opened.length, opened[1].host === opened[0].host], [2, true], 'every showing opens the source again, with the same page');
     assertEqual(opened[0].ampModel(), null, 'no amp model before a connect');
 
     const text = await (await fetch('/doc/walsh-hotel-solo.thrl6p')).text();
@@ -97,8 +107,8 @@ it('boot: a preset source adds its menu item; a pick opens it with the app frame
 
   const connected = await bootApp({ connect: true, presetSources: { importAi: context => opened.push(context) } });
   try {
-    connected.menu('Import AI');
-    assertEqual(opened[1].ampModel(), 1, 'the model code of the connected amp');
+    connected.page('AI');
+    assertEqual(opened[2].ampModel(), 1, 'the model code of the connected amp');
   } finally {
     connected.cleanup();
   }

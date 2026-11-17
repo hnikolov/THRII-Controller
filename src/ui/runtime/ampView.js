@@ -23,6 +23,7 @@ export class AmpView {
       ariaLabel: 'Select amp model',
       className: 'align-left is-amp',
       groups: this.config.ampGroups,
+      rowLabels: this.config.ampVoices,
       onChange: name => this.handlers.onModel(name)
     }).mount(headRow);
 

@@ -1,12 +1,15 @@
 import { PRESET_NAME_MAX } from '../../domain/presetModel.js';
 import { UnitSelectorView } from './unitSelectorView.js';
 
-// Top strip (presets, user memory label, connection) and footer (memory slots 1..5).
+// Top strip (presets, page toggles, user memory label, connection) and footer (memory slots 1..5).
 // The active slot, preset name and modified flag come from the store; typing in the label sets the preset name there.
 export class MemoryView {
-  constructor({ presetMenu, onSelectSlot, onConnect, onPreset, onName, slotCount = 5 }) {
+  constructor({ presetMenu, pages = [], onSelectSlot, onConnect, onPreset, onPage, onName, slotCount = 5 }) {
     this.presetMenu = presetMenu;
+    this.pages = pages;
+    this.pageButtons = new Map();
     this.onPreset = onPreset;
+    this.onPage = onPage;
     this.onName = onName;
     this.onSelectSlot = onSelectSlot;
     this.onConnect = onConnect;
@@ -22,11 +25,11 @@ export class MemoryView {
     strip.className = 'top-strip';
 
     const presetSlot = document.createElement('div');
-    presetSlot.className = 'strip-item';
+    presetSlot.className = 'strip-item has-pages';
     this.presetSelector = new UnitSelectorView({
       ariaLabel: `${this.presetMenu.label} actions`,
-      className: 'align-left',
-      items: this.presetMenu.items,
+      className: 'align-left is-sections',
+      groups: this.presetMenu.groups,
       displayValue: this.presetMenu.label,
       onChange: (action) => {
         // The menu is a list of actions, not a choice: no item stays selected.
@@ -35,6 +38,17 @@ export class MemoryView {
       }
     }).mount(presetSlot);
     this.presetSelector.update({ value: '' });
+
+    this.pages.forEach(({ key, label }) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'strip-page-button';
+      button.textContent = label;
+      button.addEventListener('click', () => this.onPage(key));
+      this.pageButtons.set(key, button);
+      presetSlot.append(button);
+    });
+    this.setPage(null);
 
     const labelSlot = document.createElement('div');
     labelSlot.className = 'strip-item center editable-memory';
@@ -60,6 +74,14 @@ export class MemoryView {
 
     strip.append(presetSlot, labelSlot, connectSlot);
     return strip;
+  }
+
+  // View-driven: the page that is shown (its key), or null for the knob area.
+  setPage(shown) {
+    this.pageButtons.forEach((button, key) => {
+      button.classList.toggle('is-selected', key === shown);
+      button.setAttribute('aria-pressed', String(key === shown));
+    });
   }
 
   // Shell-driven: one press connects; once connected the same button disconnects and shows the amp's firmware version

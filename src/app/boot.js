@@ -33,10 +33,10 @@ const DEFAULT_WRITE_GAP_MS = 50;
 // Composition root shared by the shells: transports, store, sync flow, write scheduler, intents, and the mounted runtime.
 // fixture (dev only) is a captured device model { units, activeSlot, identity }; with it a slot press simulates the device's slot event.
 // sleep, files and confirm are replaceable so tests do not wait out the protocol pauses or open browser dialogs.
-// presetSources maps a PRESETS menu action marked as a source in the layout (importAi) to a function
-// open({ host, importText, ampModel }) that the shell plugs in. host is the element for its pop-up, importText(text)
-// imports a .thrl6p text and resolves to { ok, message }, ampModel() is the connected amp's model code or null.
-// A source item without a source is not in the menu.
+// presetSources maps a page of the layout (importAi) to a function open({ host, importText, ampModel }) that the shell
+// plugs in. It is called every time the page is shown: host is the page's element, which the source fills on the first
+// call and keeps, importText(text) imports a .thrl6p text and resolves to { ok, message }, ampModel() is the connected
+// amp's model code or null. A page without a source has no button.
 export async function boot(rootEl, {
   fixture = null,
   presetSources = {},
@@ -356,18 +356,17 @@ export async function boot(rootEl, {
     onSelectUnit: sendUnitType,
     onConnect: () => connect(),
     onDisconnect: disconnect,
-    onPresetAction: action => {
-      if (!presetSources[action]) return runPresetAction(action);
+    onPresetAction: runPresetAction,
+    onOpenPage: (key, host) => {
       try {
-        presetSources[action]({ host: runtime.overlayHost, importText, ampModel: () => (getDeviceIdentity() || {}).model ?? null });
+        presetSources[key]({ host, importText, ampModel: () => (getDeviceIdentity() || {}).model ?? null });
       } catch (err) {
         notify('Preset source failed: ' + err.message);
       }
     }
   });
 
-  const menu = RUNTIME_LAYOUT.presetMenu;
-  const layout = { ...RUNTIME_LAYOUT, presetMenu: { ...menu, items: menu.items.filter(item => !item.source || presetSources[item.value]) } };
+  const layout = { ...RUNTIME_LAYOUT, pages: RUNTIME_LAYOUT.pages.filter(page => presetSources[page.key]) };
   const runtime = mountRuntime(rootEl, { store, intents, layout });
 
   return { transports, connect, disconnect, activate, importText };

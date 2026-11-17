@@ -6,6 +6,10 @@
 // Values are device symbol names (the write resolves their ids); labels are the names shown in the UI (proposed).
 export const AMP_FAMILY_ORDER = ['classic', 'boutique', 'modern'];
 
+// The positions of the amp's own selector, as printed on it. Every family lists its models in this order, so the
+// n-th row of the amp menu is the n-th position.
+export const AMP_VOICES = ['Clean', 'Crunch', 'Lead', 'Hi Gain', 'Special', 'Bass', 'Aco', 'Flat'];
+
 export const AMP_FAMILIES = {
   classic: {
     title: 'Classic',
@@ -78,20 +82,24 @@ const DEFAULT_KNOBS = {
 export const RUNTIME_LAYOUT = {
   presetMenu: {
     label: 'PRESETS',
-    // value is the action the shell runs (intents.presetAction). A source item is offered only when the shell was
-    // given a preset source for its action (boot's presetSources).
-    items: [
-      { value: 'export', label: 'Export' },
-      { value: 'import', label: 'Import' },
-      { value: 'importAi', label: 'Import AI', source: true },
-      { value: 'importFactory', label: 'Import Factory', source: true },
-      ...[1, 2, 3, 4, 5].map(slot => ({ value: `save:${slot}`, label: `Save to THR slot ${slot}` })),
-      { value: 'backup', label: 'Backup THR' },
-      { value: 'restore', label: 'Restore THR' }
+    // One titled section per group. value is the action the shell runs (intents.presetAction); title is the spoken
+    // name of an item whose label alone does not say what it does.
+    groups: [
+      { key: 'file', title: 'File', items: [{ value: 'import', label: 'Import' }, { value: 'export', label: 'Export' }] },
+      {
+        key: 'save',
+        title: 'Save to THR memory',
+        items: [1, 2, 3, 4, 5].map(slot => ({ value: `save:${slot}`, label: String(slot), title: `Save to THR memory ${slot}` }))
+      },
+      { key: 'all', title: 'All memories', items: [{ value: 'backup', label: 'Backup' }, { value: 'restore', label: 'Restore' }] }
     ]
   },
-  // Amp dropdown: one column per family.
+  // Screens that take the place of the knob area, each with a toggle button in the top strip. A page is offered only
+  // when the shell was given a source that fills it (boot's presetSources, by key).
+  pages: [{ key: 'importAi', label: 'AI' }],
+  // Amp dropdown: one column per family, one row per position of the amp's selector.
   ampGroups: AMP_FAMILY_ORDER.map(key => ({ key, title: AMP_FAMILIES[key].title, items: AMP_FAMILIES[key].models })),
+  ampVoices: AMP_VOICES,
   // Index = value of the device enum SpkSimType (GuitarProc).
   cabinets: [
     'British 4x12', 'American 4x12', 'Brown 4x12', 'Vintage 4x12', 'Fuel 4x12', 'Juicy 4x12', 'Mods 4x12',

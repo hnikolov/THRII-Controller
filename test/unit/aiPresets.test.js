@@ -42,12 +42,13 @@ function fakeStorage(initial = {}) {
   return { items, getItem: key => items[key] ?? null, setItem: (key, value) => { items[key] = value; } };
 }
 
-// One pop-up source on a fake backend, with a host element and a recording importText.
+// One screen source on a fake backend, with a host element (the page) and a recording importText. ctx.ampModel is the
+// connected amp's model code and can be changed between showings.
 function setup({ ampModel = null, storage = fakeStorage(), importResult = text => ({ ok: true, message: `Imported ${text}` }) } = {}) {
   const host = document.createElement('div');
   document.body.append(host);
   const backend = fakeBackend();
-  const ctx = { host, backend, storage, imported: [], time: Date.UTC(2026, 10, 14, 20, 0), ids: 0 };
+  const ctx = { host, backend, storage, ampModel, imported: [], time: Date.UTC(2026, 10, 14, 20, 0), ids: 0 };
   const source = createAiPresetSource({
     api: createApi({ base: '/api', fetch: backend.fetch }),
     storage,
@@ -60,19 +61,23 @@ function setup({ ampModel = null, storage = fakeStorage(), importResult = text =
     find,
     field: label => find(`[aria-label="${label}"]`),
     generateButton: () => find('.ai-request button[type="submit"]'),
-    text: selector => (find(selector) && !find(selector).hidden ? find(selector).textContent : null),
-    credit: () => find('.ai-card > .ai-credit a'),
+    text: selector => (find(selector) && find(selector).textContent) || null,
+    count: selector => host.querySelectorAll(selector).length,
+    credit: () => find('.ai-screen > .ai-credit a'),
     entries: () => [...host.querySelectorAll('.ai-entry')],
     selected: () => [...host.querySelectorAll('.ai-entry.is-selected')].map(row => row.querySelector('.ai-entry-name').textContent),
     load: row => row.querySelector('.ai-entry-load').click(),
     cleanup: () => host.remove(),
-    // Opens the pop-up and waits for the amp list (or for the note that it could not be loaded).
+    // Shows the screen (the first time this builds it) and waits for the amp list, or for the note that it could not
+    // be loaded.
+    show: () => source({ host, importText, ampModel: () => ctx.ampModel }),
     async open() {
-      source({ host, importText, ampModel: () => ampModel });
-      await until(() => !ctx.generateButton().disabled || /cannot be reached/.test(ctx.text('.ai-note') || ''), 'the amp list');
+      ctx.show();
+      await until(() => !ctx.generateButton().disabled || /cannot be reached/.test(ctx.text('.ai-status') || ''), 'the amp list');
     },
-    async press(guitar, prompt) {
+    async press(guitar, prompt, pickup = '') {
       ctx.field('Guitar').value = guitar;
+      ctx.field('Pickups').value = pickup;
       ctx.field('Sound').value = prompt;
       ctx.generateButton().click();
       await until(() => backend.pending, 'the generate request');
@@ -87,7 +92,7 @@ function setup({ ampModel = null, storage = fakeStorage(), importResult = text =
   return ctx;
 }
 
-it('import AI: the pop-up lists the amps with a preset export and pre-selects the connected one, then the last pick, then the first', async () => {
+it('import AI: the screen lists the amps with a preset export and pre-selects the connected one, then the last pick, then the first', async () => {
   const lastPick = () => fakeStorage({ 'thrii.aiPresets': JSON.stringify({ amp: 'yamaha-thr-30-ii' }) });
   for (const [ampModel, storage, expected] of [[1, lastPick(), 'yamaha-thr-10-ii'], [null, lastPick(), 'yamaha-thr-30-ii'], [7, fakeStorage(), 'yamaha-thr-10-ii']]) {
     const ctx = setup({ ampModel, storage });
@@ -95,59 +100,86 @@ it('import AI: the pop-up lists the amps with a preset export and pre-selects th
       await ctx.open();
       assertDeepEqual([...ctx.field('Amplifier').options].map(option => option.value), ['yamaha-thr-10-ii', 'yamaha-thr-30-ii'], 'amps offered');
       assertEqual(ctx.field('Amplifier').value, expected, `selected for model ${ampModel}`);
-      assertEqual(ctx.text('.ai-result'), null, 'no result yet');
-      assertEqual(ctx.text('.ai-presets'), null, 'no generated presets yet');
+      assertEqual(ctx.text('.ai-tip'), null, 'no result yet');
+      assertDeepEqual([ctx.entries().length, ctx.count('.ai-hint')], [0, 2], 'no generated presets yet, a hint in their place');
       assertEqual(ctx.credit().href, 'https://amplifier-presets.com/', 'credit link');
       assertEqual(ctx.text('.ai-people'), 'Magnus Bredeli developmentFerdinand Hegelstad design', 'the people credited');
-      assertEqual(/No amp connected/.test(ctx.text('.ai-note') || ''), ampModel === null, 'the note about a missing amp');
+      assertEqual(/No amp connected/.test(ctx.text('.ai-status') || ''), ampModel === null, 'the note about a missing amp');
     } finally {
       ctx.cleanup();
     }
   }
 });
 
-it('import AI: Generate asks for a software preset, exports it and hands the text to the import once; the pop-up stays until dismissed', async () => {
+it('import AI: Generate asks for a software preset, exports it and hands the text to the import once; the screen is built once and kept', async () => {
   const ctx = setup({ ampModel: 1 });
   try {
     await ctx.open();
-    await ctx.press('Les Paul', 'Hotel California solo');
+    await ctx.press('Les Paul', 'Hotel California solo', ' humbucker ');
     const request = ctx.backend.calls[1];
     assertDeepEqual([request.url, request.method], ['/api/presets/generate', 'POST'], 'generate call');
     assertDeepEqual(request.body, {
-      sessionId: 'id-1', presetType: 'SOFTWARE', prompt: 'Hotel California solo', guitar: 'Les Paul', amplifierId: 'yamaha-thr-10-ii'
-    }, 'request body: always the "THR Remote app" preset type');
+      sessionId: 'id-1', presetType: 'SOFTWARE', prompt: 'Hotel California solo', guitar: 'Les Paul', pickupConfiguration: 'humbucker', amplifierId: 'yamaha-thr-10-ii'
+    }, 'request body: always the "THR Remote app" preset type, with the pickups');
 
-    // While the request is out: no second request, and the pop-up cannot be dismissed.
+    // While the request is out: no second request, the form takes no input, and the line shows the elapsed time.
     ctx.find('.ai-request').requestSubmit();
-    ctx.find('.ai-popup').click();
-    ctx.find('.ai-close').click();
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     assertEqual(ctx.backend.calls.length, 2, 'one generate request');
-    assertTrue(ctx.find('.ai-popup') !== null, 'the pop-up stays while generating');
-    assertTrue(/^Generating \d+ s$/.test(ctx.text('.ai-progress')), 'progress: ' + ctx.text('.ai-progress'));
+    assertDeepEqual(['Sound', 'Guitar', 'Pickups', 'Amplifier'].map(label => ctx.field(label).disabled), [true, true, true, true], 'the form is off');
+    assertTrue(/^Generating \d+ s$/.test(ctx.text('.ai-status')), 'progress: ' + ctx.text('.ai-status'));
     assertTrue(ctx.credit() !== null, 'credit while generating');
 
+    // The shell hides the screen and shows it again while the request is out: the request goes on.
+    ctx.show();
+    assertEqual(ctx.backend.calls.length, 2, 'a showing sends nothing');
+
     ctx.backend.answer('abc', { presetName: 'Walsh <b>Hotel</b>', tip: 'Roll the tone back.' });
-    await until(() => ctx.text('.ai-result'), 'the result');
+    await until(() => ctx.text('.ai-tip'), 'the result');
     assertDeepEqual(ctx.backend.calls[2], { url: '/api/presets/abc/export', method: 'GET', body: null }, 'export call');
     assertDeepEqual(ctx.imported, ['file abc'], 'the exported text is imported once');
     assertDeepEqual(ctx.selected(), ['Walsh <b>Hotel</b>'], 'the new preset is the selected row, its name shown as text');
     assertEqual(ctx.find('.ai-entry-name b'), null, 'markup in a name is not rendered');
     assertEqual(ctx.text('.ai-status'), 'Imported file abc', 'the import message');
-    assertEqual(ctx.text('.ai-tip'), 'Roll the tone back.', 'tip');
-    assertTrue(ctx.find('.ai-popup') !== null && ctx.credit() !== null, 'the pop-up stays open, with the credit');
+    assertEqual(ctx.find('.ai-status').classList.contains('is-error'), false, 'not shown as an error');
+    assertEqual(ctx.find('.ai-entry.is-selected').nextElementSibling.textContent, 'Roll the tone back.', 'the tip follows its row');
+    assertEqual(ctx.field('Sound').disabled, false, 'the form takes input again');
 
-    // A press on the card keeps it; a press outside hides it. Reopened, it is as it was left.
-    ctx.find('.ai-card').click();
-    assertTrue(ctx.find('.ai-popup') !== null, 'a press inside keeps the pop-up');
-    ctx.find('.ai-popup').click();
-    assertEqual(ctx.find('.ai-popup'), null, 'a press outside hides it');
+    // Shown again, the screen is the one that was built, as it was left.
+    const screen = ctx.find('.ai-screen');
+    ctx.field('Pickups').value = 'typed over';
     await ctx.open();
+    assertTrue(ctx.find('.ai-screen') === screen && ctx.count('.ai-screen') === 1, 'the screen is built once');
+    assertEqual(ctx.backend.calls.length, 3, 'the amp list is not asked for again');
     assertDeepEqual([ctx.field('Guitar').value, ctx.field('Sound').value], ['Les Paul', 'Hotel California solo'], 'the request is kept');
-    assertDeepEqual(ctx.selected(), ['Walsh <b>Hotel</b>'], 'the selected preset is kept');
     assertEqual(ctx.text('.ai-tip'), 'Roll the tone back.', 'the tip is kept');
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    assertEqual(ctx.find('.ai-popup'), null, 'Escape hides it');
+
+    // Loading the preset again brings its own request back, pickups included.
+    ctx.load(ctx.entries()[0]);
+    await until(() => ctx.field('Pickups').value === 'humbucker', 'the pickups of the loaded preset');
+    assertEqual(ctx.imported.length, 2, 'it was imported again');
+  } finally {
+    ctx.cleanup();
+  }
+});
+
+it('import AI: a later showing tries an unreachable generator again and follows a newly connected amp', async () => {
+  const ctx = setup({ storage: fakeStorage({ 'thrii.aiPresets': JSON.stringify({ amp: 'yamaha-thr-30-ii' }) }) });
+  ctx.backend.amps = null;
+  try {
+    await ctx.open();
+    assertTrue(ctx.generateButton().disabled && ctx.find('.ai-status').classList.contains('is-error'), 'not reachable: Generate is off');
+
+    ctx.backend.amps = reply(200, AMPS);
+    ctx.show();
+    await until(() => !ctx.generateButton().disabled, 'Generate to come on once the generator is reachable');
+    assertEqual(ctx.field('Amplifier').value, 'yamaha-thr-30-ii', 'no amp connected: the last pick');
+    assertTrue(/No amp connected/.test(ctx.text('.ai-status')), 'the unreachable note is gone: ' + ctx.text('.ai-status'));
+
+    ctx.ampModel = 1;
+    await ctx.open();
+    assertEqual(ctx.field('Amplifier').value, 'yamaha-thr-10-ii', 'the amp that was connected since');
+    assertEqual(ctx.text('.ai-status'), null, 'nothing to say with an amp');
+    assertEqual(ctx.backend.calls.length, 2, 'the list was asked for twice, not a third time');
   } finally {
     ctx.cleanup();
   }
@@ -158,6 +190,7 @@ it('import AI: every generated preset is listed with the selected one marked; a 
   try {
     await ctx.open();
     await ctx.generate('first try', 'p1', { presetName: 'Same Name', tip: 'tip 1' });
+    assertEqual('pickupConfiguration' in ctx.backend.calls[1].body, false, 'no pickups typed: the request has no such key');
     ctx.time += 6 * 60 * 1000;
     await ctx.generate('second try, brighter', 'p2', { presetName: 'Same Name', tip: 'tip 2' });
     assertEqual(ctx.text('.ai-tip'), 'tip 2', 'the tip is the newest preset\'s');
@@ -173,7 +206,6 @@ it('import AI: every generated preset is listed with the selected one marked; a 
     assertTrue(!lines.some(line => line.includes('first try')), 'the oldest dropped out');
 
     // Reload: a new source on the same storage. The second "Same Name" is now the oldest entry.
-    ctx.find('.ai-popup').click();
     const reloaded = setup({ storage: ctx.storage });
     try {
       await reloaded.open();
@@ -238,8 +270,8 @@ it('import AI: a preset can be deleted from the list; the app is not touched, an
     assertEqual(ctx.text('.ai-tip'), 'tip b', 'with its tip');
 
     ctx.find('[aria-label="Delete Better"]').click();
-    assertEqual(ctx.text('.ai-presets'), null, 'the list is empty');
-    assertEqual(ctx.text('.ai-result'), null, 'the tip of a deleted preset is not shown');
+    assertEqual(ctx.entries().length, 0, 'the list is empty');
+    assertEqual(ctx.text('.ai-tip'), null, 'the tip of a deleted preset is not shown');
     assertDeepEqual([ctx.imported.length, ctx.backend.calls.length], [0, calls], 'nothing imported, nothing requested');
     assertDeepEqual(JSON.parse(ctx.storage.items['thrii.aiPresets']).history, [], 'the deletion is stored');
     assertTrue(ctx.credit() !== null, 'credit still there');
@@ -248,34 +280,34 @@ it('import AI: a preset can be deleted from the list; the app is not touched, an
   }
 });
 
-it('import AI: failures stay in the pop-up and nothing is imported', async () => {
+it('import AI: failures stay on the screen and nothing is imported', async () => {
   const ctx = setup({ ampModel: 1 });
   try {
     await ctx.open();
 
     await ctx.press('Strat', 'x');
     ctx.backend.fail(reply(422, { error: { issues: [{ path: ['amplifierId'], message: 'Invalid option' }] } }));
-    await until(() => /Request rejected \(422\): amplifierId: Invalid option/.test(ctx.text('.ai-note') || ''), 'the validation message');
+    await until(() => /Request rejected \(422\): amplifierId: Invalid option/.test(ctx.text('.ai-status') || ''), 'the validation message');
 
     await ctx.press('Strat', 'x');
     ctx.backend.fail();
-    await until(() => ctx.text('.ai-note') === 'The preset generator cannot be reached.', 'the network failure');
+    await until(() => ctx.text('.ai-status') === 'The preset generator cannot be reached.', 'the network failure');
 
     await ctx.press('Strat', 'x');
     ctx.find('.ai-request .ai-secondary').click();
-    await until(() => ctx.text('.ai-note') === 'Cancelled.', 'the cancel');
+    await until(() => ctx.text('.ai-status') === 'Cancelled.', 'the cancel');
 
     ctx.backend.exportContent = () => '';
     await ctx.generate('x', 'empty', { presetName: 'Empty' });
-    assertEqual(ctx.text('.ai-note'), 'The preset export came back empty.', 'the empty export');
+    assertEqual(ctx.text('.ai-status'), 'The preset export came back empty.', 'the empty export');
 
     ctx.field('Sound').value = ' ';
     ctx.generateButton().click();
-    assertEqual(ctx.text('.ai-note'), 'Name the guitar and describe the sound first.', 'an empty request is not sent');
+    assertEqual(ctx.text('.ai-status'), 'Name the guitar and describe the sound first.', 'an empty request is not sent');
 
     assertDeepEqual(ctx.imported, [], 'nothing was imported');
-    assertEqual(ctx.text('.ai-result'), null, 'no result');
-    assertEqual(ctx.text('.ai-presets'), null, 'nothing kept');
+    assertEqual(ctx.text('.ai-tip'), null, 'no result');
+    assertEqual(ctx.entries().length, 0, 'nothing kept');
     assertTrue(ctx.credit() !== null, 'credit with an error');
   } finally {
     ctx.cleanup();
@@ -288,9 +320,9 @@ it('import AI: a preset the app refuses is reported and not kept; an unreachable
     await refusing.open();
     await refusing.generate('x', 'bad', { presetName: 'Bad' });
     assertDeepEqual(refusing.imported, ['file bad'], 'the import was tried once');
-    assertEqual(refusing.text('.ai-note'), 'Import failed: unknown names', 'the refusal');
-    assertEqual(refusing.text('.ai-result'), null, 'no result');
-    assertEqual(refusing.text('.ai-presets'), null, 'not kept');
+    assertEqual(refusing.text('.ai-status'), 'Import failed: unknown names', 'the refusal');
+    assertEqual(refusing.text('.ai-tip'), null, 'no result');
+    assertEqual(refusing.entries().length, 0, 'not kept');
   } finally {
     refusing.cleanup();
   }
@@ -300,7 +332,7 @@ it('import AI: a preset the app refuses is reported and not kept; an unreachable
   try {
     await offline.open();
     assertTrue(offline.generateButton().disabled, 'Generate is off');
-    assertTrue(/cannot be reached.*scripts\/serve\.py/.test(offline.text('.ai-note')), 'the note says how to start the proxy');
+    assertTrue(/cannot be reached.*scripts\/serve\.py/.test(offline.text('.ai-status')), 'the note says how to start the proxy');
     assertTrue(offline.credit() !== null, 'credit without the generator');
     offline.find('.ai-request').requestSubmit();
     assertEqual(offline.backend.calls.length, 1, 'no generate request');

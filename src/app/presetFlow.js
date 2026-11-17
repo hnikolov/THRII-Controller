@@ -165,7 +165,7 @@ export function createPresetFlow(deps) {
       } else if (await writeSlot(slot, previous)) {
         notify(`Save failed; memory ${slot} has its previous content again`);
       } else {
-        notify(`Save failed and memory ${slot} could not be put back; use Restore THR with a backup file`);
+        notify(`Save failed and memory ${slot} could not be put back; use Restore with a backup file`);
       }
     });
   }
