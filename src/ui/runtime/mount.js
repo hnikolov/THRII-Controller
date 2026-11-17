@@ -14,6 +14,8 @@ export function mountRuntime(rootEl, { store, intents, layout = RUNTIME_LAYOUT }
     // Feedback from the shell: a short status text, and the busy state of a long operation.
     setStatus: text => app.setStatus(text),
     setBusy: busy => app.setBusy(busy),
+    // A page's background work (key of layout.pages): a dot on its button while it runs.
+    setPageActivity: (key, active) => app.memory.setPageActivity(key, active),
     destroy() {
       app.setStatus('');
       unsubscribe();

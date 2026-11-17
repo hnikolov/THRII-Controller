@@ -2,7 +2,6 @@ import { it, assertEqual, assertDeepEqual, assertTrue } from '../support/assert.
 import { until } from '../support/fakeAmp.js';
 import { createApi } from '../../src/ai/api.js';
 import { createAiPresetSource } from '../../src/ai/aiPresets.js';
-import { HISTORY_MAX } from '../../src/ai/config.js';
 
 const AMPS = [
   { id: 'yamaha-thr-10', name: 'Yamaha THR10', hasSoftwareExportHandler: false },
@@ -10,15 +9,18 @@ const AMPS = [
   { id: 'yamaha-thr-30-ii', name: 'Yamaha THR30II', hasSoftwareExportHandler: true }
 ];
 const reply = (status, body) => ({ ok: status < 400, status, text: async () => (typeof body === 'string' ? body : JSON.stringify(body)) });
+// The export of a preset id: a .thrl6p-shaped text that names the id, so a test can tell which text was imported.
+const presetText = id => JSON.stringify({ data: { meta: { name: `gen ${id}` }, id } });
+// What the app was handed: the preset's id and the name it was given.
+const describe = text => { const { data } = JSON.parse(text); return `${data.id}:${data.meta.name}`; };
 
-// Stands in for the proxy. A generate request waits until the test answers it (answer, fail) or it is aborted;
-// the export of a preset id is the text "file <id>" unless exportContent says otherwise.
+// Stands in for the proxy. A generate request waits until the test answers it (answer, fail) or it is aborted.
 function fakeBackend() {
   const backend = {
     calls: [],
     amps: reply(200, AMPS),
     pending: null,
-    exportContent: id => `file ${id}`,
+    exportContent: presetText,
     answer: (id, preset) => backend.pending.resolve(reply(200, { generatedPresetId: id, preset })),
     fail: response => (response ? backend.pending.resolve(response) : backend.pending.reject(new TypeError('Failed to fetch'))),
     fetch(url, options = {}) {
@@ -43,56 +45,79 @@ function fakeStorage(initial = {}) {
 }
 
 // One screen source on a fake backend, with a host element (the page) and a recording importText. ctx.ampModel is the
-// connected amp's model code and can be changed between showings.
-function setup({ ampModel = null, storage = fakeStorage(), importResult = text => ({ ok: true, message: `Imported ${text}` }) } = {}) {
+// connected amp's model code and can be changed between showings; ctx.answers are the next confirm answers (default yes).
+function setup({ ampModel = null, storage = fakeStorage(), importResult = () => ({ ok: true, message: 'Imported' }) } = {}) {
   const host = document.createElement('div');
   document.body.append(host);
   const backend = fakeBackend();
-  const ctx = { host, backend, storage, ampModel, imported: [], time: Date.UTC(2026, 10, 14, 20, 0), ids: 0 };
+  const ctx = { host, backend, storage, ampModel, imported: [], confirms: [], answers: [], activity: [], time: Date.UTC(2026, 10, 14, 20, 0), ids: 0 };
   const source = createAiPresetSource({
     api: createApi({ base: '/api', fetch: backend.fetch }),
     storage,
     now: () => ctx.time,
-    uuid: () => `id-${ctx.ids += 1}`
+    uuid: () => `id-${ctx.ids += 1}`,
+    confirm: (text) => { ctx.confirms.push(text); return ctx.answers.length ? ctx.answers.shift() : true; }
   });
-  const importText = async text => { ctx.imported.push(text); return importResult(text); };
+  const importText = async (text) => { ctx.imported.push(text); return importResult(text); };
   const find = selector => host.querySelector(selector);
+  const all = selector => [...host.querySelectorAll(selector)];
   Object.assign(ctx, {
     find,
     field: label => find(`[aria-label="${label}"]`),
-    generateButton: () => find('.ai-request button[type="submit"]'),
-    text: selector => (find(selector) && find(selector).textContent) || null,
-    count: selector => host.querySelectorAll(selector).length,
-    credit: () => find('.ai-screen > .ai-credit a'),
-    entries: () => [...host.querySelectorAll('.ai-entry')],
-    selected: () => [...host.querySelectorAll('.ai-entry.is-selected')].map(row => row.querySelector('.ai-entry-name').textContent),
-    load: row => row.querySelector('.ai-entry-load').click(),
+    go: () => find('.ai-go'),
+    text: selector => (find(selector) && !find(selector).closest('[hidden]') && find(selector).textContent) || null,
+    status: () => find('.ai-status').textContent,
+    credit: () => find('.ai-screen > .ai-credit'),
+    lastImport: () => describe(ctx.imported[ctx.imported.length - 1]),
+    // The version tabs, the open one in brackets, e.g. 'A [B] C'; '' when there are none.
+    tabs: () => (find('.ai-tabs').hidden ? '' : all('.ai-tab').map(tab => (tab.getAttribute('aria-selected') === 'true' ? `[${tab.textContent}]` : tab.textContent)).join(' ')),
+    // The list, a line per sound: '> Name A [B]' with > for the loaded sound and the loaded version in brackets.
+    rows: () => all('.ai-sound').map(row => `${row.classList.contains('is-selected') ? '> ' : ''}${row.querySelector('.ai-sound-name').textContent} ${
+      [...row.querySelectorAll('.ai-letter')].map(letter => (letter.classList.contains('is-selected') ? `[${letter.textContent}]` : letter.textContent)).join(' ')}`),
+    targets: () => [...ctx.field('Target').options].map(option => option.value),
+    setTarget(value) {
+      ctx.field('Target').value = value;
+      ctx.field('Target').dispatchEvent(new Event('change'));
+    },
+    type(label, value) {
+      ctx.field(label).value = value;
+      ctx.field(label).dispatchEvent(new Event('input'));
+    },
+    tab: letter => all('.ai-tab').find(tab => tab.textContent === letter).click(),
+    letter: (name, letter) => find(`[aria-label="${name} version ${letter}"]`).click(),
     cleanup: () => host.remove(),
     // Shows the screen (the first time this builds it) and waits for the amp list, or for the note that it could not
     // be loaded.
-    show: () => source({ host, importText, ampModel: () => ctx.ampModel }),
+    show: () => source({ host, importText, ampModel: () => ctx.ampModel, setActivity: on => ctx.activity.push(on) }),
     async open() {
       ctx.show();
-      await until(() => !ctx.generateButton().disabled || /cannot be reached/.test(ctx.text('.ai-status') || ''), 'the amp list');
+      await until(() => !ctx.go().disabled || /cannot be reached/.test(ctx.status()), 'the amp list');
     },
-    async press(guitar, prompt, pickup = '') {
-      ctx.field('Guitar').value = guitar;
-      ctx.field('Pickups').value = pickup;
-      ctx.field('Sound').value = prompt;
-      ctx.generateButton().click();
+    // Fills the card (only the fields given) and presses ▶; resolves once the request is out.
+    async press(fields = {}) {
+      Object.entries(fields).forEach(([label, value]) => ctx.type(label, value));
+      ctx.go().click();
       await until(() => backend.pending, 'the generate request');
     },
+    // Waits until a generation and the import of its result are over.
+    async settled() {
+      await until(() => ctx.go().getAttribute('aria-label') !== 'Cancel' && !ctx.go().disabled, 'the end of the generation');
+    },
     // A whole generation: request, answer, export, import.
-    async generate(prompt, id, preset) {
-      await ctx.press('Strat', prompt);
+    async generate(fields, id, preset = { presetName: `Preset ${id}`, tip: `tip ${id}` }) {
+      await ctx.press(fields);
+      const before = ctx.imported.length;
       backend.answer(id, preset);
-      await until(() => !ctx.generateButton().hidden && !ctx.generateButton().disabled, 'the end of the generation');
+      await until(() => ctx.imported.length > before, 'the import of the result');
+      await ctx.settled();
     }
   });
   return ctx;
 }
 
-it('import AI: the screen lists the amps with a preset export and pre-selects the connected one, then the last pick, then the first', async () => {
+const first = { Guitar: 'Strat', Sound: 'Hotel California solo' };
+
+it('import AI: first use lists the amps with a preset export, pre-selects the connected one, then the last pick, then the first; only a new sound can be made', async () => {
   const lastPick = () => fakeStorage({ 'thrii.aiPresets': JSON.stringify({ amp: 'yamaha-thr-30-ii' }) });
   for (const [ampModel, storage, expected] of [[1, lastPick(), 'yamaha-thr-10-ii'], [null, lastPick(), 'yamaha-thr-30-ii'], [7, fakeStorage(), 'yamaha-thr-10-ii']]) {
     const ctx = setup({ ampModel, storage });
@@ -100,229 +125,284 @@ it('import AI: the screen lists the amps with a preset export and pre-selects th
       await ctx.open();
       assertDeepEqual([...ctx.field('Amplifier').options].map(option => option.value), ['yamaha-thr-10-ii', 'yamaha-thr-30-ii'], 'amps offered');
       assertEqual(ctx.field('Amplifier').value, expected, `selected for model ${ampModel}`);
-      assertEqual(ctx.text('.ai-tip'), null, 'no result yet');
-      assertDeepEqual([ctx.entries().length, ctx.count('.ai-hint')], [0, 2], 'no generated presets yet, a hint in their place');
-      assertEqual(ctx.credit().href, 'https://amplifier-presets.com/', 'credit link');
-      assertEqual(ctx.text('.ai-people'), 'Magnus Bredeli developmentFerdinand Hegelstad design', 'the people credited');
-      assertEqual(/No amp connected/.test(ctx.text('.ai-status') || ''), ampModel === null, 'the note about a missing amp');
+      assertDeepEqual([ctx.tabs(), ctx.text('.ai-tip'), ctx.text('.ai-remove')], ['', null, null], 'no version: no tabs, no tip, no ×');
+      assertDeepEqual([ctx.targets(), ctx.go().getAttribute('aria-label')], [['new'], 'Generate a new sound'], 'only a new sound');
+      assertEqual(ctx.rows().length, 0, 'no sounds yet');
+      assertEqual(ctx.host.querySelectorAll('.ai-hint').length, 2, 'a hint in their place');
+      assertEqual(ctx.credit().querySelector('a').href, 'https://amplifier-presets.com/', 'credit link');
+      assertEqual(ctx.credit().textContent, 'Presets by amplifier-presets.com · M. Bredeli · F. Hegelstad', 'the credit on one line');
+      assertEqual(ctx.credit().querySelector('span').title, 'Magnus Bredeli, development', 'the full name and role in the title');
+      assertEqual(/No amp connected/.test(ctx.status()), ampModel === null, 'the note about a missing amp');
     } finally {
       ctx.cleanup();
     }
   }
 });
 
-it('import AI: Generate asks for a software preset, exports it and hands the text to the import once; the screen is built once and kept', async () => {
+it('import AI: ▶ sends the card as it is, the result is loaded with its letter in the name and becomes version A of a new sound', async () => {
   const ctx = setup({ ampModel: 1 });
   try {
     await ctx.open();
-    await ctx.press('Les Paul', 'Hotel California solo', ' humbucker ');
-    const request = ctx.backend.calls[1];
-    assertDeepEqual([request.url, request.method], ['/api/presets/generate', 'POST'], 'generate call');
-    assertDeepEqual(request.body, {
-      sessionId: 'id-1', presetType: 'SOFTWARE', prompt: 'Hotel California solo', guitar: 'Les Paul', pickupConfiguration: 'humbucker', amplifierId: 'yamaha-thr-10-ii'
-    }, 'request body: always the "THR Remote app" preset type, with the pickups');
+    await ctx.press({ Guitar: 'Les Paul', Sound: 'Hotel California solo', Pickups: ' humbucker ' });
+    assertDeepEqual(ctx.backend.calls[1], {
+      url: '/api/presets/generate',
+      method: 'POST',
+      body: { sessionId: 'id-1', presetType: 'SOFTWARE', prompt: 'Hotel California solo', guitar: 'Les Paul', pickupConfiguration: 'humbucker', amplifierId: 'yamaha-thr-10-ii' }
+    }, 'request: always the "THR Remote app" preset type, with the card\'s fields');
 
-    // While the request is out: no second request, the form takes no input, and the line shows the elapsed time.
+    // While the request is out: no second request, ▶ is the cancel, the fields stay editable, the AI button shows activity.
     ctx.find('.ai-request').requestSubmit();
     assertEqual(ctx.backend.calls.length, 2, 'one generate request');
-    assertDeepEqual(['Sound', 'Guitar', 'Pickups', 'Amplifier'].map(label => ctx.field(label).disabled), [true, true, true, true], 'the form is off');
-    assertTrue(/^Generating \d+ s$/.test(ctx.text('.ai-status')), 'progress: ' + ctx.text('.ai-status'));
-    assertTrue(ctx.credit() !== null, 'credit while generating');
+    assertDeepEqual([ctx.go().textContent, ctx.go().getAttribute('aria-label')], ['■', 'Cancel'], 'the button cancels');
+    assertEqual(ctx.field('Sound').disabled, false, 'the card takes input: the request already left');
+    assertTrue(/^Generating a new sound · \d+ s$/.test(ctx.status()), 'progress: ' + ctx.status());
+    assertDeepEqual(ctx.activity, [true], 'the activity is on');
 
     // The shell hides the screen and shows it again while the request is out: the request goes on.
+    const screen = ctx.find('.ai-screen');
     ctx.show();
     assertEqual(ctx.backend.calls.length, 2, 'a showing sends nothing');
 
-    ctx.backend.answer('abc', { presetName: 'Walsh <b>Hotel</b>', tip: 'Roll the tone back.' });
-    await until(() => ctx.text('.ai-tip'), 'the result');
+    ctx.backend.answer('abc', { presetName: 'Walsh <b>Hotel</b> Solo', tip: 'Roll the tone back.' });
+    await ctx.settled();
     assertDeepEqual(ctx.backend.calls[2], { url: '/api/presets/abc/export', method: 'GET', body: null }, 'export call');
-    assertDeepEqual(ctx.imported, ['file abc'], 'the exported text is imported once');
-    assertDeepEqual(ctx.selected(), ['Walsh <b>Hotel</b>'], 'the new preset is the selected row, its name shown as text');
-    assertEqual(ctx.find('.ai-entry-name b'), null, 'markup in a name is not rendered');
-    assertEqual(ctx.text('.ai-status'), 'Imported file abc', 'the import message');
-    assertEqual(ctx.find('.ai-status').classList.contains('is-error'), false, 'not shown as an error');
-    assertEqual(ctx.find('.ai-entry.is-selected').nextElementSibling.textContent, 'Roll the tone back.', 'the tip follows its row');
-    assertEqual(ctx.field('Sound').disabled, false, 'the form takes input again');
-
-    // Shown again, the screen is the one that was built, as it was left.
-    const screen = ctx.find('.ai-screen');
-    ctx.field('Pickups').value = 'typed over';
-    await ctx.open();
-    assertTrue(ctx.find('.ai-screen') === screen && ctx.count('.ai-screen') === 1, 'the screen is built once');
+    assertDeepEqual(ctx.imported.map(describe), ['abc:Walsh <b>Hotel</b> A'], 'imported once, named after the sound (cut to 18) and the letter');
+    assertDeepEqual([ctx.tabs(), ctx.text('.ai-tip')], ['[A]', 'Roll the tone back.'], 'the card shows version A');
+    assertDeepEqual(ctx.rows(), ['> Walsh <b>Hotel</b> Solo [A]'], 'the sound in the list, its name as text');
+    assertEqual(ctx.find('.ai-sound-name b'), null, 'markup in a name is not rendered');
+    assertDeepEqual([ctx.field('Target').value, ctx.go().getAttribute('aria-label')], ['B', 'Generate version B'], 'the next version is pre-selected');
+    assertDeepEqual(ctx.activity, [true, false], 'the activity is off');
+    assertEqual(ctx.status(), '', 'the status line is quiet: the app reports the import');
+    assertEqual(ctx.find('.ai-screen'), screen, 'the screen is built once');
     assertEqual(ctx.backend.calls.length, 3, 'the amp list is not asked for again');
-    assertDeepEqual([ctx.field('Guitar').value, ctx.field('Sound').value], ['Les Paul', 'Hotel California solo'], 'the request is kept');
-    assertEqual(ctx.text('.ai-tip'), 'Roll the tone back.', 'the tip is kept');
-
-    // Loading the preset again brings its own request back, pickups included.
-    ctx.load(ctx.entries()[0]);
-    await until(() => ctx.field('Pickups').value === 'humbucker', 'the pickups of the loaded preset');
-    assertEqual(ctx.imported.length, 2, 'it was imported again');
   } finally {
     ctx.cleanup();
   }
 });
 
-it('import AI: a later showing tries an unreachable generator again and follows a newly connected amp', async () => {
-  const ctx = setup({ storage: fakeStorage({ 'thrii.aiPresets': JSON.stringify({ amp: 'yamaha-thr-30-ii' }) }) });
-  ctx.backend.amps = null;
-  try {
-    await ctx.open();
-    assertTrue(ctx.generateButton().disabled && ctx.find('.ai-status').classList.contains('is-error'), 'not reachable: Generate is off');
-
-    ctx.backend.amps = reply(200, AMPS);
-    ctx.show();
-    await until(() => !ctx.generateButton().disabled, 'Generate to come on once the generator is reachable');
-    assertEqual(ctx.field('Amplifier').value, 'yamaha-thr-30-ii', 'no amp connected: the last pick');
-    assertTrue(/No amp connected/.test(ctx.text('.ai-status')), 'the unreachable note is gone: ' + ctx.text('.ai-status'));
-
-    ctx.ampModel = 1;
-    await ctx.open();
-    assertEqual(ctx.field('Amplifier').value, 'yamaha-thr-10-ii', 'the amp that was connected since');
-    assertEqual(ctx.text('.ai-status'), null, 'nothing to say with an amp');
-    assertEqual(ctx.backend.calls.length, 2, 'the list was asked for twice, not a third time');
-  } finally {
-    ctx.cleanup();
-  }
-});
-
-it('import AI: every generated preset is listed with the selected one marked; a press loads a preset without a request', async () => {
+it('import AI: versions of a sound carry their own request; a tab loads its version and puts its request back into the card', async () => {
   const ctx = setup();
   try {
     await ctx.open();
-    await ctx.generate('first try', 'p1', { presetName: 'Same Name', tip: 'tip 1' });
-    assertEqual('pickupConfiguration' in ctx.backend.calls[1].body, false, 'no pickups typed: the request has no such key');
-    ctx.time += 6 * 60 * 1000;
-    await ctx.generate('second try, brighter', 'p2', { presetName: 'Same Name', tip: 'tip 2' });
-    assertEqual(ctx.text('.ai-tip'), 'tip 2', 'the tip is the newest preset\'s');
-    assertEqual(ctx.entries().length, 2, 'both are listed');
-    assertTrue(ctx.entries()[0].classList.contains('is-selected') && !ctx.entries()[1].classList.contains('is-selected'), 'only the newest is marked');
+    await ctx.generate(first, 'a', { presetName: 'Walsh', tip: 'tip a' });
+    await ctx.generate({ Guitar: 'Les Paul', Pickups: 'Humbucker', Sound: 'Hotel California solo, more sustain' }, 'b', { presetName: 'Other name', tip: 'tip b' });
+    assertDeepEqual(ctx.backend.calls[3].body.guitar, 'Les Paul', 'the edited guitar was sent');
+    assertDeepEqual([ctx.tabs(), ctx.text('.ai-tip'), ctx.lastImport()], ['A [B]', 'tip b', 'b:Walsh B'], 'B is the sound\'s second version, named after the sound');
+    assertDeepEqual(ctx.rows(), ['> Walsh A [B]'], 'one sound with two versions');
 
-    for (let n = 3; n <= HISTORY_MAX + 1; n += 1) {
-      ctx.time += 60 * 1000;
-      await ctx.generate(`try ${n}`, `p${n}`, { presetName: `Preset ${n}`, tip: `tip ${n}` });
-    }
-    const lines = ctx.entries().map(entry => entry.textContent);
-    assertEqual(lines.length, HISTORY_MAX, 'the list holds the maximum');
-    assertTrue(!lines.some(line => line.includes('first try')), 'the oldest dropped out');
-
-    // Reload: a new source on the same storage. The second "Same Name" is now the oldest entry.
-    const reloaded = setup({ storage: ctx.storage });
-    try {
-      await reloaded.open();
-      const same = reloaded.entries().filter(entry => entry.querySelector('.ai-entry-name').textContent === 'Same Name');
-      assertEqual(same.length, 1, 'kept over a reload');
-      assertTrue(same[0].textContent.includes('second try, brighter'), 'the entry shows its sound text: ' + same[0].textContent);
-      assertTrue(same[0].querySelector('.ai-entry-time').textContent.length > 0, 'and its time');
-
-      const calls = reloaded.backend.calls.length;
-      reloaded.load(same[0]);
-      await until(() => reloaded.text('.ai-tip') === 'tip 2', 'the tip of the picked preset');
-      assertDeepEqual(reloaded.selected(), ['Same Name'], 'the picked preset is the marked one');
-      assertDeepEqual(reloaded.imported, ['file p2'], 'its own stored text is imported');
-      assertEqual(reloaded.backend.calls.length, calls, 'no request to the backend');
-      assertEqual(reloaded.field('Sound').value, 'second try, brighter', 'its sound text returns to the request');
-      assertEqual(reloaded.entries().length, HISTORY_MAX, 'the list keeps its length and order');
-    } finally {
-      reloaded.cleanup();
-    }
-  } finally {
-    ctx.cleanup();
-  }
-});
-
-it('import AI: two results with the same name are two entries, each loading its own text', async () => {
-  const ctx = setup();
-  try {
-    await ctx.open();
-    await ctx.generate('take one', 'a', { presetName: 'Twin', tip: 'tip a' });
-    ctx.time += 60 * 1000;
-    await ctx.generate('take two', 'b', { presetName: 'Twin', tip: 'tip b' });
-    ctx.time += 60 * 1000;
-    await ctx.generate('other', 'c', { presetName: 'Other', tip: 'tip c' });
-    const twins = ctx.entries().filter(entry => entry.querySelector('.ai-entry-name').textContent === 'Twin');
-    assertEqual(twins.length, 2, 'both are listed');
-    assertTrue(twins[0].textContent !== twins[1].textContent, 'and they read differently');
-
-    ctx.imported.length = 0;
-    ctx.load(twins.find(entry => entry.textContent.includes('take one')));
-    await until(() => ctx.text('.ai-tip') === 'tip a', 'the first twin');
-    assertTrue(ctx.find('.ai-entry.is-selected').textContent.includes('take one'), 'the first twin is marked, not the second');
-    ctx.load(ctx.entries().find(entry => entry.textContent.includes('take two')));
-    await until(() => ctx.text('.ai-tip') === 'tip b', 'the second twin');
-    assertDeepEqual(ctx.imported, ['file a', 'file b'], 'each loads its own text');
-  } finally {
-    ctx.cleanup();
-  }
-});
-
-it('import AI: a preset can be deleted from the list; the app is not touched, and the tip goes with its preset', async () => {
-  const ctx = setup();
-  try {
-    await ctx.open();
-    await ctx.generate('way off', 'a', { presetName: 'Off', tip: 'tip a' });
-    await ctx.generate('better', 'b', { presetName: 'Better', tip: 'tip b' });
+    // An edit marks the field that differs from the loaded version; a tab brings that version's request back.
+    ctx.type('Guitar', 'Telecaster');
+    assertDeepEqual(['Sound', 'Guitar', 'Pickups'].map(label => ctx.field(label).classList.contains('is-edited')), [false, true, false], 'the edited field');
     const calls = ctx.backend.calls.length;
-    ctx.imported.length = 0;
+    ctx.tab('A');
+    await until(() => ctx.tabs() === '[A] B', 'version A');
+    assertDeepEqual(['Sound', 'Guitar', 'Pickups'].map(label => ctx.field(label).value), ['Hotel California solo', 'Strat', ''], 'A\'s request');
+    assertEqual(ctx.host.querySelectorAll('.is-edited').length, 0, 'nothing marked');
+    assertDeepEqual([ctx.text('.ai-tip'), ctx.lastImport(), ctx.backend.calls.length], ['tip a', 'a:Walsh A', calls], 'A\'s tip and text, no request');
+    assertEqual(ctx.field('Target').value, 'C', 'the next free letter stays the target');
 
-    ctx.find('[aria-label="Delete Off"]').click();
-    assertDeepEqual(ctx.entries().map(row => row.querySelector('.ai-entry-name').textContent), ['Better'], 'the deleted preset is gone');
-    assertDeepEqual(ctx.selected(), ['Better'], 'the selected preset stays');
-    assertEqual(ctx.text('.ai-tip'), 'tip b', 'with its tip');
-
-    ctx.find('[aria-label="Delete Better"]').click();
-    assertEqual(ctx.entries().length, 0, 'the list is empty');
-    assertEqual(ctx.text('.ai-tip'), null, 'the tip of a deleted preset is not shown');
-    assertDeepEqual([ctx.imported.length, ctx.backend.calls.length], [0, calls], 'nothing imported, nothing requested');
-    assertDeepEqual(JSON.parse(ctx.storage.items['thrii.aiPresets']).history, [], 'the deletion is stored');
-    assertTrue(ctx.credit() !== null, 'credit still there');
+    // A list letter does the same as a tab.
+    ctx.letter('Walsh', 'B');
+    await until(() => ctx.tabs() === 'A [B]', 'version B from the list');
+    assertEqual(ctx.field('Guitar').value, 'Les Paul', 'B\'s request');
   } finally {
     ctx.cleanup();
   }
 });
 
-it('import AI: failures stay on the screen and nothing is imported', async () => {
+it('import AI: the target is the first free letter, then wraps from E to A; an existing letter is replaced only after a yes; NEW SOUND starts another sound', async () => {
+  const ctx = setup();
+  try {
+    await ctx.open();
+    for (const id of ['a', 'b', 'c']) {
+      ctx.time += 60 * 1000;
+      await ctx.generate(first, id);
+    }
+    // A gap after a removal is the next target.
+    ctx.tab('B');
+    await until(() => ctx.tabs() === 'A [B] C', 'version B');
+    ctx.find('.ai-remove').click();
+    await until(() => ctx.tabs() === '[A] C', 'B removed, A loaded');
+    assertEqual(ctx.field('Target').value, 'B', 'the gap is the target');
+    assertDeepEqual(ctx.targets(), ['new', 'A', 'B', 'C', 'D', 'E'], 'every letter can be picked, and a new sound');
+    assertDeepEqual([...ctx.field('Target').options].map(option => option.textContent),
+      ['New sound', 'Replace A', 'Version B', 'Replace C', 'Version D', 'Version E'], 'an existing letter says it replaces');
+
+    for (const id of ['b2', 'd', 'e']) {
+      ctx.time += 60 * 1000;
+      await ctx.generate({}, id);
+    }
+    assertEqual(ctx.tabs(), 'A B C D [E]', 'five versions');
+    assertEqual(ctx.field('Target').value, 'A', 'after E the target wraps to A');
+
+    // Replacing asks first; a no sends nothing.
+    ctx.answers.push(false);
+    ctx.go().click();
+    assertDeepEqual([ctx.confirms.pop(), ctx.backend.pending], ['Replace version A of Preset a?', null], 'asked, nothing sent');
+    ctx.time += 60 * 1000;
+    await ctx.generate({}, 'a2');
+    assertDeepEqual([ctx.tabs(), ctx.lastImport(), ctx.field('Target').value], ['[A] B C D E', 'a2:Preset a A', 'B'], 'A replaced; B is next');
+
+    // A new sound keeps the card's text and starts at A, on top of the list.
+    ctx.setTarget('new');
+    assertEqual(ctx.go().getAttribute('aria-label'), 'Generate a new sound', 'the button says it');
+    ctx.time += 60 * 1000;
+    await ctx.generate({ Sound: 'Santana, Samba Pa Ti' }, 's', { presetName: 'Santana', tip: '' });
+    assertDeepEqual(ctx.rows(), ['> Santana [A]', 'Preset a A B C D E'], 'the new sound on top');
+    assertEqual(ctx.field('Target').value, 'B', 'its next version is the target');
+  } finally {
+    ctx.cleanup();
+  }
+});
+
+it('import AI: the card × removes the loaded version and loads the first left; the last version and the list × remove the sound after a yes', async () => {
+  const ctx = setup();
+  try {
+    await ctx.open();
+    await ctx.generate(first, 'a', { presetName: 'One', tip: 'tip a' });
+    await ctx.generate({}, 'b', { presetName: 'x', tip: 'tip b' });
+    ctx.setTarget('new');
+    await ctx.generate({ Sound: 'other' }, 'o', { presetName: 'Two', tip: 'tip o' });
+    ctx.letter('One', 'A');
+    await until(() => ctx.tabs() === '[A] B', 'One A');
+
+    ctx.find('[aria-label="Remove version A"]').click();
+    await until(() => ctx.tabs() === '[B]', 'A removed');
+    assertDeepEqual([ctx.lastImport(), ctx.rows()], ['b:One B', ['Two A', '> One [B]']], 'B, the first left, is loaded; loading does not reorder');
+    assertEqual(ctx.confirms.length, 0, 'a version goes without a question');
+
+    // The last version: the sound goes after a yes; the card keeps its text and only a new sound can be made.
+    const imports = ctx.imported.length;
+    ctx.answers.push(false);
+    ctx.find('[aria-label="Remove version B"]').click();
+    assertDeepEqual([ctx.confirms.pop(), ctx.rows().length], ['Remove One (1 version)?', 2], 'asked; a no keeps it');
+    ctx.find('[aria-label="Remove version B"]').click();
+    assertDeepEqual([ctx.confirms.pop(), ctx.rows(), ctx.tabs()], ['Remove One (1 version)?', ['Two A'], ''], 'the sound is gone');
+    assertDeepEqual([ctx.field('Target').value, ctx.field('Sound').value], ['new', 'Hotel California solo'], 'a new sound from the kept text');
+    assertEqual(ctx.imported.length, imports, 'nothing imported: the amp keeps playing');
+
+    // The list × always asks, also for a single version.
+    ctx.answers.push(false);
+    ctx.find('[aria-label="Remove Two"]').click();
+    assertDeepEqual([ctx.confirms.pop(), ctx.rows()], ['Remove Two (1 version)?', ['Two A']], 'asked; a no keeps it');
+    ctx.find('[aria-label="Remove Two"]').click();
+    assertEqual(ctx.rows().length, 0, 'removed');
+    assertEqual(JSON.parse(ctx.storage.items['thrii.aiPresets.v2']).sounds.length, 0, 'the removal is stored');
+    assertEqual(ctx.host.querySelectorAll('.ai-hint').length, 2, 'the hint is back');
+  } finally {
+    ctx.cleanup();
+  }
+});
+
+it('import AI: the target is fixed at the press; the result goes to its sound even when another one was loaded meanwhile', async () => {
+  const ctx = setup();
+  try {
+    await ctx.open();
+    await ctx.generate(first, 'w', { presetName: 'Walsh', tip: '' });
+    ctx.setTarget('new');
+    await ctx.generate({ Sound: 'santana' }, 's', { presetName: 'Santana', tip: '' });
+    ctx.letter('Walsh', 'A');
+    await until(() => ctx.rows()[1] === '> Walsh [A]', 'Walsh loaded');
+
+    await ctx.press({ Sound: 'Hotel California solo, brighter' });
+    assertEqual(ctx.status().startsWith('Generating B · '), true, 'progress names the version: ' + ctx.status());
+    ctx.letter('Santana', 'A');
+    await until(() => ctx.rows()[0] === '> Santana [A]', 'Santana loaded while generating');
+    ctx.backend.answer('w2', { presetName: 'x', tip: '' });
+    await until(() => ctx.lastImport() === 'w2:Walsh B', 'the result');
+    await ctx.settled();
+    assertDeepEqual(ctx.rows(), ['> Walsh A [B]', 'Santana A'], 'Walsh got B and moved to the top; the card follows it');
+    assertEqual(ctx.field('Sound').value, 'Hotel California solo, brighter', 'B\'s request in the card');
+  } finally {
+    ctx.cleanup();
+  }
+});
+
+it('import AI: the preset name with its letter stays within the app\'s 20 characters', async () => {
+  const ctx = setup();
+  try {
+    await ctx.open();
+    await ctx.generate(first, 'long', { presetName: 'A Very Long Preset Name Indeed', tip: '' });
+    const name = JSON.parse(ctx.imported[0]).data.meta.name;
+    assertDeepEqual([name, name.length], ['A Very Long Preset A', 20], 'cut to 18, then the letter');
+  } finally {
+    ctx.cleanup();
+  }
+});
+
+it('import AI: the flat list of the first version becomes sounds, by name and guitar, oldest = A; the result survives a reload', async () => {
+  const entry = (id, name, guitar, minutes) => ({ id, name, guitar, pickup: '', tip: `tip ${id}`, prompt: `prompt ${id}`, time: Date.UTC(2026, 10, 14, 20, minutes), text: presetText(id) });
+  const old = {
+    sessionId: 's', guitar: 'Strat', pickup: '', prompt: 'draft', amp: 'yamaha-thr-30-ii', current: 'e3',
+    history: [entry('e1', 'Twin', 'Strat', 30), entry('e2', 'Other', 'PRS', 20), entry('e4', 'Twin', 'Les Paul', 15), entry('e3', 'Twin', 'Strat', 10)]
+  };
+  const storage = fakeStorage({ 'thrii.aiPresets': JSON.stringify(old) });
+  const ctx = setup({ storage });
+  try {
+    await ctx.open();
+    assertDeepEqual(ctx.rows(), ['> Twin [A] B', 'Other A', 'Twin A'], 'grouped by name and guitar, newest sound first, the old selection loaded');
+    assertDeepEqual([ctx.tabs(), ctx.text('.ai-tip'), ctx.field('Sound').value, ctx.field('Target').value], ['[A] B', 'tip e3', 'draft', 'C'], 'the card and its draft');
+    ctx.letter('Twin', 'B');
+    await until(() => ctx.tabs() === 'A [B]', 'B');
+    assertDeepEqual([ctx.lastImport(), ctx.field('Sound').value], ['e1:Twin B', 'prompt e1'], 'the old entry\'s text and request');
+    assertEqual(storage.items['thrii.aiPresets'], JSON.stringify(old), 'the old key is left as it was');
+  } finally {
+    ctx.cleanup();
+  }
+
+  const reloaded = setup({ storage });
+  try {
+    await reloaded.open();
+    assertDeepEqual([reloaded.rows()[0], reloaded.tabs(), reloaded.field('Sound').value], ['> Twin A [B]', 'A [B]', 'prompt e1'], 'kept over a reload');
+  } finally {
+    reloaded.cleanup();
+  }
+});
+
+it('import AI: failures stay on the screen and nothing is kept', async () => {
   const ctx = setup({ ampModel: 1 });
   try {
     await ctx.open();
 
-    await ctx.press('Strat', 'x');
+    await ctx.press(first);
     ctx.backend.fail(reply(422, { error: { issues: [{ path: ['amplifierId'], message: 'Invalid option' }] } }));
-    await until(() => /Request rejected \(422\): amplifierId: Invalid option/.test(ctx.text('.ai-status') || ''), 'the validation message');
+    await until(() => /Request rejected \(422\): amplifierId: Invalid option/.test(ctx.status()), 'the validation message');
+    assertTrue(ctx.find('.ai-status').classList.contains('is-error'), 'shown as an error');
 
-    await ctx.press('Strat', 'x');
+    await ctx.press();
     ctx.backend.fail();
-    await until(() => ctx.text('.ai-status') === 'The preset generator cannot be reached.', 'the network failure');
+    await until(() => ctx.status() === 'The preset generator cannot be reached.', 'the network failure');
 
-    await ctx.press('Strat', 'x');
-    ctx.find('.ai-request .ai-secondary').click();
-    await until(() => ctx.text('.ai-status') === 'Cancelled.', 'the cancel');
+    await ctx.press();
+    ctx.go().click();
+    await until(() => ctx.status() === 'Cancelled.', 'the cancel');
+    assertEqual(ctx.find('.ai-status').classList.contains('is-error'), false, 'a cancel is no error');
 
     ctx.backend.exportContent = () => '';
-    await ctx.generate('x', 'empty', { presetName: 'Empty' });
-    assertEqual(ctx.text('.ai-status'), 'The preset export came back empty.', 'the empty export');
+    await ctx.press();
+    ctx.backend.answer('empty', { presetName: 'Empty' });
+    await until(() => ctx.status() === 'The preset export came back empty.', 'the empty export');
 
-    ctx.field('Sound').value = ' ';
-    ctx.generateButton().click();
-    assertEqual(ctx.text('.ai-status'), 'Name the guitar and describe the sound first.', 'an empty request is not sent');
+    ctx.type('Sound', ' ');
+    ctx.go().click();
+    assertEqual(ctx.status(), 'Name the guitar and describe the sound first.', 'an empty request is not sent');
 
-    assertDeepEqual(ctx.imported, [], 'nothing was imported');
-    assertEqual(ctx.text('.ai-tip'), null, 'no result');
-    assertEqual(ctx.entries().length, 0, 'nothing kept');
-    assertTrue(ctx.credit() !== null, 'credit with an error');
+    assertDeepEqual([ctx.imported, ctx.rows(), ctx.tabs()], [[], [], ''], 'nothing imported or kept');
+    assertEqual(ctx.field('Guitar').value, 'Strat', 'the draft is kept');
+    assertEqual(ctx.activity.filter(on => on).length, ctx.activity.filter(on => !on).length, 'the activity ends every time');
   } finally {
     ctx.cleanup();
   }
 });
 
-it('import AI: a preset the app refuses is reported and not kept; an unreachable generator switches Generate off', async () => {
+it('import AI: a preset the app refuses is reported and not kept; an unreachable generator switches ▶ off', async () => {
   const refusing = setup({ importResult: () => ({ ok: false, message: 'Import failed: unknown names' }) });
   try {
     await refusing.open();
-    await refusing.generate('x', 'bad', { presetName: 'Bad' });
-    assertDeepEqual(refusing.imported, ['file bad'], 'the import was tried once');
-    assertEqual(refusing.text('.ai-status'), 'Import failed: unknown names', 'the refusal');
-    assertEqual(refusing.text('.ai-tip'), null, 'no result');
-    assertEqual(refusing.entries().length, 0, 'not kept');
+    await refusing.generate(first, 'bad');
+    assertEqual(refusing.imported.length, 1, 'the import was tried once');
+    assertEqual(refusing.status(), 'Import failed: unknown names', 'the refusal');
+    assertDeepEqual([refusing.rows(), refusing.tabs()], [[], ''], 'not kept');
   } finally {
     refusing.cleanup();
   }
@@ -331,12 +411,34 @@ it('import AI: a preset the app refuses is reported and not kept; an unreachable
   offline.backend.amps = null;
   try {
     await offline.open();
-    assertTrue(offline.generateButton().disabled, 'Generate is off');
-    assertTrue(/cannot be reached.*scripts\/serve\.py/.test(offline.text('.ai-status')), 'the note says how to start the proxy');
-    assertTrue(offline.credit() !== null, 'credit without the generator');
+    assertTrue(offline.go().disabled, '▶ is off');
+    assertTrue(/cannot be reached.*scripts\/serve\.py/.test(offline.status()), 'the note says how to start the proxy');
     offline.find('.ai-request').requestSubmit();
     assertEqual(offline.backend.calls.length, 1, 'no generate request');
   } finally {
     offline.cleanup();
+  }
+});
+
+it('import AI: a later showing tries an unreachable generator again and follows a newly connected amp', async () => {
+  const ctx = setup({ storage: fakeStorage({ 'thrii.aiPresets': JSON.stringify({ amp: 'yamaha-thr-30-ii' }) }) });
+  ctx.backend.amps = null;
+  try {
+    await ctx.open();
+    assertTrue(ctx.go().disabled && ctx.find('.ai-status').classList.contains('is-error'), 'not reachable: ▶ is off');
+
+    ctx.backend.amps = reply(200, AMPS);
+    ctx.show();
+    await until(() => !ctx.go().disabled, '▶ to come on once the generator is reachable');
+    assertEqual(ctx.field('Amplifier').value, 'yamaha-thr-30-ii', 'no amp connected: the last pick');
+    assertTrue(/No amp connected/.test(ctx.status()), 'the unreachable note is gone: ' + ctx.status());
+
+    ctx.ampModel = 1;
+    await ctx.open();
+    assertEqual(ctx.field('Amplifier').value, 'yamaha-thr-10-ii', 'the amp that was connected since');
+    assertEqual(ctx.status(), '', 'nothing to say with an amp');
+    assertEqual(ctx.backend.calls.length, 2, 'the list was asked for twice, not a third time');
+  } finally {
+    ctx.cleanup();
   }
 });

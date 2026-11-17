@@ -7,8 +7,8 @@ export const API_BASE = '/api';
 // Wireless) has been seen on hardware; other THR-II amps are picked by hand on the AI screen until their code is known.
 export const AMP_ID_BY_MODEL = { 0x01: 'yamaha-thr-10-ii' };
 
-// Generated presets kept in the list; beyond this the oldest drops out.
-export const HISTORY_MAX = 20;
+// Sounds kept in the list (each with up to five versions); beyond this the one generated longest ago drops out.
+export const SOUNDS_MAX = 20;
 // Offered while typing in the pickup field, which stays free text.
 export const PICKUPS = ['Single coil', 'Humbucker', 'P90', 'HSS', 'HSH', 'Active humbucker'];
 // The generator's site and the people behind it, as named by this app's owner.

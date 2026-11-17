@@ -84,10 +84,11 @@ body {
 }
 
 /* Above the amp card (.amp-head, 95), so the open preset menu is not painted under it. */
+/* Equal sides: the preset name sits on the screen centre whatever the buttons beside it read. */
 .top-strip {
   position: relative;
   z-index: 100;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   gap: 14px;
   padding: 0 8px;
 }
@@ -111,7 +112,12 @@ body {
 
 .strip-item.editable-memory {
   justify-content: center;
+  width: 150px;
   min-width: 0;
+}
+
+.strip-item.is-end {
+  justify-content: flex-end;
 }
 
 .strip-editable-input {
@@ -182,6 +188,7 @@ body {
 }
 
 .strip-page-button {
+  position: relative;
   min-width: 40px;
   min-height: var(--header-height);
   border: 0;
@@ -204,6 +211,39 @@ body {
 .strip-page-button.is-selected {
   background: var(--paper);
   color: var(--ink);
+}
+
+/* Work of the page goes on (a generation): a dot on its button, also while the page is hidden. */
+.strip-page-button.is-active::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff6da;
+  animation: page-activity 1s ease-in-out infinite alternate;
+}
+
+.strip-page-button.is-active.is-selected::after {
+  background: var(--gold);
+}
+
+@keyframes page-activity {
+  to { opacity: 0.25; }
+}
+
+/* The presets menu as an icon: no caret, a larger glyph. */
+.unit-selector.is-icon .unit-selector-button {
+  min-width: 28px;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.unit-selector.is-icon .unit-selector-caret {
+  display: none;
 }
 
 /* The firmware version keeps its lower-case letter (1.44.0.a). */

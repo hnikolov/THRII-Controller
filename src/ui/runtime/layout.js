@@ -82,6 +82,9 @@ const DEFAULT_KNOBS = {
 export const RUNTIME_LAYOUT = {
   presetMenu: {
     label: 'PRESETS',
+    // Shown in the top strip instead of the label, which stays the spoken name. The narrow icon lets the strip's two
+    // sides be equal, so the preset name sits on the screen centre.
+    icon: '☰',
     // One titled section per group. value is the action the shell runs (intents.presetAction); title is the spoken
     // name of an item whose label alone does not say what it does.
     groups: [

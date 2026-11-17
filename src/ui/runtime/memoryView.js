@@ -28,9 +28,9 @@ export class MemoryView {
     presetSlot.className = 'strip-item has-pages';
     this.presetSelector = new UnitSelectorView({
       ariaLabel: `${this.presetMenu.label} actions`,
-      className: 'align-left is-sections',
+      className: `align-left is-sections${this.presetMenu.icon ? ' is-icon' : ''}`,
       groups: this.presetMenu.groups,
-      displayValue: this.presetMenu.label,
+      displayValue: this.presetMenu.icon || this.presetMenu.label,
       onChange: (action) => {
         // The menu is a list of actions, not a choice: no item stays selected.
         this.presetSelector.update({ value: '' });
@@ -64,7 +64,7 @@ export class MemoryView {
     labelSlot.append(this.labelInput);
 
     const connectSlot = document.createElement('div');
-    connectSlot.className = 'strip-item';
+    connectSlot.className = 'strip-item is-end';
     this.connectButton = document.createElement('button');
     this.connectButton.type = 'button';
     this.connectButton.className = 'strip-button';
@@ -82,6 +82,12 @@ export class MemoryView {
       button.classList.toggle('is-selected', key === shown);
       button.setAttribute('aria-pressed', String(key === shown));
     });
+  }
+
+  // Shell-driven: a page's work goes on while it is hidden (a generation); its button shows a dot meanwhile.
+  setPageActivity(key, active) {
+    const button = this.pageButtons.get(key);
+    if (button) button.classList.toggle('is-active', !!active);
   }
 
   // Shell-driven: one press connects; once connected the same button disconnects and shows the amp's firmware version

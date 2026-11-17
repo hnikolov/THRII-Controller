@@ -1,5 +1,5 @@
-/* Import AI screen. It fills the page the runtime gives it (in place of the knob area) and uses the runtime's
-   colours, with fallbacks so it also reads without them. */
+/* Import AI screen. It fills the page the runtime gives it (in place of the knob area) and uses the runtime's colours
+   and its section look (an uppercase header line, 1 px rules), with fallbacks so it also reads without them. */
 .ai-screen {
   height: 100%;
   display: flex;
@@ -12,22 +12,44 @@
   display: none !important;
 }
 
-.ai-request {
-  display: grid;
-  gap: 6px;
-  padding: 6px 8px 4px;
+.ai-screen button {
+  font-family: inherit;
 }
 
-/* Guitar and pickups share a row. */
+.ai-screen button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* A section's header line, as on the knob screen. */
+.ai-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 26px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* The card: the request of the loaded version, which is also the draft of the next one. */
+.ai-card {
+  display: grid;
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+
 .ai-pair {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
-/* A field's name stands above it. */
-.ai-field,
-.ai-title {
+.ai-field {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
   color: var(--muted, #5f553f);
   font-size: 10px;
   font-weight: 700;
@@ -35,15 +57,9 @@
   text-transform: uppercase;
 }
 
-.ai-field {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
 /* Text selection is switched off on the app frame; the fields take it back. */
-.ai-field input,
-.ai-field textarea {
+.ai-card input,
+.ai-card textarea {
   width: 100%;
   min-width: 0;
   padding: 5px 6px;
@@ -59,21 +75,97 @@
   -webkit-user-select: text;
 }
 
-.ai-field input:focus,
-.ai-field textarea:focus {
+.ai-card input:focus,
+.ai-card textarea:focus {
   outline: 2px solid var(--gold, #9a6f08);
   outline-offset: -1px;
 }
 
-/* The amp list, in the look of the amp and cabinet selectors, shares the row with the button. */
+/* Differs from the loaded version's request: the next generation sends something new. */
+.ai-card .is-edited {
+  border-left: 4px solid var(--gold, #9a6f08);
+}
+
+.ai-remove,
+.ai-sound-delete {
+  width: 32px;
+  min-height: 26px;
+  border: 0;
+  background: transparent;
+  color: var(--muted, #5f553f);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ai-remove:hover:not(:disabled),
+.ai-sound-delete:hover:not(:disabled),
+.ai-remove:focus-visible,
+.ai-sound-delete:focus-visible {
+  outline: none;
+  background: rgba(138, 28, 20, 0.14);
+  color: #8a1c14;
+}
+
+/* Version tabs between the request and the tip. The open tab breaks the rules above and below it, so the request, the
+   letter and the tip read as one version. */
+.ai-tabs {
+  display: flex;
+  min-height: 30px;
+  padding: 0 8px;
+  border-top: 1px solid var(--line, #3d3525);
+  border-bottom: 1px solid var(--line, #3d3525);
+  background: rgba(61, 53, 37, 0.12);
+}
+
+.ai-tab {
+  min-width: 52px;
+  border: 0;
+  border-right: 1px solid var(--line, #3d3525);
+  background: transparent;
+  color: var(--muted, #5f553f);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ai-tab:first-child {
+  border-left: 1px solid var(--line, #3d3525);
+}
+
+.ai-tab[aria-selected="true"] {
+  margin: -1px 0;
+  background: var(--paper, #ede6d2);
+  color: var(--ink, #141414);
+}
+
+.ai-tab:hover:not(:disabled):not([aria-selected="true"]),
+.ai-tab:focus-visible {
+  outline: none;
+  background: rgba(154, 111, 8, 0.18);
+}
+
+/* The loaded version's tip: three lines, scrolling when it is longer, so nothing below moves. */
+.ai-tip {
+  height: calc(3 * 1.35em + 12px);
+  margin: 0;
+  padding: 6px 8px;
+  overflow-y: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* With this amp, make this, go. */
 .ai-actions {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding: 6px 8px 0;
+  border-top: 1px solid var(--line, #3d3525);
 }
 
 .ai-actions select {
-  flex: 1 1 0;
   min-width: 0;
   padding: 0;
   border: 0;
@@ -86,168 +178,142 @@
   cursor: pointer;
 }
 
-.ai-button {
-  min-width: 110px;
+/* The amp list is as wide as its longest name, so its arrow stays beside the name; the free space goes between it and
+   the target, which keeps to the right with the button. */
+.ai-actions select:first-child {
+  flex: 0 1 auto;
+  margin-right: auto;
+}
+
+.ai-go {
+  flex: 0 0 auto;
+  width: 56px;
   min-height: 30px;
-  padding: 0 16px;
   border: 1px solid var(--ink, #141414);
   background: var(--ink, #141414);
   color: var(--paper, #ede6d2);
-  font: 700 11px var(--ui-font-family, Arial, Helvetica, sans-serif);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 14px;
   cursor: pointer;
 }
 
-.ai-button.ai-secondary {
-  background: transparent;
-  color: var(--ink, #141414);
-}
-
-.ai-button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-/* One line for everything transient (progress, result, errors). Its height is kept when it is empty. */
+/* One line for progress and errors. Its height is kept when it is empty. */
 .ai-status {
   min-height: 1.35em;
   margin: 0;
+  padding: 3px 8px 5px;
   color: var(--muted, #5f553f);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ai-status.is-error {
   color: #8a1c14;
+  white-space: normal;
 }
 
-/* The list takes the height that is left and scrolls. */
-.ai-presets {
+/* The sounds take the height that is left; the list scrolls. */
+.ai-sounds {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 6px 8px;
   border-top: 1px solid var(--line, #3d3525);
+}
+
+.ai-sounds > .ai-head {
+  padding: 0 8px;
 }
 
 .ai-list {
   flex: 1;
   min-height: 0;
-  margin-top: 3px;
   overflow-y: auto;
 }
 
 .ai-hint {
-  margin: 0 0 4px;
+  margin: 0 8px 4px;
   color: var(--muted, #5f553f);
   font-size: 12px;
 }
 
-.ai-entry {
-  display: flex;
-  align-items: stretch;
+.ai-sound {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto 32px;
+  align-items: center;
   border-left: 3px solid transparent;
 }
 
-/* The selected preset and its tip under it carry the same gold bar and tint. */
-.ai-entry.is-selected,
-.ai-tip {
-  border-left: 3px solid var(--gold, #9a6f08);
+.ai-sound.is-selected {
+  border-left-color: var(--gold, #9a6f08);
   background: rgba(154, 111, 8, 0.14);
 }
 
-/* Name, time and the start of the sound text on one line: equal names are told apart by the last two. */
-.ai-entry-load {
-  flex: 1;
+.ai-sound-name {
   min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, auto) auto minmax(0, 1fr);
-  gap: 8px;
-  align-items: baseline;
-  padding: 6px 4px 6px 6px;
+  padding: 7px 4px 7px 5px;
   border: 0;
   background: transparent;
   color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.ai-entry-delete {
-  width: 32px;
-  border: 0;
-  background: transparent;
-  color: var(--muted, #5f553f);
-  font: 700 16px/1 var(--ui-font-family, Arial, Helvetica, sans-serif);
-  cursor: pointer;
-}
-
-.ai-entry-load:hover:not(:disabled),
-.ai-entry-load:focus-visible {
-  outline: none;
-  background: rgba(154, 111, 8, 0.12);
-}
-
-.ai-entry-delete:hover:not(:disabled),
-.ai-entry-delete:focus-visible {
-  outline: none;
-  background: rgba(138, 28, 20, 0.14);
-  color: #8a1c14;
-}
-
-.ai-entry-load:disabled,
-.ai-entry-delete:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.ai-entry-load span {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.ai-entry-name {
+  font-size: 13px;
   font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
 }
 
-.ai-entry-time,
-.ai-entry-prompt {
-  color: var(--muted, #5f553f);
-  font-size: 12px;
-}
-
-.ai-tip {
-  margin: 0;
-  padding: 0 8px 6px 6px;
-  user-select: text;
-  -webkit-user-select: text;
-}
-
-.ai-credit {
-  display: grid;
-  gap: 2px;
-  padding: 5px 8px;
-  border-top: 1px solid var(--line, #3d3525);
-  font-size: 12px;
-  text-align: center;
-}
-
-.ai-people {
+.ai-letters {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 2px 14px;
-  color: var(--muted, #5f553f);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  gap: 3px;
 }
 
-.ai-people b {
+.ai-letter {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(61, 53, 37, 0.45);
+  background: transparent;
   color: var(--ink, #141414);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ai-letter.is-selected {
+  border-color: var(--gold, #9a6f08);
+  background: var(--gold, #9a6f08);
+  color: #fff8dd;
+}
+
+.ai-sound-name:hover:not(:disabled),
+.ai-letter:hover:not(:disabled):not(.is-selected),
+.ai-sound-name:focus-visible,
+.ai-letter:focus-visible {
+  outline: none;
+  background: rgba(154, 111, 8, 0.18);
+}
+
+.ai-time {
+  padding: 0 4px 0 8px;
+  color: var(--muted, #5f553f);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* One line; the people's full names and roles are in their titles. */
+.ai-credit {
+  padding: 4px 8px;
+  border-top: 1px solid var(--line, #3d3525);
+  color: var(--muted, #5f553f);
+  font-size: 11px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ai-credit a {

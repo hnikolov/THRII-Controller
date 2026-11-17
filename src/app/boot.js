@@ -33,10 +33,11 @@ const DEFAULT_WRITE_GAP_MS = 50;
 // Composition root shared by the shells: transports, store, sync flow, write scheduler, intents, and the mounted runtime.
 // fixture (dev only) is a captured device model { units, activeSlot, identity }; with it a slot press simulates the device's slot event.
 // sleep, files and confirm are replaceable so tests do not wait out the protocol pauses or open browser dialogs.
-// presetSources maps a page of the layout (importAi) to a function open({ host, importText, ampModel }) that the shell
-// plugs in. It is called every time the page is shown: host is the page's element, which the source fills on the first
-// call and keeps, importText(text) imports a .thrl6p text and resolves to { ok, message }, ampModel() is the connected
-// amp's model code or null. A page without a source has no button.
+// presetSources maps a page of the layout (importAi) to a function open({ host, importText, ampModel, setActivity }) that
+// the shell plugs in. It is called every time the page is shown: host is the page's element, which the source fills on
+// the first call and keeps, importText(text) imports a .thrl6p text and resolves to { ok, message }, ampModel() is the
+// connected amp's model code or null, setActivity(on) shows a dot on the page's button while its work runs in the
+// background. A page without a source has no button.
 export async function boot(rootEl, {
   fixture = null,
   presetSources = {},
@@ -359,7 +360,12 @@ export async function boot(rootEl, {
     onPresetAction: runPresetAction,
     onOpenPage: (key, host) => {
       try {
-        presetSources[key]({ host, importText, ampModel: () => (getDeviceIdentity() || {}).model ?? null });
+        presetSources[key]({
+          host,
+          importText,
+          ampModel: () => (getDeviceIdentity() || {}).model ?? null,
+          setActivity: active => runtime.setPageActivity(key, active)
+        });
       } catch (err) {
         notify('Preset source failed: ' + err.message);
       }

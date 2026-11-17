@@ -97,6 +97,11 @@ it('boot: a preset source adds its page button; a press shows its page and opens
     app.page('AI');
     assertDeepEqual([opened.length, opened[1].host === opened[0].host], [2, true], 'every showing opens the source again, with the same page');
     assertEqual(opened[0].ampModel(), null, 'no amp model before a connect');
+    assertEqual(app.container.querySelector('.top-strip [aria-label="PRESETS actions"] .unit-selector-label').textContent, '☰', 'the presets menu is an icon, its spoken name kept');
+    opened[0].setActivity(true);
+    assertEqual(button.classList.contains('is-active'), true, 'the source\'s activity shows on its button');
+    opened[0].setActivity(false);
+    assertEqual(button.classList.contains('is-active'), false, 'and goes');
 
     const text = await (await fetch('/doc/walsh-hotel-solo.thrl6p')).text();
     assertDeepEqual(await opened[0].importText(text), { ok: true, message: 'Imported Walsh Hotel Solo (amp not connected)' }, 'import result');

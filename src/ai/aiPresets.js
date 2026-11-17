@@ -1,11 +1,23 @@
 import { createApi } from './api.js';
-import { AMP_ID_BY_MODEL, CREDIT, HISTORY_MAX, PICKUPS } from './config.js';
+import { AMP_ID_BY_MODEL, CREDIT, PICKUPS, SOUNDS_MAX } from './config.js';
 
 // Import AI: a screen that asks the preset generator of amplifier-presets.com for a preset and hands its .thrl6p text
 // to the app's import. Self-contained: it imports nothing from the rest of the app and gets everything it may use from
-// the shell, as open({ host, importText, ampModel }) (see boot's presetSources). It never sets a knob or sends a frame.
+// the shell, as open({ host, importText, ampModel, setActivity }) (see boot's presetSources). It never sets a knob or
+// sends a frame.
+//
+// The screen (plan_ui_simple.md): the card is the loaded version, with its request in the fields and its tip under the
+// version tabs; the fields are also the draft of the next request. The action row makes a version of the loaded sound
+// or a new sound; the list holds every sound with its version letters.
 
-const STORAGE_KEY = 'thrii.aiPresets';
+const STORAGE_KEY = 'thrii.aiPresets.v2';
+// The flat list of the first version of this screen; read once when there is nothing under STORAGE_KEY, and left in place.
+const OLD_STORAGE_KEY = 'thrii.aiPresets';
+const LETTERS = ['A', 'B', 'C', 'D', 'E'];
+const NEW = 'new';
+// The app cuts preset names at 20 characters; the sound's name plus a space and the letter stays within that, so the
+// name saved to an amp memory keeps the letter.
+const NAME_BASE_MAX = 18;
 const UNREACHABLE = 'The preset generator cannot be reached. Start the app with "python scripts/serve.py".';
 const NO_AMP = 'No amp connected: a preset is loaded into the app only.';
 
@@ -23,182 +35,344 @@ function el(tag, props = {}, ...children) {
 // A form field with its name above it.
 const field = (caption, control) => el('label', { class: 'ai-field', text: caption }, control);
 
-// api, storage, now and uuid are replaceable for tests.
+const versionOf = (sound, letter) => sound.versions.find(version => version.letter === letter);
+// A sound's versions in letter order.
+const versionsOf = sound => LETTERS.map(letter => versionOf(sound, letter)).filter(Boolean);
+const newestTime = sound => Math.max(...sound.versions.map(version => version.time));
+const presetName = (sound, version) => `${sound.name.slice(0, NAME_BASE_MAX).trim()} ${version.letter}`;
+
+// The letter a new version of the sound gets: the first free one; with all five taken, the one after the newest.
+function nextTarget(sound) {
+  if (!sound) return NEW;
+  const free = LETTERS.find(letter => !versionOf(sound, letter));
+  if (free) return free;
+  const newest = sound.versions.reduce((last, version) => (version.time > last.time ? version : last));
+  return LETTERS[(LETTERS.indexOf(newest.letter) + 1) % LETTERS.length];
+}
+
+// The preset text with the name the app shows and saves. A text that is not a preset goes as it is; the import refuses it.
+function withName(text, name) {
+  try {
+    const preset = JSON.parse(text);
+    preset.data.meta.name = name;
+    return JSON.stringify(preset);
+  } catch {
+    return text;
+  }
+}
+
+// The first version kept a flat list, newest first. Entries with the same name and guitar become the versions of one
+// sound, the oldest being A; a sixth starts another sound of that name.
+function migrate(old, uuid) {
+  const sounds = [];
+  const open = new Map();
+  [...(old.history || [])].reverse().forEach((entry) => {
+    const key = `${entry.name}\n${entry.guitar}`;
+    let sound = open.get(key);
+    if (!sound || sound.versions.length === LETTERS.length) {
+      sound = { id: uuid(), name: entry.name, versions: [] };
+      open.set(key, sound);
+      sounds.push(sound);
+    }
+    sound.versions.push({
+      id: entry.id,
+      letter: LETTERS[sound.versions.length],
+      request: { prompt: entry.prompt, guitar: entry.guitar, pickup: entry.pickup || '', amp: old.amp || '' },
+      name: entry.name,
+      tip: entry.tip || '',
+      time: entry.time,
+      text: entry.text
+    });
+  });
+  sounds.sort((a, b) => newestTime(b) - newestTime(a));
+  const current = sounds.find(sound => sound.versions.some(version => version.id === old.current));
+  return {
+    sessionId: old.sessionId || null,
+    sounds,
+    current: current ? { soundId: current.id, versionId: old.current } : null,
+    fields: { prompt: old.prompt || '', guitar: old.guitar || '', pickup: old.pickup || '', amp: old.amp || '', target: nextTarget(current) }
+  };
+}
+
+// api, storage, now, uuid and confirm are replaceable for tests.
 export function createAiPresetSource({
   api = createApi(),
   storage = null,
   now = () => Date.now(),
-  uuid = () => crypto.randomUUID()
+  uuid = () => crypto.randomUUID(),
+  confirm = text => globalThis.confirm(text)
 } = {}) {
-  // The form drafts and the generated presets survive a reload where the browser allows storage. Where it is blocked
-  // (reading localStorage can throw), they last until the page is reloaded.
+  // The sounds and the card's draft survive a reload where the browser allows storage. Where it is blocked (reading
+  // localStorage can throw), they last until the page is reloaded.
   const stored = action => {
     try { return action(storage || globalThis.localStorage); } catch { return null; }
   };
-  // history: the generated presets the app accepted, newest first: { id, name, tip, prompt, guitar, pickup, time, text }.
-  // Equal names are separate entries; an entry is found by its id. current is the id of the entry loaded last from here
-  // (the selected one), status its import message.
-  const saved = {
-    sessionId: null, guitar: '', pickup: '', prompt: '', amp: '', history: [], current: null, status: '',
-    ...stored(box => JSON.parse(box.getItem(STORAGE_KEY)))
-  };
+  // sounds: newest generation first, { id, name, versions: [{ id, letter, request, name, tip, time, text }] }, where
+  // request { prompt, guitar, pickup, amp } is exactly what was sent. current { soundId, versionId }: the version loaded
+  // last from here. fields: the card's draft, with the target ('new' or a letter of the current sound).
+  const saved = stored(box => JSON.parse(box.getItem(STORAGE_KEY)))
+    || migrate(stored(box => JSON.parse(box.getItem(OLD_STORAGE_KEY))) || {}, uuid);
   const save = () => stored(box => box.setItem(STORAGE_KEY, JSON.stringify(saved)));
+  const soundOf = id => saved.sounds.find(sound => sound.id === id);
+  const currentSound = () => (saved.current && soundOf(saved.current.soundId)) || null;
+  const currentVersion = () => {
+    const sound = currentSound();
+    return (sound && sound.versions.find(version => version.id === saved.current.versionId)) || null;
+  };
   // The screen is built on the first showing and kept: hidden by the shell, it goes on with a running generation.
   let refresh = null;
 
-  function build({ host, importText, ampModel = () => null }) {
+  function build({ host, importText, ampModel = () => null, setActivity = () => {} }) {
     document.head.append(el('link', { rel: 'stylesheet', href: new URL('./aiPresets.css', import.meta.url).href }));
 
-    // busy: null, 'generating' (a request is out; controller aborts it) or 'importing' (the app is loading a preset).
-    let busy = null;
-    let controller = null;
+    // job: the generation that is out ({ controller, label }). importing: the import that runs (a promise); one at a time.
+    let job = null;
+    let importing = null;
     let reachable = false;
     let loadingAmps = false;
     // The amp model the amp list was last matched to; a different one on a later showing is a newly connected amp.
     let matchedModel = null;
-    // What the last action has to say; an import result and the missing amp show only when this is empty.
+    // What the last action has to say; the missing amp shows only when this is empty.
     let note = { text: '', error: false };
     const say = (text, error = true) => { note = { text, error }; };
 
     const promptInput = el('textarea', { 'aria-label': 'Sound', rows: '3', placeholder: 'e.g. Joe Walsh, Hotel California solo' });
     const guitarInput = el('input', { type: 'text', 'aria-label': 'Guitar', placeholder: 'e.g. Fender Stratocaster', autocomplete: 'off' });
     const pickupInput = el('input', { type: 'text', 'aria-label': 'Pickups', placeholder: 'optional', autocomplete: 'off', list: 'ai-pickups' });
+    const inputs = { prompt: promptInput, guitar: guitarInput, pickup: pickupInput };
+    const removeButton = el('button', { type: 'button', class: 'ai-remove', title: 'Remove this version', text: '×' });
+    const tabs = el('div', { class: 'ai-tabs', role: 'tablist', 'aria-label': 'Versions' });
+    const tip = el('p', { class: 'ai-tip' });
     const ampSelect = el('select', { 'aria-label': 'Amplifier' });
-    const generateButton = el('button', { type: 'submit', class: 'ai-button', text: 'Generate' });
-    const cancelButton = el('button', { type: 'button', class: 'ai-button ai-secondary', text: 'Cancel' });
+    const targetSelect = el('select', { 'aria-label': 'Target' });
+    // A plain button: while a generation runs it cancels, and Enter in a field must not do that.
+    const goButton = el('button', { type: 'button', class: 'ai-go' });
     const statusLine = el('p', { class: 'ai-status', role: 'status' });
-    const listPart = el('div', { class: 'ai-presets' });
+    const list = el('div', { class: 'ai-list' });
+
     const form = el('form', { class: 'ai-request' },
-      field('Sound', promptInput),
-      el('div', { class: 'ai-pair' }, field('Guitar', guitarInput), field('Pickups', pickupInput)),
-      el('datalist', { id: 'ai-pickups' }, ...PICKUPS.map(value => el('option', { value }))),
-      el('div', { class: 'ai-actions' }, ampSelect, generateButton, cancelButton),
+      el('div', { class: 'ai-card' },
+        el('div', { class: 'ai-head' }, el('span', { text: 'Sound' }), removeButton),
+        promptInput,
+        el('div', { class: 'ai-pair' }, field('Guitar', guitarInput), field('Pickups', pickupInput)),
+        el('datalist', { id: 'ai-pickups' }, ...PICKUPS.map(value => el('option', { value })))),
+      tabs,
+      tip,
+      el('div', { class: 'ai-actions' }, ampSelect, targetSelect, goButton),
       statusLine);
+    const initials = name => name.replace(/^(\S)\S*\s+/, '$1. ');
     const credit = el('footer', { class: 'ai-credit' },
-      el('div', {}, 'Presets by ', el('a', { href: CREDIT.url, target: '_blank', rel: 'noopener', text: CREDIT.text })),
-      el('div', { class: 'ai-people' }, ...CREDIT.people.map(person => el('span', {}, el('b', { text: person.name }), ` ${person.role}`))));
+      'Presets by ', el('a', { href: CREDIT.url, target: '_blank', rel: 'noopener', text: CREDIT.text }),
+      ...CREDIT.people.flatMap(person => [' · ', el('span', { title: `${person.name}, ${person.role}`, text: initials(person.name) })]));
 
-    promptInput.value = saved.prompt;
-    guitarInput.value = saved.guitar;
-    pickupInput.value = saved.pickup;
+    promptInput.value = saved.fields.prompt;
+    guitarInput.value = saved.fields.guitar;
+    pickupInput.value = saved.fields.pickup;
 
-    // One row per generated preset: a press loads it, the cross deletes it. The selected row is followed by its tip.
-    const entryRows = (entry, selected) => {
-      const time = new Date(entry.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const loadButton = el('button', { type: 'button', class: 'ai-entry-load', title: entry.prompt },
-        el('span', { class: 'ai-entry-name', text: entry.name }),
-        el('span', { class: 'ai-entry-time', text: time }),
-        el('span', { class: 'ai-entry-prompt', text: entry.prompt }));
-      const deleteButton = el('button', { type: 'button', class: 'ai-entry-delete', 'aria-label': `Delete ${entry.name}`, title: 'Delete', text: '×' });
-      loadButton.disabled = deleteButton.disabled = !!busy;
-      loadButton.addEventListener('click', () => load(entry));
-      deleteButton.addEventListener('click', () => remove(entry));
-      const row = el('div', { class: selected ? 'ai-entry is-selected' : 'ai-entry' }, loadButton, deleteButton);
-      if (selected) row.setAttribute('aria-current', 'true');
-      return selected && entry.tip ? [row, el('p', { class: 'ai-tip', text: entry.tip })] : [row];
+    // The card takes a request: the one of a loaded version, with the target of the next generation.
+    function setFields(request, target) {
+      saved.fields = { ...request, target };
+      Object.entries(inputs).forEach(([key, input]) => { input.value = request[key]; });
+      if ([...ampSelect.options].some(option => option.value === request.amp)) ampSelect.value = request.amp;
+    }
+
+    // A field that differs from the request of the loaded version gets a gold edge: the next generation sends it.
+    function markEdited() {
+      const version = currentVersion();
+      Object.entries(inputs).forEach(([key, input]) => {
+        input.classList.toggle('is-edited', !!version && input.value.trim() !== version.request[key]);
+      });
+    }
+
+    const tabButton = (sound, version, selected) => {
+      const button = el('button', { type: 'button', role: 'tab', class: 'ai-tab', 'aria-selected': String(selected), text: version.letter });
+      button.addEventListener('click', () => load(sound, version));
+      return button;
     };
 
-    function render() {
-      generateButton.hidden = busy === 'generating';
-      generateButton.disabled = !!busy || !reachable;
-      cancelButton.hidden = busy !== 'generating';
-      [promptInput, guitarInput, pickupInput, ampSelect].forEach((control) => { control.disabled = !!busy; });
+    function soundRow(sound, loaded) {
+      const selected = sound === currentSound();
+      const versions = versionsOf(sound);
+      const time = new Date(newestTime(sound)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const nameButton = el('button', { type: 'button', class: 'ai-sound-name', title: `Load version ${versions[0].letter}`, text: sound.name });
+      nameButton.addEventListener('click', () => load(sound, versions[0]));
+      const letters = versions.map((version) => {
+        const button = el('button', {
+          type: 'button',
+          class: version === loaded ? 'ai-letter is-selected' : 'ai-letter',
+          'aria-label': `${sound.name} version ${version.letter}`,
+          text: version.letter
+        });
+        button.addEventListener('click', () => load(sound, version));
+        return button;
+      });
+      const deleteButton = el('button', { type: 'button', class: 'ai-sound-delete', 'aria-label': `Remove ${sound.name}`, title: 'Remove with all versions', text: '×' });
+      deleteButton.addEventListener('click', () => removeSound(sound));
+      const row = el('div', { class: selected ? 'ai-sound is-selected' : 'ai-sound' },
+        nameButton, el('span', { class: 'ai-letters' }, ...letters), el('span', { class: 'ai-time', text: time }), deleteButton);
+      if (selected) row.setAttribute('aria-current', 'true');
+      return row;
+    }
 
-      const current = saved.history.find(entry => entry.id === saved.current);
+    function render() {
+      const sound = currentSound();
+      const version = currentVersion();
+      if (!sound) saved.fields.target = NEW;
+      else if (saved.fields.target !== NEW && !LETTERS.includes(saved.fields.target)) saved.fields.target = nextTarget(sound);
+      const target = saved.fields.target;
+
+      tabs.hidden = tip.hidden = removeButton.hidden = !version;
+      tabs.replaceChildren(...(sound ? versionsOf(sound).map(each => tabButton(sound, each, each === version)) : []));
+      tip.textContent = version ? version.tip : '';
+      removeButton.setAttribute('aria-label', version ? `Remove version ${version.letter}` : 'Remove version');
+
+      targetSelect.replaceChildren(el('option', { value: NEW, text: 'New sound' }), ...(sound ? LETTERS.map(letter => el('option', {
+        value: letter,
+        text: versionOf(sound, letter) ? `Replace ${letter}` : `Version ${letter}`
+      })) : []));
+      targetSelect.value = target;
+      goButton.textContent = job ? '■' : '▶';
+      goButton.setAttribute('aria-label', job ? 'Cancel' : (target === NEW ? 'Generate a new sound' : `Generate version ${target}`));
+      goButton.disabled = !job && (!reachable || !!importing);
+
+      list.replaceChildren(...(saved.sounds.length ? saved.sounds.map(each => soundRow(each, version)) : [
+        el('p', { class: 'ai-hint', text: 'Describe the sound you are after: an artist, a song and the part of it work well.' }),
+        el('p', { class: 'ai-hint', text: 'The preset is loaded at once and kept here; ▶ again makes another version of it.' })
+      ]));
+      // While an import runs (about a second with an amp) nothing else may load or remove.
+      host.querySelectorAll('.ai-tab, .ai-remove, .ai-sound button').forEach((button) => { button.disabled = !!importing; });
+
       // While a generation runs the line belongs to the elapsed time.
-      if (busy !== 'generating') {
-        statusLine.textContent = note.text || (current && saved.status) || (ampModel() === null ? NO_AMP : '');
+      if (!job) {
+        statusLine.textContent = note.text || (ampModel() === null ? NO_AMP : '');
         statusLine.classList.toggle('is-error', !!note.text && note.error);
       }
-      listPart.replaceChildren(...(saved.history.length ? [
-        el('div', { class: 'ai-title', text: 'Generated presets' }),
-        el('div', { class: 'ai-list' }, ...saved.history.flatMap(entry => entryRows(entry, entry === current)))
-      ] : [
-        el('p', { class: 'ai-hint', text: 'Describe the sound you are after: an artist, a song and the part of it work well.' }),
-        el('p', { class: 'ai-hint', text: 'The preset is loaded at once. It is kept in a list here, with a playing tip.' })
-      ]));
+      markEdited();
     }
 
-    // Deleting takes a preset out of the list only: the app and the amp keep the settings they have.
-    function remove(entry) {
-      if (busy) return;
-      saved.history = saved.history.filter(other => other !== entry);
-      if (saved.current === entry.id) {
-        saved.current = null;
-        saved.status = '';
-      }
-      save();
+    // Hands a version to the app, after any import that still runs. Resolves to { ok, message }.
+    async function importVersion(sound, version) {
+      while (importing) await importing;
+      importing = importText(withName(version.text, presetName(sound, version)));
       render();
+      const result = await importing;
+      importing = null;
+      return result;
     }
 
-    // Hands a preset text to the app. On success the entry becomes the selected one and its request returns to the form.
-    async function load(entry) {
-      if (busy) return false;
-      busy = 'importing';
+    // Loads a version: on success it is the card's version and its request fills the card.
+    async function load(sound, version) {
+      if (importing) return;
       say('');
-      render();
-      const result = await importText(entry.text);
-      busy = null;
+      const result = await importVersion(sound, version);
       if (result.ok) {
-        saved.current = entry.id;
-        saved.status = result.message;
-        saved.prompt = promptInput.value = entry.prompt;
-        saved.guitar = guitarInput.value = entry.guitar;
-        saved.pickup = pickupInput.value = entry.pickup || '';
+        saved.current = { soundId: sound.id, versionId: version.id };
+        setFields(version.request, nextTarget(sound));
         save();
       } else {
         say(result.message);
       }
       render();
-      return result.ok;
     }
 
+    // Removing takes presets out of the list only: the app and the amp keep the settings they have.
+    function removeSound(sound) {
+      const count = sound.versions.length;
+      if (importing || !confirm(`Remove ${sound.name} (${count} version${count === 1 ? '' : 's'})?`)) return;
+      saved.sounds = saved.sounds.filter(other => other !== sound);
+      if (sound === currentSound()) {
+        saved.current = null;
+        saved.fields.target = NEW;
+      }
+      save();
+      render();
+    }
+
+    // The card's ×: the loaded version goes, and the first one left is loaded. The last version takes its sound along.
+    function removeVersion() {
+      const sound = currentSound();
+      const version = currentVersion();
+      if (!version || importing) return;
+      if (sound.versions.length === 1) {
+        removeSound(sound);
+        return;
+      }
+      sound.versions = sound.versions.filter(other => other !== version);
+      saved.current = null;
+      save();
+      load(sound, versionsOf(sound)[0]);
+    }
+
+    // The result is loaded into the app first; one the app refuses is not kept. Its sound may have been removed during
+    // the generation: then the result starts a sound of its own.
+    async function keep(soundId, version) {
+      let sound = soundId && soundOf(soundId);
+      if (!sound) {
+        sound = { id: uuid(), name: version.name, versions: [] };
+        version.letter = LETTERS[0];
+      }
+      const result = await importVersion(sound, version);
+      if (!result.ok) {
+        say(result.message);
+        return;
+      }
+      sound.versions = [...sound.versions.filter(other => other.letter !== version.letter), version];
+      saved.sounds = [sound, ...saved.sounds.filter(other => other !== sound)].slice(0, SOUNDS_MAX);
+      saved.current = { soundId: sound.id, versionId: version.id };
+      setFields(version.request, nextTarget(sound));
+      save();
+    }
+
+    // Generates from the card as it is now: its fields, the amp and the target are taken at the press.
     async function generate() {
-      const prompt = promptInput.value.trim();
-      const guitar = guitarInput.value.trim();
-      const pickup = pickupInput.value.trim();
-      if (busy || !reachable) return;
-      if (!prompt || !guitar) {
+      if (job || importing || !reachable) return;
+      const request = {
+        prompt: promptInput.value.trim(),
+        guitar: guitarInput.value.trim(),
+        pickup: pickupInput.value.trim(),
+        amp: ampSelect.value
+      };
+      if (!request.prompt || !request.guitar) {
         say('Name the guitar and describe the sound first.');
         render();
         return;
       }
+      const sound = saved.fields.target === NEW ? null : currentSound();
+      const letter = sound ? saved.fields.target : LETTERS[0];
+      if (sound && versionOf(sound, letter) && !confirm(`Replace version ${letter} of ${sound.name}?`)) return;
       if (!saved.sessionId) saved.sessionId = uuid();
       save();
 
-      busy = 'generating';
+      job = { controller: new AbortController(), label: sound ? letter : 'a new sound' };
+      setActivity(true);
       say('');
-      controller = new AbortController();
       const started = now();
-      const tick = () => { statusLine.textContent = `Generating ${Math.round((now() - started) / 1000)} s`; };
+      const tick = () => { statusLine.textContent = `Generating ${job.label} · ${Math.round((now() - started) / 1000)} s`; };
       statusLine.classList.remove('is-error');
+      render();
       tick();
       const timer = setInterval(tick, 1000);
-      render();
 
-      let entry = null;
+      let version = null;
       try {
-        const { signal } = controller;
-        const data = await api.generate({ sessionId: saved.sessionId, prompt, guitar, pickup, amplifierId: ampSelect.value, signal });
+        const { signal } = job.controller;
+        const data = await api.generate({
+          sessionId: saved.sessionId, prompt: request.prompt, guitar: request.guitar, pickup: request.pickup, amplifierId: request.amp, signal
+        });
         if (!data || !data.generatedPresetId) throw new Error('The generator returned no preset to load.');
         const file = await api.exportPreset(data.generatedPresetId, signal);
         if (!file || !file.content) throw new Error('The preset export came back empty.');
         const preset = data.preset || {};
-        entry = { id: uuid(), name: preset.presetName || 'Preset', tip: preset.tip || '', prompt, guitar, pickup, time: now(), text: file.content };
+        version = { id: uuid(), letter, request, name: preset.presetName || 'Preset', tip: preset.tip || '', time: now(), text: file.content };
       } catch (err) {
         const cancelled = err.name === 'AbortError';
         say(cancelled ? 'Cancelled.' : err.message, !cancelled);
         if (!cancelled) console.warn('Import AI:', err);
       }
       clearInterval(timer);
-      busy = null;
-      controller = null;
-
-      // A preset the app refuses is not kept.
-      if (entry && await load(entry)) {
-        saved.history = [entry, ...saved.history].slice(0, HISTORY_MAX);
-        save();
-      }
+      job = null;
+      setActivity(false);
+      if (version) await keep(sound && sound.id, version);
       render();
     }
 
@@ -208,9 +382,9 @@ export function createAiPresetSource({
       loadingAmps = true;
       let amps = [];
       try {
-        const list = await api.listAmps();
-        const withExport = list.filter(amp => amp.hasSoftwareExportHandler);
-        amps = withExport.length ? withExport : list;
+        const all = await api.listAmps();
+        const withExport = all.filter(amp => amp.hasSoftwareExportHandler);
+        amps = withExport.length ? withExport : all;
         if (!amps.length) throw new Error('empty amplifier list');
       } catch (err) {
         console.warn('Import AI:', err);
@@ -220,7 +394,7 @@ export function createAiPresetSource({
       if (amps.length) {
         ampSelect.replaceChildren(...amps.map(amp => el('option', { value: amp.id, text: amp.name })));
         matchedModel = ampModel();
-        const preferred = [AMP_ID_BY_MODEL[matchedModel], saved.amp].find(id => amps.some(amp => amp.id === id));
+        const preferred = [AMP_ID_BY_MODEL[matchedModel], saved.fields.amp].find(id => amps.some(amp => amp.id === id));
         ampSelect.value = preferred || amps[0].id;
         reachable = true;
         if (note.text === UNREACHABLE) say('');
@@ -228,16 +402,31 @@ export function createAiPresetSource({
       render();
     }
 
-    form.addEventListener('submit', event => { event.preventDefault(); generate(); });
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      generate();
+    });
+    goButton.addEventListener('click', () => (job ? job.controller.abort() : generate()));
     // Enter in the sound text is a new line; with Ctrl (or Cmd) it generates.
-    promptInput.addEventListener('keydown', event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) generate(); });
-    cancelButton.addEventListener('click', () => controller && controller.abort());
-    ampSelect.addEventListener('change', () => { saved.amp = ampSelect.value; save(); });
-    promptInput.addEventListener('input', () => { saved.prompt = promptInput.value; save(); });
-    guitarInput.addEventListener('input', () => { saved.guitar = guitarInput.value; save(); });
-    pickupInput.addEventListener('input', () => { saved.pickup = pickupInput.value; save(); });
+    promptInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        generate();
+      }
+    });
+    Object.entries(inputs).forEach(([key, input]) => input.addEventListener('input', () => {
+      saved.fields[key] = input.value;
+      save();
+      markEdited();
+    }));
+    ampSelect.addEventListener('change', () => { saved.fields.amp = ampSelect.value; save(); });
+    targetSelect.addEventListener('change', () => { saved.fields.target = targetSelect.value; save(); render(); });
+    removeButton.addEventListener('click', removeVersion);
 
-    host.replaceChildren(el('section', { class: 'ai-screen', 'aria-label': 'Import AI' }, form, listPart, credit));
+    host.replaceChildren(el('section', { class: 'ai-screen', 'aria-label': 'Import AI' },
+      form,
+      el('div', { class: 'ai-sounds' }, el('div', { class: 'ai-head', text: 'Sounds' }), list),
+      credit));
     render();
     loadAmps();
 
