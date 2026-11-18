@@ -83,11 +83,12 @@ body {
   text-transform: uppercase;
 }
 
-/* Equal sides: the preset name sits on the screen centre whatever the buttons beside it read. */
+/* Equal sides: the preset name sits on the screen centre whatever the buttons beside it read. The sides reach
+   nearly to the frame's edge, so three tabs fit on the left. */
 .top-strip {
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  gap: 14px;
-  padding: 0 8px;
+  gap: 10px;
+  padding: 0 2px;
 }
 
 .footer-strip {
@@ -179,18 +180,18 @@ body {
   background: rgba(255, 246, 218, 0.08);
 }
 
-/* A page toggle (AI) beside the presets menu; lit like the selected memory while its page is shown. */
+/* The tabs (knobs, Presets, AI); the lit one, like the selected memory, is the screen shown. */
 .strip-item.has-pages {
-  gap: 10px;
+  gap: 2px;
 }
 
 .strip-page-button {
   position: relative;
-  min-width: 40px;
+  min-width: 34px;
   min-height: var(--header-height);
   border: 0;
   margin: 0;
-  padding: 0 8px;
+  padding: 0 4px;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -235,6 +236,31 @@ body {
 .strip-page-button.is-icon {
   font-size: 16px;
   line-height: 1;
+}
+
+/* The knob area's tab: a small knob like the ones it shows, an arc open at the bottom with its pointer turned to the
+   upper right. (A closed ring with the pointer straight up would read as a power symbol.) */
+.strip-page-button.is-knob::before {
+  content: '';
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin: 0 auto;
+  border: 2px solid currentColor;
+  border-bottom-color: transparent;
+  border-radius: 50%;
+}
+
+.strip-page-button.is-knob::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: calc(50% - 7px);
+  width: 2px;
+  height: 7px;
+  background: currentColor;
+  transform: translateX(-50%) rotate(40deg);
+  transform-origin: bottom center;
 }
 
 /* The firmware version keeps its lower-case letter (1.44.0.a). */
@@ -962,8 +988,6 @@ button.module-badge:disabled {
   }
 
   .top-strip {
-    gap: 10px;
-    padding: 0 4px;
     font-size: 9px;
   }
 }

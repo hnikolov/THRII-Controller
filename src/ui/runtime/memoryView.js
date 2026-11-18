@@ -24,10 +24,13 @@ export class MemoryView {
     const presetSlot = document.createElement('div');
     presetSlot.className = 'strip-item has-pages';
 
-    this.pages.forEach(({ key, label, title }) => {
+    // The page buttons work as tabs: the knob area (key null, a drawn knob) and the pages; exactly one is lit, and a
+    // press on the lit one changes nothing. Without pages there is nothing to switch, so no tabs at all.
+    const tabs = this.pages.length ? [{ key: null, label: '', title: 'Amp settings', knob: true }, ...this.pages] : [];
+    tabs.forEach(({ key, label, title, knob }) => {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = title ? 'strip-page-button is-icon' : 'strip-page-button';
+      button.className = ['strip-page-button', title && 'is-icon', knob && 'is-knob'].filter(Boolean).join(' ');
       button.textContent = label;
       if (title) {
         button.setAttribute('aria-label', title);

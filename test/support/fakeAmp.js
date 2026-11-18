@@ -71,7 +71,7 @@ function dumpFramesFor(patch) {
 // A booted app with stubbed file dialogs and confirm, for driving the runtime through its DOM.
 // presetSources goes to boot as it is (the plug-in hook of the pages). presets() presses a button of the Presets page
 // by its spoken name, or its label when it has none, showing the page first; 'Save to THR memory N' opens the memory
-// row on the way. page() presses a page button of the top strip by its label.
+// row on the way. page() presses a tab of the top strip by its label or spoken name ('Amp settings' for the knobs).
 // files.next is the file (or a list of files, for Import) the next pick returns; files.saved collects the downloads.
 // With connect: the fake amp answers the activation and every dump request (Actual and memories) with the captured
 // Actual dump, and the app is connected and filled before this resolves. With takesUploads the fake amp behaves like
@@ -116,7 +116,8 @@ export async function bootApp({ connect = false, takesUploads = false, presetSou
       press(label);
     },
     page(label) {
-      [...container.querySelectorAll('.strip-page-button')].find(button => button.textContent === label).click();
+      [...container.querySelectorAll('.strip-page-button')]
+        .find(button => button.textContent === label || button.getAttribute('aria-label') === label).click();
     },
     // The Presets list lives in the browser's storage; it is cleared here, so no test sees another's entries. A test
     // that checks the list over a reload boots the second app before cleaning up the first.

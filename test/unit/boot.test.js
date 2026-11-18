@@ -73,8 +73,8 @@ const hidden = (app, selector) => app.container.querySelector(selector).classLis
 it('boot: the Presets page is the app\'s own; a preset source adds its page button, and a press opens it with the page, the import and the amp model', async () => {
   const plain = await bootApp();
   try {
-    assertDeepEqual(pageButtons(plain), ['Presets'], 'without a source: the Presets page only');
-    assertEqual(plain.container.querySelector('.strip-page-button').textContent, '☰', 'shown as an icon');
+    assertDeepEqual(pageButtons(plain), ['Amp settings', 'Presets'], 'without a source: the knobs and the Presets page');
+    assertDeepEqual([...plain.container.querySelectorAll('.strip-page-button')].map(button => button.textContent), ['', '☰'], 'shown as icons (the knob is drawn)');
     plain.page('☰');
     assertDeepEqual([...plain.container.querySelectorAll('.pr-actions button')].map(button => button.textContent),
       ['Import', 'Export', '+ Add', 'Save to amp ▾'], 'its actions');
@@ -85,12 +85,12 @@ it('boot: the Presets page is the app\'s own; a preset source adds its page butt
   const opened = [];
   const app = await bootApp({ presetSources: { importAi: context => opened.push(context) } });
   try {
-    assertDeepEqual(pageButtons(app), ['Presets', 'AI'], 'the source adds its button');
-    const button = app.container.querySelectorAll('.strip-page-button')[1];
+    assertDeepEqual(pageButtons(app), ['Amp settings', 'Presets', 'AI'], 'the source adds its button');
+    const [knobs, , button] = app.container.querySelectorAll('.strip-page-button');
     const aiPage = app.container.querySelectorAll('.thr-app > .ui-page')[1];
     const aiHidden = () => aiPage.classList.contains('is-hidden');
     assertDeepEqual([button.textContent, button.getAttribute('aria-pressed')], ['AI', 'false'], 'the button of the source');
-    assertDeepEqual([hidden(app, '.ui-body'), aiHidden(), opened.length], [false, true, 0], 'the knobs show first');
+    assertDeepEqual([hidden(app, '.ui-body'), aiHidden(), opened.length, knobs.getAttribute('aria-pressed')], [false, true, 0, 'true'], 'the knobs show first, their tab lit');
 
     app.page('AI');
     assertEqual(opened.length, 1, 'the source is opened once');
@@ -98,7 +98,9 @@ it('boot: the Presets page is the app\'s own; a preset source adds its page butt
     assertDeepEqual([hidden(app, '.ui-body'), aiHidden(), button.getAttribute('aria-pressed')], [true, false, 'true'], 'the page shows');
 
     app.page('AI');
-    assertDeepEqual([hidden(app, '.ui-body'), aiHidden(), opened.length], [false, true, 1], 'the next press returns to the knobs');
+    assertDeepEqual([aiHidden(), opened.length], [false, 1], 'a press on the lit tab changes nothing');
+    app.page('Amp settings');
+    assertDeepEqual([hidden(app, '.ui-body'), aiHidden(), opened.length, knobs.getAttribute('aria-pressed')], [false, true, 1, 'true'], 'the knob tab returns to the knobs');
     app.page('AI');
     assertDeepEqual([opened.length, opened[1].host === opened[0].host], [2, true], 'every showing opens the source again, with the same page');
     assertEqual(opened[0].ampModel(), null, 'no amp model before a connect');

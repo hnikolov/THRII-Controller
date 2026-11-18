@@ -18,7 +18,7 @@ export class AppView {
     this.shownPage = null;
     this.memory = new MemoryView({
       pages: layout.pages,
-      onPage: key => this.togglePage(key),
+      onPage: key => this.showPage(key),
       onSelectSlot: slot => this.intents.selectSlot(slot),
       onConnect: connected => (connected ? this.intents.disconnect() : this.intents.connect()),
       onName: name => this.intents.setPresetName(name)
@@ -74,10 +74,11 @@ export class AppView {
     this.root.append(body, ...this.pages.values(), this.memory.buildFooter(), this.status);
   }
 
-  // A page button: shows its page in place of the knob area, or the knob area again. The shell fills the page; it is
-  // told on every showing, so the content can be built once and refreshed after that.
-  togglePage(key) {
-    this.shownPage = this.shownPage === key ? null : key;
+  // A tab of the top strip: shows its page in place of the knob area, or (key null) the knob area. The one shown stays
+  // as it is. The shell fills a page; it is told on every showing, so the content can be built once and refreshed.
+  showPage(key) {
+    if (key === this.shownPage) return;
+    this.shownPage = key;
     this.body.classList.toggle('is-hidden', this.shownPage !== null);
     this.pages.forEach((host, pageKey) => host.classList.toggle('is-hidden', pageKey !== this.shownPage));
     this.memory.setPage(this.shownPage);
