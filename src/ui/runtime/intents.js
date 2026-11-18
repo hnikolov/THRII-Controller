@@ -20,7 +20,6 @@ export function createRuntimeIntents({
   onRequestDump = () => {},
   onSelectUnit = () => {},
   onConnect = () => {},
-  onPresetAction = () => {},
   onOpenPage = () => {},
   onDisconnect = () => {}
 }) {
@@ -89,11 +88,6 @@ export function createRuntimeIntents({
 
     disconnect() {
       onDisconnect();
-    },
-
-    // A PRESETS menu pick (export, import, save:N, backup, restore). The shell runs it.
-    presetAction(action) {
-      onPresetAction(action);
     },
 
     // A page of the layout is shown; host is its element. The shell fills it.

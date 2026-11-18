@@ -5,7 +5,8 @@ import { createEmptyDeviceState, createStore } from '../state/shadowStore.js';
 import { findParamById } from '../state/selectors.js';
 import { applyDeviceEvent } from '../state/applyDeviceEvent.js';
 import { applyDumpPatch } from '../state/applyDumpPatch.js';
-import { typeCodeOfKind } from '../state/applyPreset.js';
+import { comparePlan, typeCodeOfKind } from '../state/applyPreset.js';
+import { parseThrl6Preset, presetToPlan, presetToText, sanitizePresetName, storeToPreset } from '../domain/presetModel.js';
 import { createWriteScheduler } from '../protocol/writeScheduler.js';
 import { buildParamWriteFrames } from '../protocol/paramWrite.js';
 import { buildSelectUnitType, buildSelectPreset } from '../protocol/builders.js';
@@ -19,8 +20,9 @@ import { createSyncFlow } from '../protocol/syncFlow.js';
 import { createRuntimeIntents } from '../ui/runtime/intents.js';
 import { RUNTIME_LAYOUT } from '../ui/runtime/layout.js';
 import { mountRuntime } from '../ui/runtime/mount.js';
-import { choose, download, pickText } from './files.js';
+import { choose, download, pickText, pickTexts } from './files.js';
 import { createPresetFlow } from './presetFlow.js';
+import { createPresetLibrary } from '../presets/presetLibrary.js';
 
 const SYMBOL_TABLE_URL = new URL('../../doc/thr10ii_w_symbol_table_1_44_0_a.json', import.meta.url);
 
@@ -33,7 +35,8 @@ const DEFAULT_WRITE_GAP_MS = 50;
 // Composition root shared by the shells: transports, store, sync flow, write scheduler, intents, and the mounted runtime.
 // fixture (dev only) is a captured device model { units, activeSlot, identity }; with it a slot press simulates the device's slot event.
 // sleep, files and confirm are replaceable so tests do not wait out the protocol pauses or open browser dialogs.
-// presetSources maps a page of the layout (importAi) to a function open({ host, importText, ampModel, setActivity }) that
+// The Presets page is the app's own (src/presets, always there when the symbol table loads); presetSources maps further
+// pages of the layout (importAi) to a function open({ host, importText, ampModel, setActivity }) that
 // the shell plugs in. It is called every time the page is shown: host is the page's element, which the source fills on
 // the first call and keeps, importText(text) imports a .thrl6p text and resolves to { ok, message }, ampModel() is the
 // connected amp's model code or null, setActivity(on) shows a dot on the page's button while its work runs in the
@@ -43,7 +46,7 @@ export async function boot(rootEl, {
   presetSources = {},
   onStatus = () => {},
   sleep: pause = sleep,
-  files = { pickText, choose, download },
+  files = { pickText, pickTexts, choose, download },
   confirm = text => window.confirm(text)
 } = {}) {
   const transports = createTransportManager();
@@ -91,6 +94,10 @@ export async function boot(rootEl, {
     }
   });
 
+  // Counts every wholesale replacement of the settings: a dump read (connect, memory recall) and an import. The
+  // Presets screen compares it to tell whether what plays still comes from its loaded entry.
+  let generation = 0;
+
   // A memory slot pick: select the slot, then read the Actual settings back. The slot becomes active when that read completes.
   // pendingSlot is dropped when the read fails, when the amp reports a slot of its own, and on disconnect: a later dump
   // must not mark this slot active.
@@ -119,6 +126,7 @@ export async function boot(rootEl, {
     nameOf,
     onPatch: (entries, presetName) => {
       applyDumpPatch(store, entries, nameOf, presetName, liveIdOf);
+      generation += 1;
       if (pendingSlot !== null) {
         const slot = pendingSlot;
         pendingSlot = null;
@@ -222,6 +230,7 @@ export async function boot(rootEl, {
       connection = { kind: used };
       if (flags.autoActivate) await activate();
       runtime.setConnection(connection);
+      if (library) library.update();
     } catch (err) {
       notify(`${used.toUpperCase()} failed: ` + err.message);
       runtime.setConnection({ error: err.message });
@@ -236,6 +245,7 @@ export async function boot(rootEl, {
     onStatus('Disconnected');
     connection = {};
     runtime.setConnection(connection);
+    if (library) library.update();
   }
 
   // A lost link (amp switched off, BLE out of range, USB cable pulled) ends the session like a press on the button.
@@ -314,6 +324,12 @@ export async function boot(rootEl, {
     if (module.unitOptions) knownTypes[module.unit] = module.unitOptions.map(option => option.value);
   });
 
+  const lookups = {
+    idOfName: typeKeyOf,
+    nameOf,
+    stateIdOf: makeStateIdOf(symbolIds),
+    isKnownType: (unitName, typeName) => (knownTypes[unitName] || []).includes(typeName)
+  };
   const presets = sync ? createPresetFlow({
     store,
     sync,
@@ -329,16 +345,58 @@ export async function boot(rootEl, {
     isConnected: () => transports.isConnected(),
     quickImport: () => flags.quickImport,
     device: () => ({ firmware: connection.version || null, identity: getDeviceIdentity() }),
-    lookups: { idOfName: typeKeyOf, nameOf, stateIdOf: makeStateIdOf(symbolIds), isKnownType: (unitName, typeName) => (knownTypes[unitName] || []).includes(typeName) }
+    lookups
   }) : null;
   const noPresets = () => {
     const message = 'Presets need the symbol table.';
     notify(message);
     return { ok: false, message };
   };
-  const runPresetAction = presets ? presets.run : noPresets;
-  // A .thrl6p text from outside the file dialog goes through the same import; resolves to { ok, message }.
-  const importText = presets ? presets.importText : async () => noPresets();
+  // A .thrl6p text from any page goes through the same import; resolves to { ok, message }. A successful one replaces
+  // the settings as a whole. The count moves after the import's own store changes were seen, so the Presets page is
+  // told again.
+  const importText = presets
+    ? async (text) => {
+      const result = await presets.importText(text);
+      if (result.ok) {
+        generation += 1;
+        if (library) library.update();
+      }
+      return result;
+    }
+    : async () => noPresets();
+
+  // The Presets page: the list and the actions of presetFlow, on the store through these callbacks only.
+  const ampLabels = new Map(RUNTIME_LAYOUT.ampGroups.flatMap(group => group.items).map(item => [item.value, item.label]));
+  const planOf = text => presetToPlan(parseThrl6Preset(JSON.parse(text)), lookups);
+  // The last preset compared, with its plan: the loaded entry is compared after every store change.
+  let compared = { text: null, plan: null };
+  const library = presets ? createPresetLibrary({
+    run: presets.run,
+    importText,
+    pickTexts: accept => files.pickTexts(accept),
+    currentText: () => {
+      const state = store.getState();
+      return presetToText(storeToPreset(state, (state.presetName || '').trim() || 'My Preset'));
+    },
+    describe: (text) => {
+      const plan = planOf(text);
+      const amp = plan.modules.find(module => module.unitName === RUNTIME_LAYOUT.amp.unit);
+      return { name: plan.presetName, amp: (amp && (ampLabels.get(amp.typeName) || amp.typeName)) || '' };
+    },
+    differs: (text) => {
+      if (compared.text !== text) compared = { text, plan: planOf(text) };
+      const state = store.getState();
+      return (state.presetName || '') !== compared.plan.presetName || comparePlan(state, compared.plan).length > 0;
+    },
+    generation: () => generation,
+    cleanName: sanitizePresetName,
+    setName: name => intents.setPresetName(name),
+    isConnected: () => transports.isConnected(),
+    confirm,
+    notify
+  }) : null;
+  const sources = { ...(library ? { presets: ({ host }) => library.open(host) } : {}), ...presetSources };
 
   const intents = createRuntimeIntents({
     store,
@@ -357,10 +415,9 @@ export async function boot(rootEl, {
     onSelectUnit: sendUnitType,
     onConnect: () => connect(),
     onDisconnect: disconnect,
-    onPresetAction: runPresetAction,
     onOpenPage: (key, host) => {
       try {
-        presetSources[key]({
+        sources[key]({
           host,
           importText,
           ampModel: () => (getDeviceIdentity() || {}).model ?? null,
@@ -372,8 +429,9 @@ export async function boot(rootEl, {
     }
   });
 
-  const layout = { ...RUNTIME_LAYOUT, pages: RUNTIME_LAYOUT.pages.filter(page => presetSources[page.key]) };
+  const layout = { ...RUNTIME_LAYOUT, pages: RUNTIME_LAYOUT.pages.filter(page => sources[page.key]) };
   const runtime = mountRuntime(rootEl, { store, intents, layout });
+  if (library) store.subscribe(() => library.update());
 
   return { transports, connect, disconnect, activate, importText };
 }

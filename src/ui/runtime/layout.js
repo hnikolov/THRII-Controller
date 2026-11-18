@@ -80,26 +80,11 @@ const DEFAULT_KNOBS = {
 };
 
 export const RUNTIME_LAYOUT = {
-  presetMenu: {
-    label: 'PRESETS',
-    // Shown in the top strip instead of the label, which stays the spoken name. The narrow icon lets the strip's two
-    // sides be equal, so the preset name sits on the screen centre.
-    icon: '☰',
-    // One titled section per group. value is the action the shell runs (intents.presetAction); title is the spoken
-    // name of an item whose label alone does not say what it does.
-    groups: [
-      { key: 'file', title: 'File', items: [{ value: 'import', label: 'Import' }, { value: 'export', label: 'Export' }] },
-      {
-        key: 'save',
-        title: 'Save to THR memory',
-        items: [1, 2, 3, 4, 5].map(slot => ({ value: `save:${slot}`, label: String(slot), title: `Save to THR memory ${slot}` }))
-      },
-      { key: 'all', title: 'All memories', items: [{ value: 'backup', label: 'Backup' }, { value: 'restore', label: 'Restore' }] }
-    ]
-  },
   // Screens that take the place of the knob area, each with a toggle button in the top strip. A page is offered only
-  // when the shell was given a source that fills it (boot's presetSources, by key).
-  pages: [{ key: 'importAi', label: 'AI' }],
+  // when boot has a source that fills it (the Presets page is boot's own; the others come from presetSources, by key).
+  // title is the spoken name of a button whose label is an icon. The narrow ☰ keeps the strip's two sides equal, so
+  // the preset name sits on the screen centre.
+  pages: [{ key: 'presets', label: '☰', title: 'Presets' }, { key: 'importAi', label: 'AI' }],
   // Amp dropdown: one column per family, one row per position of the amp's selector.
   ampGroups: AMP_FAMILY_ORDER.map(key => ({ key, title: AMP_FAMILIES[key].title, items: AMP_FAMILIES[key].models })),
   ampVoices: AMP_VOICES,

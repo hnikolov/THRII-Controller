@@ -1,7 +1,6 @@
 // Dropdown control. A user pick calls onChange with the item value; store-driven updates use update() and never call it.
 // Items are strings (value and label alike) or { value, label, title, disabled } objects; title is the spoken name of
-// an item whose label is too short to stand alone. groups are titled lists of items: columns, or with the class
-// is-sections stacked sections. rowLabels name the rows of grouped columns (the n-th item of every group).
+// an item whose label is too short to stand alone. groups are titled lists of items, shown as columns. rowLabels name the rows of grouped columns (the n-th item of every group).
 const toItem = item => (typeof item === 'string' ? { value: item, label: item } : item);
 
 export class UnitSelectorView {

@@ -67,15 +67,17 @@ it('boot: the CONNECT button connects, activates, reads the Actual settings and 
   }
 });
 
-const menuLabels = app => [...app.container.querySelectorAll('.top-strip .unit-selector-option')].map(option => option.textContent);
+const pageButtons = app => [...app.container.querySelectorAll('.strip-page-button')].map(button => button.getAttribute('aria-label') || button.textContent);
 const hidden = (app, selector) => app.container.querySelector(selector).classList.contains('is-hidden');
 
-it('boot: a preset source adds its page button; a press shows its page and opens it with the page, the import and the amp model', async () => {
+it('boot: the Presets page is the app\'s own; a preset source adds its page button, and a press opens it with the page, the import and the amp model', async () => {
   const plain = await bootApp();
   try {
-    assertEqual(plain.container.querySelector('.strip-page-button'), null, 'no source, no button');
-    assertEqual(plain.container.querySelector('.ui-page'), null, 'and no page');
-    assertDeepEqual(menuLabels(plain), ['Import', 'Export', '1', '2', '3', '4', '5', 'Backup', 'Restore'], 'the preset menu');
+    assertDeepEqual(pageButtons(plain), ['Presets'], 'without a source: the Presets page only');
+    assertEqual(plain.container.querySelector('.strip-page-button').textContent, '☰', 'shown as an icon');
+    plain.page('☰');
+    assertDeepEqual([...plain.container.querySelectorAll('.pr-actions button')].map(button => button.textContent),
+      ['Import', 'Export', '+ Add', 'Save to amp ▾'], 'its actions');
   } finally {
     plain.cleanup();
   }
@@ -83,21 +85,23 @@ it('boot: a preset source adds its page button; a press shows its page and opens
   const opened = [];
   const app = await bootApp({ presetSources: { importAi: context => opened.push(context) } });
   try {
-    const button = app.container.querySelector('.strip-page-button');
+    assertDeepEqual(pageButtons(app), ['Presets', 'AI'], 'the source adds its button');
+    const button = app.container.querySelectorAll('.strip-page-button')[1];
+    const aiPage = app.container.querySelectorAll('.thr-app > .ui-page')[1];
+    const aiHidden = () => aiPage.classList.contains('is-hidden');
     assertDeepEqual([button.textContent, button.getAttribute('aria-pressed')], ['AI', 'false'], 'the button of the source');
-    assertDeepEqual([hidden(app, '.ui-body'), hidden(app, '.ui-page'), opened.length], [false, true, 0], 'the knobs show first');
+    assertDeepEqual([hidden(app, '.ui-body'), aiHidden(), opened.length], [false, true, 0], 'the knobs show first');
 
     app.page('AI');
     assertEqual(opened.length, 1, 'the source is opened once');
-    assertEqual(opened[0].host, app.container.querySelector('.thr-app > .ui-page'), 'the host is the page inside the app');
-    assertDeepEqual([hidden(app, '.ui-body'), hidden(app, '.ui-page'), button.getAttribute('aria-pressed')], [true, false, 'true'], 'the page shows');
+    assertEqual(opened[0].host, aiPage, 'the host is the page inside the app');
+    assertDeepEqual([hidden(app, '.ui-body'), aiHidden(), button.getAttribute('aria-pressed')], [true, false, 'true'], 'the page shows');
 
     app.page('AI');
-    assertDeepEqual([hidden(app, '.ui-body'), hidden(app, '.ui-page'), opened.length], [false, true, 1], 'the next press returns to the knobs');
+    assertDeepEqual([hidden(app, '.ui-body'), aiHidden(), opened.length], [false, true, 1], 'the next press returns to the knobs');
     app.page('AI');
     assertDeepEqual([opened.length, opened[1].host === opened[0].host], [2, true], 'every showing opens the source again, with the same page');
     assertEqual(opened[0].ampModel(), null, 'no amp model before a connect');
-    assertEqual(app.container.querySelector('.top-strip [aria-label="PRESETS actions"] .unit-selector-label').textContent, '☰', 'the presets menu is an icon, its spoken name kept');
     opened[0].setActivity(true);
     assertEqual(button.classList.contains('is-active'), true, 'the source\'s activity shows on its button');
     opened[0].setActivity(false);

@@ -1,14 +1,11 @@
 import { PRESET_NAME_MAX } from '../../domain/presetModel.js';
-import { UnitSelectorView } from './unitSelectorView.js';
 
-// Top strip (presets, page toggles, user memory label, connection) and footer (memory slots 1..5).
+// Top strip (page toggles, user memory label, connection) and footer (memory slots 1..5).
 // The active slot, preset name and modified flag come from the store; typing in the label sets the preset name there.
 export class MemoryView {
-  constructor({ presetMenu, pages = [], onSelectSlot, onConnect, onPreset, onPage, onName, slotCount = 5 }) {
-    this.presetMenu = presetMenu;
+  constructor({ pages = [], onSelectSlot, onConnect, onPage, onName, slotCount = 5 }) {
     this.pages = pages;
     this.pageButtons = new Map();
-    this.onPreset = onPreset;
     this.onPage = onPage;
     this.onName = onName;
     this.onSelectSlot = onSelectSlot;
@@ -26,24 +23,16 @@ export class MemoryView {
 
     const presetSlot = document.createElement('div');
     presetSlot.className = 'strip-item has-pages';
-    this.presetSelector = new UnitSelectorView({
-      ariaLabel: `${this.presetMenu.label} actions`,
-      className: `align-left is-sections${this.presetMenu.icon ? ' is-icon' : ''}`,
-      groups: this.presetMenu.groups,
-      displayValue: this.presetMenu.icon || this.presetMenu.label,
-      onChange: (action) => {
-        // The menu is a list of actions, not a choice: no item stays selected.
-        this.presetSelector.update({ value: '' });
-        this.onPreset(action);
-      }
-    }).mount(presetSlot);
-    this.presetSelector.update({ value: '' });
 
-    this.pages.forEach(({ key, label }) => {
+    this.pages.forEach(({ key, label, title }) => {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'strip-page-button';
+      button.className = title ? 'strip-page-button is-icon' : 'strip-page-button';
       button.textContent = label;
+      if (title) {
+        button.setAttribute('aria-label', title);
+        button.title = title;
+      }
       button.addEventListener('click', () => this.onPage(key));
       this.pageButtons.set(key, button);
       presetSlot.append(button);

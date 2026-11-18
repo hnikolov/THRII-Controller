@@ -69,9 +69,10 @@ function dumpFramesFor(patch) {
 }
 
 // A booted app with stubbed file dialogs and confirm, for driving the runtime through its DOM.
-// presetSources goes to boot as it is (the plug-in hook of the pages). menu() takes an item's spoken name, or its
-// label when it has none; page() presses a page button of the top strip.
-// files.next is the file the next Import or Restore pick returns; files.saved collects the downloads.
+// presetSources goes to boot as it is (the plug-in hook of the pages). presets() presses a button of the Presets page
+// by its spoken name, or its label when it has none, showing the page first; 'Save to THR memory N' opens the memory
+// row on the way. page() presses a page button of the top strip by its label.
+// files.next is the file (or a list of files, for Import) the next pick returns; files.saved collects the downloads.
 // With connect: the fake amp answers the activation and every dump request (Actual and memories) with the captured
 // Actual dump, and the app is connected and filled before this resolves. With takesUploads the fake amp behaves like
 // the real one for an upload to the Actual settings: it then answers Actual reads with the uploaded patch.
@@ -82,6 +83,7 @@ export async function bootApp({ connect = false, takesUploads = false, presetSou
     next: null,
     saved: [],
     pickText: async () => files.next,
+    pickTexts: async () => [].concat(files.next || []),
     download: (name, text) => files.saved.push({ name, text }),
     choose: async name => ({ write: async text => { files.saved.push({ name, text }); } })
   };
@@ -105,18 +107,24 @@ export async function bootApp({ connect = false, takesUploads = false, presetSou
     status: () => container.querySelector('.status-toast').textContent,
     knob: label => container.querySelector(`[aria-label="${label} control"]`),
     nameBox: () => container.querySelector('[aria-label="User memory label"]'),
-    menu(itemLabel) {
-      container.querySelector('[aria-label="PRESETS actions"]').click();
-      [...container.querySelectorAll('.top-strip .unit-selector-option')]
-        .find(option => (option.getAttribute('aria-label') || option.textContent) === itemLabel).click();
+    presets(label) {
+      const pageButton = container.querySelector('.strip-page-button[aria-label="Presets"]');
+      if (pageButton.getAttribute('aria-pressed') !== 'true') pageButton.click();
+      const press = name => [...container.querySelectorAll('.pr-screen button')]
+        .find(button => (button.getAttribute('aria-label') || button.textContent) === name).click();
+      if (label.startsWith('Save to THR memory')) press('Save to amp memory');
+      press(label);
     },
     page(label) {
       [...container.querySelectorAll('.strip-page-button')].find(button => button.textContent === label).click();
     },
+    // The Presets list lives in the browser's storage; it is cleared here, so no test sees another's entries. A test
+    // that checks the list over a reload boots the second app before cleaning up the first.
     cleanup() {
       app.disconnect();
       amp.uninstall();
       container.remove();
+      localStorage.removeItem('thrii.presets');
     }
   };
 

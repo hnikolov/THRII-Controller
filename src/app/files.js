@@ -18,6 +18,21 @@ export function pickText(accept) {
   });
 }
 
+// Several files at once (same rules as pickText). Resolves to [{ name, text }], empty when the dialog is cancelled.
+export function pickTexts(accept) {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.multiple = true;
+    input.addEventListener('cancel', () => resolve([]));
+    input.addEventListener('change', () => {
+      Promise.all([...(input.files || [])].map(file => file.text().then(text => ({ name: file.name, text })))).then(resolve, reject);
+    });
+    input.click();
+  });
+}
+
 // Lets the user choose where a file goes (folder and name), in browsers with a save dialog; elsewhere the file becomes
 // a download to the browser's download folder. Call it straight from a user gesture: the dialog opens only then.
 // The content can come later (a backup is read from the amp after the place is chosen).

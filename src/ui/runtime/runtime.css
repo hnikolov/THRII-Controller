@@ -83,11 +83,8 @@ body {
   text-transform: uppercase;
 }
 
-/* Above the amp card (.amp-head, 95), so the open preset menu is not painted under it. */
 /* Equal sides: the preset name sits on the screen centre whatever the buttons beside it read. */
 .top-strip {
-  position: relative;
-  z-index: 100;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   gap: 14px;
   padding: 0 8px;
@@ -234,16 +231,10 @@ body {
   to { opacity: 0.25; }
 }
 
-/* The presets menu as an icon: no caret, a larger glyph. */
-.unit-selector.is-icon .unit-selector-button {
-  min-width: 28px;
-  justify-content: center;
+/* A page button whose label is an icon (☰ for Presets): a larger glyph. */
+.strip-page-button.is-icon {
   font-size: 16px;
   line-height: 1;
-}
-
-.unit-selector.is-icon .unit-selector-caret {
-  display: none;
 }
 
 /* The firmware version keeps its lower-case letter (1.44.0.a). */
@@ -878,59 +869,6 @@ button.module-badge:disabled {
 .unit-selector-row-label.is-current {
   color: var(--ink);
   font-weight: 800;
-}
-
-/* Sections (the presets menu): the groups are stacked, and the items of a group share a row under its title. */
-.unit-selector.is-sections.open .unit-selector-menu {
-  grid-auto-flow: row;
-  gap: 8px;
-  padding: 6px 8px 8px;
-}
-
-.unit-selector.is-sections .unit-selector-column {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 6px;
-}
-
-.unit-selector.is-sections .unit-selector-option {
-  flex: 1 1 0;
-}
-
-.unit-selector.is-sections .unit-selector-column-title {
-  flex: 0 0 100%;
-  padding: 0;
-  margin: 0;
-  border: 0;
-  color: var(--muted);
-  font-size: 9px;
-  letter-spacing: 0.06em;
-}
-
-.unit-selector.is-sections .unit-selector-option {
-  min-height: 28px;
-  border: 1px solid var(--line);
-  text-align: center;
-}
-
-/* The save targets look like the memory buttons of the footer strip. */
-.unit-selector.is-sections .group-save {
-  column-gap: 0;
-}
-
-.unit-selector.is-sections .group-save .unit-selector-option {
-  min-width: 40px;
-  background: linear-gradient(180deg, var(--gold-light) 0%, var(--gold) 100%);
-  color: #fff6da;
-}
-
-.unit-selector.is-sections .group-save .unit-selector-option + .unit-selector-option {
-  border-left: 0;
-}
-
-.unit-selector.is-sections .group-save .unit-selector-option:hover,
-.unit-selector.is-sections .group-save .unit-selector-option:focus-visible {
-  background: var(--gold-light);
 }
 
 .unit-selector.align-left .unit-selector-menu {

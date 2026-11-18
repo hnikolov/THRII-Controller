@@ -17,12 +17,10 @@ export class AppView {
     this.pages = new Map();
     this.shownPage = null;
     this.memory = new MemoryView({
-      presetMenu: layout.presetMenu,
       pages: layout.pages,
       onPage: key => this.togglePage(key),
       onSelectSlot: slot => this.intents.selectSlot(slot),
       onConnect: connected => (connected ? this.intents.disconnect() : this.intents.connect()),
-      onPreset: action => this.intents.presetAction(action),
       onName: name => this.intents.setPresetName(name)
     });
     this.statusTimer = null;

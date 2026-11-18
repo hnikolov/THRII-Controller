@@ -16,8 +16,8 @@ const toBase64 = bytes => btoa(String.fromCharCode(...bytes));
 const fromBase64 = text => Uint8Array.from(atob(text), ch => ch.charCodeAt(0));
 const today = () => new Date().toISOString().slice(0, 10);
 
-// The PRESETS menu actions (run) and the import of a preset text (importText). Export and Import work without an amp (on the store); with an amp, Import also sends the
-// preset and reads it back. Backup, Save and Restore need the amp.
+// The actions of the Presets screen (run) and the import of a preset text (importText). Export and import work without
+// an amp (on the store); with an amp, an import also sends the preset and reads it back. Backup, Save and Restore need the amp.
 // Import with an amp has two mechanisms. Quick (quickImport() true): one patch built from the preset is uploaded to the
 // Actual settings. Value by value: the type selects and parameter writes of the UI edits, with their pauses. The quick
 // one falls back to the other when its patch cannot be built or sent, or when the amp then differs from the preset.
@@ -28,18 +28,15 @@ export function createPresetFlow(deps) {
   const { store, sync, files, notify } = deps;
 
   // The save dialog lets the user pick the folder (and change the file name) where the browser has one.
+  // Resolves to the text written, or null when the dialog was cancelled.
   async function exportPreset() {
     const name = (store.getState().presetName || '').trim() || 'My Preset';
     const text = presetToText(storeToPreset(store.getState(), name));
     const target = await files.choose(presetFileName(name));
-    if (!target) return;
+    if (!target) return null;
     await target.write(text);
     notify('Exported ' + name);
-  }
-
-  async function importPreset() {
-    const file = await files.pickText('.thrl6p,application/json');
-    if (file) await importPresetText(file.text);
+    return text;
   }
 
   // The import of a .thrl6p text, wherever it comes from (a file, a preset source). Resolves to the message shown;
@@ -199,7 +196,7 @@ export function createPresetFlow(deps) {
     });
   }
 
-  const actions = { export: exportPreset, import: importPreset, backup, restore, save };
+  const actions = { export: exportPreset, backup, restore, save };
 
   const failed = (name, err) => {
     const message = `${name} failed: ${err.message}`;
@@ -208,13 +205,15 @@ export function createPresetFlow(deps) {
   };
 
   return {
-    // action: 'export', 'import', 'backup', 'restore' or 'save:1' .. 'save:5'. Failures are reported, never thrown.
+    // action: 'export', 'backup', 'restore' or 'save:1' .. 'save:5'. Resolves to the action's result (Export: the text
+    // written, or null); failures are reported and resolve to null, never thrown.
     async run(action) {
       const [name, slot] = action.split(':');
       try {
-        await actions[name](Number(slot));
+        return await actions[name](Number(slot));
       } catch (err) {
         failed(`${name[0].toUpperCase()}${name.slice(1)}`, err);
+        return null;
       }
     },
     // Imports a .thrl6p text. Resolves to { ok, message }, the message being the one shown; never throws.

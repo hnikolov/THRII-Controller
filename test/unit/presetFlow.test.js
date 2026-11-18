@@ -9,7 +9,7 @@ it('presets without an amp: import shows the preset, an edit changes it, export 
   const app = await bootApp();
   try {
     app.files.next = { name: 'EarlyVH.thrl6p', text: await sampleText() };
-    app.menu('Import');
+    app.presets('Import');
     await statusHas(app, 'Imported EarlyVH (amp not connected)');
     await until(() => app.knob('MASTER').getAttribute('aria-valuenow') === '69', 'the imported MASTER');
     assertEqual(app.nameBox().value, 'EarlyVH', 'name in the label');
@@ -18,7 +18,7 @@ it('presets without an amp: import shows the preset, an edit changes it, export 
     await until(() => app.knob('MASTER').getAttribute('aria-valuenow') === '70', 'the edited MASTER');
     assertEqual(app.status().includes('failed'), false, 'an offline edit reports no write failure');
 
-    app.menu('Export');
+    app.presets('Export');
     await statusHas(app, 'Exported EarlyVH');
     assertEqual(app.files.saved.length, 1, 'one file');
     assertEqual(app.files.saved[0].name, 'EarlyVH.thrl6p', 'file name');
@@ -33,24 +33,23 @@ it('presets without an amp: import shows the preset, an edit changes it, export 
   }
 });
 
-it('presets without an amp: a preset with an unknown name is refused and nothing changes; amp actions ask for the amp', async () => {
+it('presets without an amp: a preset with an unknown name is refused and nothing changes; the amp actions are off', async () => {
   const app = await bootApp();
   try {
     const json = JSON.parse(await sampleText());
     json.data.tone.THRGroupFX2Effect['@asset'] = 'TapeEcho';
     app.files.next = { name: 'bad.thrl6p', text: JSON.stringify(json) };
-    app.menu('Import');
+    app.presets('Import');
     await statusHas(app, 'Import failed');
     assertTrue(app.status().includes('TapeEcho'), 'the status names the problem');
     assertEqual(app.knob('MASTER').getAttribute('aria-valuenow'), null, 'store still empty');
 
-    app.menu('Export');
+    app.presets('Export');
     await statusHas(app, 'Export failed: There are no settings to export yet.');
-    app.menu('Backup');
-    await statusHas(app, 'Backup failed: connect the amp first');
-    app.menu('Save to THR memory 1');
-    await statusHas(app, 'Save failed: connect the amp first');
-    assertEqual(app.confirms.length, 0, 'no question before the amp is connected');
+    const off = ['Save to amp memory', 'Backup', 'Restore'].map(name => [...app.container.querySelectorAll('.pr-screen button')]
+      .find(button => (button.getAttribute('aria-label') || button.textContent) === name).disabled);
+    assertDeepEqual(off, [true, true, true], 'Save, Backup and Restore are off without an amp');
+    assertEqual(app.container.querySelectorAll('.pr-entry').length, 0, 'a refused file is not listed');
   } finally {
     app.cleanup();
   }
@@ -60,7 +59,7 @@ it('quick import: the preset goes to the amp as one upload, and the read-back ma
   const app = await bootApp({ connect: true, takesUploads: true });
   try {
     app.files.next = { name: 'EarlyVH.thrl6p', text: await sampleText() };
-    app.menu('Import');
+    app.presets('Import');
     await until(() => app.status() === 'Imported EarlyVH', 'the import without differences (got "' + app.status() + '")');
     assertDeepEqual(app.labels, [
       'TX sync: actual dump', ...[1, 2, 3, 4].map(n => `TX import upload ${n}/4`), 'TX sync: actual dump'
@@ -131,7 +130,7 @@ it('quick import: when the amp then differs, the preset is sent value by value; 
     flags.quickImport = quick;
     try {
       app.files.next = { name: 'EarlyVH.thrl6p', text: await sampleText() };
-      app.menu('Import');
+      app.presets('Import');
       await statusHas(app, 'Imported EarlyVH');
       const firstWrite = app.labels.indexOf('TX import Amp type');
       assertDeepEqual(app.labels.slice(0, firstWrite), quick
@@ -150,7 +149,7 @@ it('import value by value: the preset is sent with the edit frames, the amp is r
   flags.quickImport = false;
   try {
     app.files.next = { name: 'EarlyVH.thrl6p', text: await sampleText() };
-    app.menu('Import');
+    app.presets('Import');
     await statusHas(app, 'Imported EarlyVH');
 
     // Two frames (header and body) per type select and per value.
@@ -178,7 +177,7 @@ it('import value by value: the preset is sent with the edit frames, the amp is r
 it('save to a memory: reads the amp settings, uploads them, then recalls the memory and checks what it plays', async () => {
   const app = await bootApp({ connect: true });
   try {
-    app.menu('Save to THR memory 2');
+    app.presets('Save to THR memory 2');
     await statusHas(app, 'Saved to memory 2');
     await until(() => app.container.querySelector('.footer-memory-button.is-selected'), 'the selected memory');
     assertDeepEqual(app.confirms, ['Overwrite memory 2 on the amp?'], 'one question');
@@ -202,7 +201,7 @@ it('save to a memory: when the recalled memory differs, the previous content is 
     box.dispatchEvent(new Event('input', { bubbles: true }));
     await until(() => box.value === 'Nw/name', 'the sanitized name');
 
-    app.menu('Save to THR memory 3');
+    app.presets('Save to THR memory 3');
     await statusHas(app, 'Save failed; memory 3 has its previous content again');
     assertDeepEqual(app.confirms, [
       'Overwrite memory 3 on the amp?', 'Memory 3 does not hold what was sent. Put its previous content back?'
@@ -218,7 +217,7 @@ it('save to a memory: when the recalled memory differs, the previous content is 
 it('backup and restore: five memories go to a file and back, each verified; a file from other firmware is refused', async () => {
   const app = await bootApp({ connect: true });
   try {
-    app.menu('Backup');
+    app.presets('Backup');
     await statusHas(app, 'Backup saved');
     assertDeepEqual(app.labels, [1, 2, 3, 4, 5].map(n => `TX read memory ${n}`), 'five reads, nothing written');
     const backup = JSON.parse(app.files.saved[0].text);
@@ -228,14 +227,14 @@ it('backup and restore: five memories go to a file and back, each verified; a fi
 
     app.labels.length = 0;
     app.files.next = { name: 'backup.json', text: app.files.saved[0].text };
-    app.menu('Restore');
+    app.presets('Restore');
     await statusHas(app, 'Restored all five memories');
     assertEqual(app.files.saved.length, 2, 'a backup is taken before the restore');
     assertEqual(app.labels.filter(label => label.startsWith('TX save memory')).length, 35, 'five uploads of seven frames');
 
     app.labels.length = 0;
     app.files.next = { name: 'other.json', text: JSON.stringify({ ...backup, firmware: '1.40.0.a' }) };
-    app.menu('Restore');
+    app.presets('Restore');
     await statusHas(app, 'Restore failed: the backup is from another amp or firmware');
     assertDeepEqual(app.labels, [], 'nothing sent');
   } finally {
