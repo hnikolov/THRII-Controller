@@ -142,6 +142,8 @@ export function createAiPresetSource({
     const inputs = { prompt: promptInput, guitar: guitarInput, pickup: pickupInput };
     const removeButton = el('button', { type: 'button', class: 'ai-remove', title: 'Remove this version', text: '×' });
     const tabs = el('div', { class: 'ai-tabs', role: 'tablist', 'aria-label': 'Versions' });
+    // The × of the loaded version sits at the end of the tab row, beside the tabs it removes from.
+    const tabBar = el('div', { class: 'ai-tabbar' }, tabs, removeButton);
     const tip = el('p', { class: 'ai-tip' });
     const ampSelect = el('select', { 'aria-label': 'Amplifier' });
     const targetSelect = el('select', { 'aria-label': 'Target' });
@@ -152,11 +154,10 @@ export function createAiPresetSource({
 
     const form = el('form', { class: 'ai-request' },
       el('div', { class: 'ai-card' },
-        el('div', { class: 'ai-head' }, el('span', { text: 'Sound' }), removeButton),
-        promptInput,
+        field('Sound', promptInput),
         el('div', { class: 'ai-pair' }, field('Guitar', guitarInput), field('Pickups', pickupInput)),
         el('datalist', { id: 'ai-pickups' }, ...PICKUPS.map(value => el('option', { value })))),
-      tabs,
+      tabBar,
       tip,
       el('div', { class: 'ai-actions' }, ampSelect, targetSelect, goButton),
       statusLine);
@@ -221,7 +222,7 @@ export function createAiPresetSource({
       else if (saved.fields.target !== NEW && !LETTERS.includes(saved.fields.target)) saved.fields.target = nextTarget(sound);
       const target = saved.fields.target;
 
-      tabs.hidden = tip.hidden = removeButton.hidden = !version;
+      tabBar.hidden = tip.hidden = !version;
       tabs.replaceChildren(...(sound ? versionsOf(sound).map(each => tabButton(sound, each, each === version)) : []));
       tip.textContent = version ? version.tip : '';
       removeButton.setAttribute('aria-label', version ? `Remove version ${version.letter}` : 'Remove version');
@@ -425,7 +426,7 @@ export function createAiPresetSource({
 
     host.replaceChildren(el('section', { class: 'ai-screen', 'aria-label': 'Import AI' },
       form,
-      el('div', { class: 'ai-sounds' }, el('div', { class: 'ai-head', text: 'Sounds' }), list),
+      el('div', { class: 'ai-sounds' }, list),
       credit));
     render();
     loadAmps();

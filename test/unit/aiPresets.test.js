@@ -70,7 +70,7 @@ function setup({ ampModel = null, storage = fakeStorage(), importResult = () => 
     credit: () => find('.ai-screen > .ai-credit'),
     lastImport: () => describe(ctx.imported[ctx.imported.length - 1]),
     // The version tabs, the open one in brackets, e.g. 'A [B] C'; '' when there are none.
-    tabs: () => (find('.ai-tabs').hidden ? '' : all('.ai-tab').map(tab => (tab.getAttribute('aria-selected') === 'true' ? `[${tab.textContent}]` : tab.textContent)).join(' ')),
+    tabs: () => (find('.ai-tabbar').hidden ? '' : all('.ai-tab').map(tab => (tab.getAttribute('aria-selected') === 'true' ? `[${tab.textContent}]` : tab.textContent)).join(' ')),
     // The list, a line per sound: '> Name A [B]' with > for the loaded sound and the loaded version in brackets.
     rows: () => all('.ai-sound').map(row => `${row.classList.contains('is-selected') ? '> ' : ''}${row.querySelector('.ai-sound-name').textContent} ${
       [...row.querySelectorAll('.ai-letter')].map(letter => (letter.classList.contains('is-selected') ? `[${letter.textContent}]` : letter.textContent)).join(' ')}`),
