@@ -145,8 +145,6 @@
   margin: 0;
   padding: 6px 8px;
   overflow-y: auto;
-  user-select: text;
-  -webkit-user-select: text;
 }
 
 /* With this amp, make this, go. */

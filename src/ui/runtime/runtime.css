@@ -64,9 +64,13 @@ body {
   overflow: hidden;
   display: grid;
   grid-template-rows: auto 1fr auto;
+  /* A touch app: no text of the UI can be selected (only the text fields take it back), and a long press brings no
+     callout (iOS) and a tap no grey flash. */
   user-select: none;
   -webkit-user-select: none; /* Safari */
   -ms-user-select: none;     /* Old Edge */
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .top-strip,
