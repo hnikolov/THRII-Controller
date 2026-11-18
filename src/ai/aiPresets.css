@@ -230,7 +230,7 @@
 
 .ai-sound {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto 32px;
+  grid-template-columns: minmax(0, 1fr) auto 32px 32px;
   align-items: center;
   border-left: 3px solid transparent;
 }
@@ -286,11 +286,41 @@
   background: rgba(154, 111, 8, 0.18);
 }
 
-.ai-time {
-  padding: 0 4px 0 8px;
+.ai-sound-rename {
+  min-height: 26px;
+  margin-left: 4px;
+  border: 0;
+  background: transparent;
   color: var(--muted, #5f553f);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ai-sound-rename:hover,
+.ai-sound-rename:focus-visible {
+  outline: none;
+  background: rgba(154, 111, 8, 0.18);
+  color: var(--ink, #141414);
+}
+
+/* The rename field takes the name's place; text selection is switched off on the app frame, the field takes it back. */
+.ai-sound-input {
+  min-width: 0;
+  margin: 3px 4px 3px 2px;
+  padding: 3px 5px;
+  border: 1px solid var(--line, #3d3525);
+  border-radius: 0;
+  background: #f7f2e3;
+  color: var(--ink, #141414);
+  font: 700 13px var(--ui-font-family, Arial, Helvetica, sans-serif);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.ai-sound-input:focus {
+  outline: 2px solid var(--gold, #9a6f08);
+  outline-offset: -1px;
 }
 
 /* One line; the people's full names and roles are in their titles. */

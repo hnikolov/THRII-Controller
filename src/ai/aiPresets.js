@@ -8,16 +8,19 @@ import { AMP_ID_BY_MODEL, CREDIT, PICKUPS, SOUNDS_MAX } from './config.js';
 //
 // The screen (plan_ui_simple.md): the card is the loaded version, with its request in the fields and its tip under the
 // version tabs; the fields are also the draft of the next request. The action row makes a version of the loaded sound
-// or a new sound; the list holds every sound with its version letters.
+// or a new sound; the list holds every sound with its version letters. A sound is an umbrella the user may rename
+// (Metallica); each version keeps its own name, which the app's header shows once it is loaded.
 
 const STORAGE_KEY = 'thrii.aiPresets.v2';
 // The flat list of the first version of this screen; read once when there is nothing under STORAGE_KEY, and left in place.
 const OLD_STORAGE_KEY = 'thrii.aiPresets';
 const LETTERS = ['A', 'B', 'C', 'D', 'E'];
 const NEW = 'new';
-// The app cuts preset names at 20 characters; the sound's name plus a space and the letter stays within that, so the
-// name saved to an amp memory keeps the letter.
+// The app cuts preset names at 20 characters; a name plus a space and the letter stays within that, so the name saved
+// to an amp memory keeps the letter.
 const NAME_BASE_MAX = 18;
+// A sound's name is the list's umbrella for its versions and never goes to the amp; this keeps the rows tidy.
+const SOUND_NAME_MAX = 40;
 const UNREACHABLE = 'The preset generator cannot be reached. Start the app with "python scripts/serve.py".';
 const NO_AMP = 'No amp connected: a preset is loaded into the app only.';
 
@@ -39,7 +42,15 @@ const versionOf = (sound, letter) => sound.versions.find(version => version.lett
 // A sound's versions in letter order.
 const versionsOf = sound => LETTERS.map(letter => versionOf(sound, letter)).filter(Boolean);
 const newestTime = sound => Math.max(...sound.versions.map(version => version.time));
-const presetName = (sound, version) => `${sound.name.slice(0, NAME_BASE_MAX).trim()} ${version.letter}`;
+
+// The name a version is loaded with: its own (the generator's). Takes of one tone tend to come back with the same name,
+// so a version whose name an earlier letter of its sound already has gets its letter: "Walsh Hotel Solo B".
+function presetName(sound, version) {
+  const sameName = [...sound.versions.filter(other => other.letter !== version.letter), version]
+    .filter(other => other.name === version.name)
+    .sort((a, b) => LETTERS.indexOf(a.letter) - LETTERS.indexOf(b.letter));
+  return sameName[0] === version ? version.name : `${version.name.slice(0, NAME_BASE_MAX).trim()} ${version.letter}`;
+}
 
 // The letter a new version of the sound gets: the first free one; with all five taken, the one after the newest.
 function nextTarget(sound) {
@@ -191,12 +202,48 @@ export function createAiPresetSource({
       return button;
     };
 
+    // The sound being renamed ({ id, text }), or null. While it is, the list is not rebuilt (a generation may end
+    // meanwhile), so the field keeps its focus; the rename's end brings the list up to date.
+    let renaming = null;
+
+    // Ends a rename: the name is taken when kept and not empty. Enter, Escape and leaving the field can each end it;
+    // the first one does.
+    function endRename(keepText) {
+      if (!renaming) return;
+      const sound = soundOf(renaming.id);
+      const text = renaming.text.trim();
+      renaming = null;
+      if (sound && keepText && text) {
+        sound.name = text;
+        save();
+      }
+      render();
+    }
+
+    // The name of the sound, or the field that renames it.
+    function soundName(sound, versions) {
+      if (renaming && renaming.id === sound.id) {
+        const input = el('input', { type: 'text', class: 'ai-sound-input', 'aria-label': 'Sound name', maxlength: String(SOUND_NAME_MAX), autocomplete: 'off' });
+        input.value = renaming.text;
+        input.addEventListener('input', () => { renaming.text = input.value; });
+        input.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === 'Escape') {
+            event.preventDefault();
+            endRename(event.key === 'Enter');
+          }
+        });
+        input.addEventListener('blur', () => endRename(true));
+        return input;
+      }
+      const button = el('button', { type: 'button', class: 'ai-sound-name', title: `Load version ${versions[0].letter}`, text: sound.name });
+      button.addEventListener('click', () => load(sound, versions[0]));
+      return button;
+    }
+
     function soundRow(sound, loaded) {
       const selected = sound === currentSound();
       const versions = versionsOf(sound);
-      const time = new Date(newestTime(sound)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const nameButton = el('button', { type: 'button', class: 'ai-sound-name', title: `Load version ${versions[0].letter}`, text: sound.name });
-      nameButton.addEventListener('click', () => load(sound, versions[0]));
+      const nameNode = soundName(sound, versions);
       const letters = versions.map((version) => {
         const button = el('button', {
           type: 'button',
@@ -207,12 +254,29 @@ export function createAiPresetSource({
         button.addEventListener('click', () => load(sound, version));
         return button;
       });
+      // Any sound can be renamed, as any can be removed; renaming does not load it.
+      const renameButton = el('button', { type: 'button', class: 'ai-sound-rename', 'aria-label': `Rename ${sound.name}`, title: 'Rename', text: '✎' });
+      renameButton.addEventListener('click', () => {
+        renaming = { id: sound.id, text: sound.name };
+        renderList();
+        const input = list.querySelector('.ai-sound-input');
+        input.focus();
+        input.select();
+      });
       const deleteButton = el('button', { type: 'button', class: 'ai-sound-delete', 'aria-label': `Remove ${sound.name}`, title: 'Remove with all versions', text: '×' });
       deleteButton.addEventListener('click', () => removeSound(sound));
       const row = el('div', { class: selected ? 'ai-sound is-selected' : 'ai-sound' },
-        nameButton, el('span', { class: 'ai-letters' }, ...letters), el('span', { class: 'ai-time', text: time }), deleteButton);
+        nameNode, el('span', { class: 'ai-letters' }, ...letters), renameButton, deleteButton);
       if (selected) row.setAttribute('aria-current', 'true');
       return row;
+    }
+
+    function renderList() {
+      const version = currentVersion();
+      list.replaceChildren(...(saved.sounds.length ? saved.sounds.map(each => soundRow(each, version)) : [
+        el('p', { class: 'ai-hint', text: 'Describe the sound you are after: an artist, a song and the part of it work well.' }),
+        el('p', { class: 'ai-hint', text: 'The preset is loaded at once and kept here; ▶ again makes another version of it.' })
+      ]));
     }
 
     function render() {
@@ -236,10 +300,7 @@ export function createAiPresetSource({
       goButton.setAttribute('aria-label', job ? 'Cancel' : (target === NEW ? 'Generate a new sound' : `Generate version ${target}`));
       goButton.disabled = !job && (!reachable || !!importing);
 
-      list.replaceChildren(...(saved.sounds.length ? saved.sounds.map(each => soundRow(each, version)) : [
-        el('p', { class: 'ai-hint', text: 'Describe the sound you are after: an artist, a song and the part of it work well.' }),
-        el('p', { class: 'ai-hint', text: 'The preset is loaded at once and kept here; ▶ again makes another version of it.' })
-      ]));
+      if (!renaming) renderList();
       // While an import runs (about a second with an amp) nothing else may load or remove.
       host.querySelectorAll('.ai-tab, .ai-remove, .ai-sound button').forEach((button) => { button.disabled = !!importing; });
 

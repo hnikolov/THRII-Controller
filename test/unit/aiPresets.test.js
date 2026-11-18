@@ -166,7 +166,7 @@ it('import AI: ▶ sends the card as it is, the result is loaded with its letter
     ctx.backend.answer('abc', { presetName: 'Walsh <b>Hotel</b> Solo', tip: 'Roll the tone back.' });
     await ctx.settled();
     assertDeepEqual(ctx.backend.calls[2], { url: '/api/presets/abc/export', method: 'GET', body: null }, 'export call');
-    assertDeepEqual(ctx.imported.map(describe), ['abc:Walsh <b>Hotel</b> A'], 'imported once, named after the sound (cut to 18) and the letter');
+    assertDeepEqual(ctx.imported.map(describe), ['abc:Walsh <b>Hotel</b> Solo'], 'imported once, with the generator\'s name');
     assertDeepEqual([ctx.tabs(), ctx.text('.ai-tip')], ['[A]', 'Roll the tone back.'], 'the card shows version A');
     assertDeepEqual(ctx.rows(), ['> Walsh <b>Hotel</b> Solo [A]'], 'the sound in the list, its name as text');
     assertEqual(ctx.find('.ai-sound-name b'), null, 'markup in a name is not rendered');
@@ -187,7 +187,7 @@ it('import AI: versions of a sound carry their own request; a tab loads its vers
     await ctx.generate(first, 'a', { presetName: 'Walsh', tip: 'tip a' });
     await ctx.generate({ Guitar: 'Les Paul', Pickups: 'Humbucker', Sound: 'Hotel California solo, more sustain' }, 'b', { presetName: 'Other name', tip: 'tip b' });
     assertDeepEqual(ctx.backend.calls[3].body.guitar, 'Les Paul', 'the edited guitar was sent');
-    assertDeepEqual([ctx.tabs(), ctx.text('.ai-tip'), ctx.lastImport()], ['A [B]', 'tip b', 'b:Walsh B'], 'B is the sound\'s second version, named after the sound');
+    assertDeepEqual([ctx.tabs(), ctx.text('.ai-tip'), ctx.lastImport()], ['A [B]', 'tip b', 'b:Other name'], 'B is the sound\'s second version, with its own name');
     assertDeepEqual(ctx.rows(), ['> Walsh A [B]'], 'one sound with two versions');
 
     // An edit marks the field that differs from the loaded version; a tab brings that version's request back.
@@ -198,7 +198,7 @@ it('import AI: versions of a sound carry their own request; a tab loads its vers
     await until(() => ctx.tabs() === '[A] B', 'version A');
     assertDeepEqual(['Sound', 'Guitar', 'Pickups'].map(label => ctx.field(label).value), ['Hotel California solo', 'Strat', ''], 'A\'s request');
     assertEqual(ctx.host.querySelectorAll('.is-edited').length, 0, 'nothing marked');
-    assertDeepEqual([ctx.text('.ai-tip'), ctx.lastImport(), ctx.backend.calls.length], ['tip a', 'a:Walsh A', calls], 'A\'s tip and text, no request');
+    assertDeepEqual([ctx.text('.ai-tip'), ctx.lastImport(), ctx.backend.calls.length], ['tip a', 'a:Walsh', calls], 'A\'s tip and text, no request');
     assertEqual(ctx.field('Target').value, 'C', 'the next free letter stays the target');
 
     // A list letter does the same as a tab.
@@ -241,7 +241,7 @@ it('import AI: the target is the first free letter, then wraps from E to A; an e
     assertDeepEqual([ctx.confirms.pop(), ctx.backend.pending], ['Replace version A of Preset a?', null], 'asked, nothing sent');
     ctx.time += 60 * 1000;
     await ctx.generate({}, 'a2');
-    assertDeepEqual([ctx.tabs(), ctx.lastImport(), ctx.field('Target').value], ['[A] B C D E', 'a2:Preset a A', 'B'], 'A replaced; B is next');
+    assertDeepEqual([ctx.tabs(), ctx.lastImport(), ctx.field('Target').value], ['[A] B C D E', 'a2:Preset a2', 'B'], 'A replaced; B is next');
 
     // A new sound keeps the card's text and starts at A, on top of the list.
     ctx.setTarget('new');
@@ -268,7 +268,7 @@ it('import AI: the card × removes the loaded version and loads the first left; 
 
     ctx.find('[aria-label="Remove version A"]').click();
     await until(() => ctx.tabs() === '[B]', 'A removed');
-    assertDeepEqual([ctx.lastImport(), ctx.rows()], ['b:One B', ['Two A', '> One [B]']], 'B, the first left, is loaded; loading does not reorder');
+    assertDeepEqual([ctx.lastImport(), ctx.rows()], ['b:x', ['Two A', '> One [B]']], 'B, the first left, is loaded; loading does not reorder');
     assertEqual(ctx.confirms.length, 0, 'a version goes without a question');
 
     // The last version: the sound goes after a yes; the card keeps its text and only a new sound can be made.
@@ -309,7 +309,7 @@ it('import AI: the target is fixed at the press; the result goes to its sound ev
     ctx.letter('Santana', 'A');
     await until(() => ctx.rows()[0] === '> Santana [A]', 'Santana loaded while generating');
     ctx.backend.answer('w2', { presetName: 'x', tip: '' });
-    await until(() => ctx.lastImport() === 'w2:Walsh B', 'the result');
+    await until(() => ctx.lastImport() === 'w2:x', 'the result');
     await ctx.settled();
     assertDeepEqual(ctx.rows(), ['> Walsh A [B]', 'Santana A'], 'Walsh got B and moved to the top; the card follows it');
     assertEqual(ctx.field('Sound').value, 'Hotel California solo, brighter', 'B\'s request in the card');
@@ -318,13 +318,71 @@ it('import AI: the target is fixed at the press; the result goes to its sound ev
   }
 });
 
-it('import AI: the preset name with its letter stays within the app\'s 20 characters', async () => {
+it('import AI: a version keeps its own name; one an earlier letter of its sound already has gets its letter, within the app\'s 20 characters', async () => {
   const ctx = setup();
   try {
     await ctx.open();
-    await ctx.generate(first, 'long', { presetName: 'A Very Long Preset Name Indeed', tip: '' });
-    const name = JSON.parse(ctx.imported[0]).data.meta.name;
-    assertDeepEqual([name, name.length], ['A Very Long Preset A', 20], 'cut to 18, then the letter');
+    const long = { presetName: 'A Very Long Preset Name Indeed', tip: '' };
+    await ctx.generate(first, 'a', long);
+    await ctx.generate({}, 'b', long);
+    await ctx.generate({}, 'c', { presetName: 'Clean Intro', tip: '' });
+    assertDeepEqual(ctx.imported.map(describe), ['a:A Very Long Preset Name Indeed', 'b:A Very Long Preset B', 'c:Clean Intro'],
+      'A as generated (the app cuts it), B with its letter after 18 characters, C its own');
+
+    // Replacing A with the same name again: A is still the first of that name and keeps it plain.
+    ctx.setTarget('A');
+    await ctx.generate({}, 'a2', long);
+    assertEqual(ctx.lastImport(), 'a2:A Very Long Preset Name Indeed', 'A plain');
+    ctx.tab('B');
+    await until(() => ctx.tabs() === 'A [B] C', 'B');
+    assertEqual(ctx.lastImport(), 'b:A Very Long Preset B', 'B keeps its letter');
+  } finally {
+    ctx.cleanup();
+  }
+});
+
+it('import AI: any sound can be renamed in the list, without loading it; its versions keep their names', async () => {
+  const ctx = setup();
+  try {
+    await ctx.open();
+    await ctx.generate(first, 'r', { presetName: 'Rhythm', tip: '' });
+    ctx.setTarget('new');
+    await ctx.generate({}, 'o', { presetName: 'Other', tip: '' });
+    ctx.setTarget('B');
+    await ctx.generate({}, 'o2', { presetName: 'Solo', tip: '' });
+    assertDeepEqual(ctx.host.querySelectorAll('.ai-sound-rename').length, 2, 'every sound offers a rename');
+    assertEqual(ctx.text('.ai-time'), null, 'no times in the list');
+
+    // A sound that is not loaded: renamed in place, nothing imported, the loaded one stays.
+    const imports = ctx.imported.length;
+    ctx.find('[aria-label="Rename Rhythm"]').click();
+    ctx.type('Sound name', 'Santana');
+    ctx.field('Sound name').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    assertDeepEqual([ctx.rows(), ctx.imported.length], [['> Other A [B]', 'Santana A'], imports], 'renamed, not loaded');
+
+    const rename = async (text, key) => {
+      ctx.find('[aria-label="Rename Other"], [aria-label="Rename Metallica"]').click();
+      const input = ctx.field('Sound name');
+      assertEqual(document.activeElement, input, 'the field has the focus');
+      input.value = text;
+      input.dispatchEvent(new Event('input'));
+      input.dispatchEvent(new KeyboardEvent('keydown', { key }));
+    };
+    await rename('  Metallica ', 'Enter');
+    assertDeepEqual(ctx.rows(), ['> Metallica A [B]', 'Santana A'], 'renamed, trimmed');
+    await rename('Megadeth', 'Escape');
+    assertDeepEqual(ctx.rows()[0], '> Metallica A [B]', 'Escape keeps the name');
+    await rename('   ', 'Enter');
+    assertDeepEqual(ctx.rows()[0], '> Metallica A [B]', 'an empty name keeps the old one');
+    assertEqual(ctx.field('Sound name'), null, 'the field is gone');
+
+    ctx.letter('Metallica', 'A');
+    await until(() => ctx.tabs() === '[A] B', 'A');
+    assertEqual(ctx.lastImport(), 'o:Other', 'the version keeps its own name');
+    assertEqual(JSON.parse(ctx.storage.items['thrii.aiPresets.v2']).sounds[0].name, 'Metallica', 'the name is stored');
+    ctx.answers.push(false);
+    ctx.find('[aria-label="Remove Metallica"]').click();
+    assertEqual(ctx.confirms.pop(), 'Remove Metallica (2 versions)?', 'the question uses the new name');
   } finally {
     ctx.cleanup();
   }
