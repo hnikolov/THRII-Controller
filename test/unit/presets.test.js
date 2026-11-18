@@ -104,6 +104,23 @@ it('presets screen: rename (the loaded one also in the header), remove after a y
     assertDeepEqual(rows(app).map(line => line.split(' (')[0]), ['Ico Solo 1', 'Crunch Ico LP'], 'filtered by name');
     assertEqual(app.container.querySelector('.pr-count').textContent, '2 / 10', 'the count');
 
+    // The search also matches the amp model; a tap on a row's amp model shows only that model, until the chip clears it.
+    const names = () => rows(app).map(line => line.split(' (')[0]);
+    search.value = 'lead';
+    search.dispatchEvent(new Event('input'));
+    assertDeepEqual(names(), ['Walsh Hotel Solo', 'Samba Sustain', 'Samba Pa Ti Bloom'], 'matched by amp model');
+    search.value = '';
+    search.dispatchEvent(new Event('input'));
+    const chip = app.container.querySelector('[aria-label="Clear amp filter"]');
+    assertEqual(chip.hidden, true, 'no amp filter yet');
+    app.container.querySelector('[aria-label="Show only Deluxe"]').click();
+    assertDeepEqual([names(), chip.hidden, chip.textContent, app.container.querySelector('.pr-count').textContent],
+      [['One 1 wip', 'Clean Megadeth'], false, 'Deluxe ×', '2 / 10'], 'only the Deluxe presets, and the chip');
+    chip.click();
+    assertDeepEqual([names().length, chip.hidden], [10, true], 'cleared');
+    search.value = 'ico';
+    search.dispatchEvent(new Event('input'));
+
     // The loaded entry's rename goes to the header too, and is no edit.
     [...app.container.querySelectorAll('.pr-name')].find(button => button.textContent === 'Crunch Ico LP').click();
     await until(() => app.nameBox().value === 'Crunch Ico LP', 'loaded');

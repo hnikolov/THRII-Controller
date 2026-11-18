@@ -184,8 +184,12 @@
   font: 700 13px var(--ui-font-family, Arial, Helvetica, sans-serif);
 }
 
+/* The amp model: a tap shows only the presets of that model. */
 .pr-amp {
+  align-self: stretch;
   padding: 0 6px;
+  border: 0;
+  background: transparent;
   color: var(--muted, #5f553f);
   font-size: 10px;
   font-weight: 700;
@@ -204,8 +208,24 @@
   line-height: 1;
 }
 
+/* The amp filter in force; a tap clears it. */
+.pr-chip {
+  min-height: 26px;
+  padding: 0 8px;
+  border: 0;
+  background: var(--gold, #9a6f08);
+  color: #fff6da;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .pr-name:hover:not(:disabled),
 .pr-name:focus-visible,
+.pr-amp:hover:not(:disabled),
+.pr-amp:focus-visible,
 .pr-icon:hover:not(:disabled),
 .pr-icon:focus-visible {
   outline: none;

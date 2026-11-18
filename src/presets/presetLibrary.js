@@ -68,7 +68,9 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
   // An import of this screen runs: the rows take no input.
   let busy = false;
   let slotsOpen = false;
+  // The list's filters: the search text (matched against name and amp model) and an amp model picked from a row.
   let query = '';
+  let ampFilter = null;
   // The entry being renamed ({ id, text }); the list is not rebuilt meanwhile, so the field keeps its focus.
   let renaming = null;
   let view = null;
@@ -242,7 +244,10 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
       : el('span');
     const node = el('div', { class: isLoaded ? 'pr-entry is-selected' : 'pr-entry' },
       nameNode(entry, isLoaded),
-      el('span', { class: 'pr-amp', text: entry.amp }),
+      button({ class: 'pr-amp', 'aria-label': `Show only ${entry.amp}`, title: `Show only ${entry.amp}`, text: entry.amp }, () => {
+        ampFilter = ampFilter === entry.amp ? null : entry.amp;
+        renderList();
+      }),
       update,
       button({ class: 'pr-icon', 'aria-label': `Rename ${entry.name}`, title: 'Rename', text: '✎' }, () => startRename(entry)),
       button({ class: 'pr-icon pr-remove', 'aria-label': `Remove ${entry.name}`, title: 'Remove from the list', text: '×' }, () => remove(entry)));
@@ -253,8 +258,12 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
   function renderList() {
     const current = loadedEntry();
     const match = query.trim().toLowerCase();
-    const shown = saved.entries.filter(entry => entry.name.toLowerCase().includes(match));
-    view.search.hidden = saved.entries.length < SEARCH_FROM;
+    const shown = saved.entries.filter(entry => (!ampFilter || entry.amp === ampFilter)
+      && (entry.name.toLowerCase().includes(match) || entry.amp.toLowerCase().includes(match)));
+    // An amp filter also shows on a short list, so it can be cleared.
+    view.search.hidden = saved.entries.length < SEARCH_FROM && !ampFilter;
+    view.ampChip.hidden = !ampFilter;
+    view.ampChip.textContent = `${ampFilter} ×`;
     view.count.textContent = `${shown.length} / ${saved.entries.length}`;
     view.list.replaceChildren(...(saved.entries.length ? shown.map(entry => row(entry, current)) : [
       el('p', { class: 'pr-hint', text: 'Import preset files — several at once, if you like.' }),
@@ -291,10 +300,14 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
       if (!renaming) renderList();
     });
     const count = el('span', { class: 'pr-count' });
+    const ampChip = button({ class: 'pr-chip', 'aria-label': 'Clear amp filter' }, () => {
+      ampFilter = null;
+      renderList();
+    });
     const list = el('div', { class: 'pr-list' });
     const backup = button({ class: 'pr-action', text: 'Backup' }, () => run('backup'));
     const restore = button({ class: 'pr-action', text: 'Restore' }, () => run('restore'));
-    view = { saveToggle, slots, search: el('div', { class: 'pr-search' }, searchInput, count), count, list, backup, restore };
+    view = { saveToggle, slots, search: el('div', { class: 'pr-search' }, searchInput, ampChip, count), count, ampChip, list, backup, restore };
 
     host.replaceChildren(el('section', { class: 'pr-screen', 'aria-label': 'Presets' },
       el('div', { class: 'pr-actions' },
