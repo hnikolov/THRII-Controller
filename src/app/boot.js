@@ -3,18 +3,15 @@ import { sleep } from '../core/bytes.js';
 import { flags } from '../core/flags.js';
 import { createEmptyDeviceState, createStore } from '../state/shadowStore.js';
 import { findParamById } from '../state/selectors.js';
-import { applyDeviceEvent } from '../state/applyDeviceEvent.js';
-import { applyDumpPatch } from '../state/applyDumpPatch.js';
+import { applyDeviceEvent, applyDumpPatch } from '../state/applyDeviceEvent.js';
 import { comparePlan, typeCodeOfKind } from '../state/applyPreset.js';
 import { parseThrl6Preset, presetToPlan, presetToText, sanitizePresetName, storeToPreset } from '../domain/presetModel.js';
 import { createWriteScheduler } from '../protocol/writeScheduler.js';
-import { buildParamWriteFrames } from '../protocol/paramWrite.js';
-import { buildSelectUnitType, buildSelectPreset } from '../protocol/builders.js';
+import { buildParamWriteFrames, buildSelectUnitType, buildSelectPreset } from '../protocol/builders.js';
 import { thrTypeCode } from '../protocol/constants.js';
 import { decodeIncomingEvent } from '../protocol/incoming.js';
 import { extractSysexFrames } from '../protocol/frames.js';
-import { formatFirmwareVersion, getDeviceIdentity, parseIdentityReply, setDeviceIdentity } from '../protocol/identity.js';
-import { runActivation } from '../protocol/activation.js';
+import { formatFirmwareVersion, getDeviceIdentity, parseIdentityReply, runActivation, setDeviceIdentity } from '../protocol/identity.js';
 import { loadSymbolTable, makeNameOf, makeLiveIdOf, makeIdOfName, makeStateIdOf } from '../protocol/symbolTable.js';
 import { createSyncFlow } from '../protocol/syncFlow.js';
 import { createRuntimeIntents } from '../ui/runtime/intents.js';
@@ -22,7 +19,7 @@ import { RUNTIME_LAYOUT } from '../ui/runtime/layout.js';
 import { mountRuntime } from '../ui/runtime/mount.js';
 import { choose, download, pickText, pickTexts } from './files.js';
 import { createPresetFlow } from './presetFlow.js';
-import { createPresetLibrary } from '../presets/presetLibrary.js';
+import { createPresetLibrary } from '../ui/presets/presetLibrary.js';
 
 const SYMBOL_TABLE_URL = new URL('../data/thr10ii_w_symbol_table_1_44_0_a.json', import.meta.url);
 
@@ -35,7 +32,7 @@ const DEFAULT_WRITE_GAP_MS = 50;
 // Composition root shared by the shells: transports, store, sync flow, write scheduler, intents, and the mounted runtime.
 // fixture (dev only) is a captured device model { units, activeSlot, identity }; with it a slot press simulates the device's slot event.
 // sleep, files and confirm are replaceable so tests do not wait out the protocol pauses or open browser dialogs.
-// The Presets page is the app's own (src/presets, always there when the symbol table loads); presetSources maps further
+// The Presets page is the app's own (src/ui/presets, always there when the symbol table loads); presetSources maps further
 // pages of the layout (importAi) to a function open({ host, importText, ampModel, setActivity }) that
 // the shell plugs in. It is called every time the page is shown: host is the page's element, which the source fills on
 // the first call and keeps, importText(text) imports a .thrl6p text and resolves to { ok, message }, ampModel() is the
@@ -215,7 +212,7 @@ export async function boot(rootEl, {
     }
   };
 
-  // The CONNECT button passes no kind: BLE first, and USB if BLE is cancelled or unavailable (the order decided in plan.md).
+  // The CONNECT button passes no kind: BLE first, and USB if BLE is cancelled or unavailable.
   // With autoActivate the activation and the Actual read follow. The dev buttons pass 'ble' or 'usb'.
   async function connect(kind = null) {
     let used = kind || 'ble';

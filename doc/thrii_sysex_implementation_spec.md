@@ -7,7 +7,7 @@ Primary target:
 - Reliable full parsing for incoming THR-II SysEx traffic, including multi-frame payload series.
 
 Scope for current repo:
-- Start in [thrii_ctrl.html](thrii_ctrl.html) as namespaced sections.
+- Start in `thrii_ctrl.html` (the legacy prototype, git tag `legacy-prototype`) as namespaced sections.
 - Keep architecture modular so it can be extracted into separate files later.
 
 Related references:
@@ -420,7 +420,7 @@ Must include:
 ## 12) Integration plan for this repository
 
 Phase A:
-- Introduce namespaced protocol section in [thrii_ctrl.html](thrii_ctrl.html).
+- Introduce namespaced protocol section in `thrii_ctrl.html` (the legacy prototype, git tag `legacy-prototype`).
 - Add low-level codec + helper APIs.
 
 Phase B:

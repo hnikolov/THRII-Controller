@@ -42,14 +42,14 @@ Open `http://localhost:8080/test/runner.html`. The page shows `PASS n FAIL m` at
 python scripts/run_tests.py
 ```
 
-Added in Phase 9 (step 9F of `plan_pwa.md`). It starts a local server on a free port, opens `test/runner.html` in the installed Chrome without a window (headless, in a throw-away profile), waits for the run to finish, prints the summary and the failures, and exits with a non-zero code when any test fails. It needs Chrome and Python, nothing else, and works offline.
+It starts a local server on a free port, opens `test/runner.html` in the installed Chrome without a window (headless, in a throw-away profile), waits for the run to finish, prints the summary and the failures, and exits with a non-zero code when any test fails. It needs Chrome and Python, nothing else, and works offline.
 
 ### Automatically on every push
 
-The GitHub Pages workflow (`.github/workflows/pages.yml`, Phase 9) runs the release check and `scripts/run_tests.py` on GitHub's runner before it publishes the app. A failing test stops the deploy, so it never reaches the installed apps.
+The GitHub Pages workflow (`.github/workflows/pages.yml`) runs the release check and `scripts/run_tests.py` on GitHub's runner before it publishes the app. A failing test stops the deploy, so it never reaches the installed apps.
 
 ## Other checks
 
-- **Release check:** `python scripts/check_release.py` (Phase 9) checks that the published file list is complete, contains no debug code, and that the version stamp is current.
+- **Release check:** `python scripts/check_release.py` checks that the published file list is complete, contains no debug code, and that the version stamp is current.
 - **Standing gates:** the import rules in `CLAUDE.md` (no debug imports in runtime code, no protocol imports in the runtime UI, every state change through `commit`), checked with grep after changes.
-- **Hardware:** the real amp over USB and Bluetooth is tested by hand with `dev.html`, following the checklists in the plans. Unit tests cannot replace this; a change is called verified on hardware only after such a check.
+- **Hardware:** the real amp over USB and Bluetooth is tested by hand with `dev.html` (connect, knobs, memory slots, preset import and export, Import AI). Unit tests cannot replace this; a change is called verified on hardware only after such a check.

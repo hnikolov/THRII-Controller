@@ -49,7 +49,7 @@
     const isMock = new URLSearchParams(location.search).get('source') === 'mock';
     const fixture = isMock ? await (await fetch('./test/fixtures/mockState.json')).json() : null;
 
-    // Runtime pane (left): the same composition as thrii_ui.html. Its CONNECT button and the buttons here share one connection.
+    // Runtime pane (left): the same composition as index.html (without its app-shell parts: offline cache, update, wake lock). Its CONNECT button and the buttons here share one connection.
     const app = await boot(document.getElementById('runtime-pane'), {
       fixture,
       presetSources: (await aiAvailable()) ? { importAi: aiPresetSource } : {},

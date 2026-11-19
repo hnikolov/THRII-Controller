@@ -2,7 +2,7 @@
 
 This file redraws the topology from the **text** of [architecture.md](architecture.md) ("Runtime model and ownership", "Essential runtime flows", "Runtime-flow summary", "Parallel debug observer pattern"). The original ASCII diagram in the "Topology" section of architecture.md is kept unchanged so the two can be compared.
 
-Scope: runtime path (PWA release) plus the dev-only debug observer. Nothing in this diagram is implemented yet; it is the target described by [plan.md](plan.md).
+Scope: runtime path (PWA release) plus the dev-only debug observer. The modules under `src/` follow this layout.
 
 ```
                                     +------------------------+

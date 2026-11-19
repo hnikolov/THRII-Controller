@@ -1,8 +1,28 @@
 import { concatBytes, writeF32LE, writeU32LE } from '../core/bytes.js';
 import { resolveIdentity } from './identity.js';
-import { clamp01, normalizeOnOff } from '../core/values.js';
 import { thrDumpProtocol, thrKeys, thrOpcode, thrTypeCode } from './constants.js';
-import { nextCommandCounter } from './counter.js';
+
+let commandCounter = 3;
+
+// The amp goes silent when a header with counter 0x7f is followed by a body with 0x00. The counter therefore
+// restarts at 3 after 0x7e (thrii_sysex_bitbucket_ble.md, "Counter overflow").
+export function nextCommandCounter() {
+  const c = commandCounter;
+  commandCounter = commandCounter >= 0x7e ? 3 : commandCounter + 1;
+  return c;
+}
+
+export function clamp01(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(1, n));
+}
+
+export function normalizeOnOff(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value >= 0.5;
+  return null;
+}
 
 export function encodeBitBucket7Padded(rawBytes) {
   const groups = Math.max(1, Math.ceil(rawBytes.length / 7));
@@ -329,4 +349,43 @@ export function encodeShadowRawU32(typeCode, value, existingRaw = 0) {
   const n = Number(value);
   if (Number.isFinite(n)) return (Math.round(n) >>> 0);
   return Number(existingRaw) >>> 0;
+}
+
+// Frames for one parameter write (header + body). The raw value comes from the normalized store value.
+// Bool parameters (the effect enables) are written as float 1.0 / 0.0: the amp's own toggle frames use that form.
+export function buildParamWriteFrames(unitId, paramId, typeCode, value, existingRaw = 0) {
+  if (typeCode === thrTypeCode.bool) {
+    return buildSetParameter(unitId, paramId, thrTypeCode.float32, value ? 0x3f800000 : 0);
+  }
+  return buildSetParameter(unitId, paramId, typeCode, encodeShadowRawU32(typeCode, value, existingRaw));
+}
+
+// Pause between upload frames: the pacing of the original prototype, which the amp accepts.
+export const UPLOAD_PACE_MS = 18;
+
+// Frames that upload a patch (a dump payload without its 16-byte header) to a target: a memory
+// ({ kind: 'slot', value: 0..4 }) or the Actual settings ({ kind: 'actual' }). The amp takes both (hardware, 2026-11-13);
+// an upload to the Actual settings changes the sound at once and a read of them shows it.
+// Sequencing as in the original prototype, which the amp accepts (confirmed by ear on hardware, 2026-11-13): the header and
+// the body frames count up one by one, header pc 0, body pc from 1. (The protocol document shows body pc from 0;
+// that variant is untested here.) The counters are taken as one unbroken run, so the upload never spans the counter restart.
+export function buildUploadFrames(targetRef, patchRaw) {
+  const frameCount = 1 + Math.ceil(patchRaw.length / thrDumpProtocol.defaultUploadChunkDecodedSize);
+  let counters = [];
+  while (counters.length < frameCount) {
+    const counter = nextCommandCounter();
+    if (counters.length && counter !== counters[counters.length - 1] + 1) counters = [];
+    counters.push(counter);
+  }
+  return buildUploadUserSettingsFrames({ targetRef }, patchRaw, {
+    headerCounter: counters[0],
+    headerPc: 0,
+    bodyCounter: counters[1],
+    bodyPcStart: 1,
+    incrementBodyCounter: true
+  });
+}
+
+export function buildSlotUploadFrames(slotIndex, patchRaw) {
+  return buildUploadFrames({ kind: 'slot', value: slotIndex }, patchRaw);
 }

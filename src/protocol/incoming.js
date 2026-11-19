@@ -19,7 +19,7 @@ function decodeValue(typeCode, rawU32) {
 }
 
 // Decodes one complete inbound SysEx frame into a device event, or null when the frame is not one we handle.
-// Only group 0 frames are handled here; group 1 frames are dump data (decoded by the legacy parser for now).
+// Only group 0 frames are handled here; group 1 frames are dump data (dumpAssembly.js, then dumpParser.js).
 export function decodeIncomingEvent(rawFrame) {
   let parsed;
   try {

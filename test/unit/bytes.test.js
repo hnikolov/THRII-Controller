@@ -1,6 +1,6 @@
 import { it, assertEqual } from '../support/assert.js';
 import { concatBytes, parseSysExHex, toHex, writeF32LE, writeU32LE } from '../../src/core/bytes.js';
-import { clamp01, normalizeOnOff } from '../../src/core/values.js';
+import { clamp01, normalizeOnOff } from '../../src/protocol/builders.js';
 
 it('writeU32LE writes little-endian bytes', () => {
   assertEqual(toHex(writeU32LE(0x12345678)), '78 56 34 12', 'u32 bytes');

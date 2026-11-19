@@ -6,7 +6,7 @@ import { AMP_ID_BY_MODEL, CREDIT, PICKUPS, SOUNDS_MAX } from './config.js';
 // the shell, as open({ host, importText, ampModel, setActivity }) (see boot's presetSources). It never sets a knob or
 // sends a frame.
 //
-// The screen (plan_ui_simple.md): the card is the loaded version, with its request in the fields and its tip under the
+// The screen: the card is the loaded version, with its request in the fields and its tip under the
 // version tabs; the fields are also the draft of the next request. The action row makes a version of the loaded sound
 // or a new sound; the list holds every sound with its version letters. A sound is an umbrella the user may rename
 // (Metallica); each version keeps its own name, which the app's header shows once it is loaded.

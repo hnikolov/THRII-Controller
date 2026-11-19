@@ -1,6 +1,6 @@
 import { APP_VERSION, BUILD } from './src/app/version.js';
 
-// Service worker of the installed app (plan_pwa.md 3.2, 3.4, 4.3). It keeps every file the app needs in a cache named
+// Service worker of the installed app (see doc/release.md). It keeps every file the app needs in a cache named
 // after the release, so the app starts the same with or without a network, and a new release replaces it as a whole.
 
 // Written by `python scripts/check_release.py --stamp`; do not edit by hand.
@@ -24,34 +24,28 @@ const PRECACHE = [
   './src/core/clock.js',
   './src/core/eventBus.js',
   './src/core/flags.js',
-  './src/core/values.js',
   './src/data/thr10ii_w_symbol_table_1_44_0_a.json',
   './src/domain/presetModel.js',
-  './src/presets/presetLibrary.js',
-  './src/presets/presets.css',
-  './src/protocol/activation.js',
   './src/protocol/builders.js',
   './src/protocol/constants.js',
-  './src/protocol/counter.js',
   './src/protocol/dumpAssembly.js',
   './src/protocol/dumpParser.js',
   './src/protocol/frames.js',
   './src/protocol/identity.js',
   './src/protocol/incoming.js',
   './src/protocol/memoryPatch.js',
-  './src/protocol/paramWrite.js',
   './src/protocol/symbolTable.js',
   './src/protocol/syncFlow.js',
-  './src/protocol/upload.js',
   './src/protocol/writeScheduler.js',
   './src/state/applyDeviceEvent.js',
-  './src/state/applyDumpPatch.js',
   './src/state/applyPreset.js',
   './src/state/selectors.js',
   './src/state/shadowStore.js',
   './src/transports/bleTransport.js',
   './src/transports/transportManager.js',
   './src/transports/usbTransport.js',
+  './src/ui/presets/presetLibrary.js',
+  './src/ui/presets/presets.css',
   './src/ui/runtime/ampView.js',
   './src/ui/runtime/appView.js',
   './src/ui/runtime/intents.js',

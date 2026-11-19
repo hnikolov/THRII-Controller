@@ -9,7 +9,7 @@ The app at `https://hnikolov.github.io/THRII-Controller/` is made of these files
 - `index.html`, `manifest.json`, `sw.js`, `icons/`
 - everything under `src/` except `src/debug/` and `src/ui/debug/`
 
-Everything else (`dev.html`, `test/`, `doc/`, `scripts/`, `cloudflare/`, `thrii_ctrl.html`) stays in the repository but is not published.
+Everything else (`dev.html`, `test/`, `doc/`, `scripts/`, `cloudflare/`) stays in the repository but is not published.
 
 ## Before every commit that changes the app
 

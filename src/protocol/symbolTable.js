@@ -1,5 +1,4 @@
-// Symbol names by id, from src/data/thr10ii_w_symbol_table_1_44_0_a.json (a copy of the JSON form in doc/; the legacy
-// page loads the .js form from doc/).
+// Symbol names by id, from src/data/thr10ii_w_symbol_table_1_44_0_a.json (a copy of the JSON form in doc/).
 // JSON.parse keeps the last value of a duplicated key, as the .js object literal does.
 export function makeNameOf(byId) {
   return key => {
@@ -35,26 +34,30 @@ function plainIdsByName(byId) {
   return plainIdByName;
 }
 
+// Device and dump names differ in spaces, case and the 'State' suffix (layout "Pre Delay", dump "PreDelayState").
+export function normalizedParamName(name) {
+  return String(name || '').replace(/\s+/g, '').replace(/State$/, '').toLowerCase();
+}
+
 // Id of a unit type, enum value or parameter by its name (for example StereoSquareChorus = 230, Pre Delay = PreDelay's id), or null.
-// Names match as the store matches them: spaces, case and the 'State' suffix are ignored (same rule as normalizedParamName).
+// Names match as the store matches them (normalizedParamName).
 // The table holds some names twice, with and without a space (PreDelay 252 and Pre Delay 233, TapeEcho and Tape Echo).
 // The amp reports and accepts the one without the space (PreDelay 252 in echo_reverb.txt; a write to 233 is ACKed and
 // ignored, upload_preset_with_amp_reply.txt), so that one wins; otherwise the first id of a name wins.
 export function makeIdOfName(byId) {
-  const normalize = name => String(name || '').replace(/\s+/g, '').replace(/State$/, '').toLowerCase();
   const idByName = new Map();
   const spaced = new Set();
   Object.keys(byId).forEach(key => {
     const name = byId[key];
     if (typeof name !== 'string' || !name || name.endsWith('State')) return;
-    const normalized = normalize(name);
+    const normalized = normalizedParamName(name);
     const hasSpace = /\s/.test(name);
     if (idByName.has(normalized) && !(spaced.has(normalized) && !hasSpace)) return;
     idByName.set(normalized, Number(key) >>> 0);
     if (hasSpace) spaced.add(normalized);
     else spaced.delete(normalized);
   });
-  return name => (idByName.has(normalize(name)) ? idByName.get(normalize(name)) : null);
+  return name => (idByName.has(normalizedParamName(name)) ? idByName.get(normalizedParamName(name)) : null);
 }
 
 export function makeLiveIdOf(byId) {
@@ -71,12 +74,11 @@ export function makeLiveIdOf(byId) {
 // The id a dump uses for a parameter: the id of its name with the 'State' suffix (Freq gives FreqState = 227), or null.
 // Spaces and case are ignored, as in makeIdOfName.
 export function makeStateIdOf(byId) {
-  const normalize = name => String(name || '').replace(/\s+/g, '').replace(/State$/, '').toLowerCase();
   const idByName = new Map();
   Object.keys(byId).forEach(key => {
     const name = byId[key];
-    if (typeof name !== 'string' || !name.endsWith('State') || idByName.has(normalize(name))) return;
-    idByName.set(normalize(name), Number(key) >>> 0);
+    if (typeof name !== 'string' || !name.endsWith('State') || idByName.has(normalizedParamName(name))) return;
+    idByName.set(normalizedParamName(name), Number(key) >>> 0);
   });
-  return name => (idByName.has(normalize(name)) ? idByName.get(normalize(name)) : null);
+  return name => (idByName.has(normalizedParamName(name)) ? idByName.get(normalizedParamName(name)) : null);
 }

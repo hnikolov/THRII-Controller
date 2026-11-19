@@ -3,7 +3,7 @@ import { parseSysExHex } from '../../src/core/bytes.js';
 import { decodeIncomingEvent } from '../../src/protocol/incoming.js';
 import { makeNameOf } from '../../src/protocol/symbolTable.js';
 import { setDeviceIdentity } from '../../src/protocol/identity.js';
-import { normalizedParamName } from '../../src/state/selectors.js';
+import { normalizedParamName } from '../../src/protocol/symbolTable.js';
 import { RUNTIME_LAYOUT } from '../../src/ui/runtime/layout.js';
 
 // Sweep capture (test/fixtures/transcripts/chorus_flanger_phaser_tremolo.txt): the amp's own parameter reports for

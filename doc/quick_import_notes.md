@@ -147,7 +147,7 @@ The groups of a `.thrl6p` file hold exactly the parameters this layout holds, in
 
 ## The upload
 
-`buildUploadFrames({ kind: 'actual' }, patch)` in `src/protocol/upload.js`, all on group 1. The frames are those of an upload to a memory; only the target differs.
+`buildUploadFrames({ kind: 'actual' }, patch)` in `src/protocol/builders.js`, all on group 1. The frames are those of an upload to a memory; only the target differs.
 
 - Header frame: opcode `0x0d`, then six words: total length (patch + 20), target `0xffffffff`, length minus 8 (patch + 12), `0`, `1`, `0`.
 - Body frames: the patch in pieces of 210 bytes; the last one is shorter.
@@ -186,7 +186,7 @@ The preset's tempo is not checked.
 | Patch builder | `buildPresetPatch`, `toMemoryPatch` in `src/protocol/memoryPatch.js` |
 | Name | `withPatchName` in `src/protocol/dumpParser.js` |
 | Dump ids | `makeStateIdOf` in `src/protocol/symbolTable.js` |
-| Upload frames | `buildUploadFrames` in `src/protocol/upload.js` |
+| Upload frames | `buildUploadFrames` in `src/protocol/builders.js` |
 | Plan and comparison | `presetToPlan` in `src/domain/presetModel.js`, `comparePlan` in `src/state/applyPreset.js` |
 | Value-by-value sender | `sendPlan` in `src/app/boot.js` |
 

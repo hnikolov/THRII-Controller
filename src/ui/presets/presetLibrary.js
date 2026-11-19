@@ -1,4 +1,4 @@
-// Presets screen (presets_ui_plan.md): an action row on what plays now (Import, Export, + Add, Save to amp), a
+// Presets screen: an action row on what plays now (Import, Export, + Add, Save to amp), a
 // persistent list of presets for quick switching, and the amp memories' Backup and Restore. Self-contained like
 // src/ai: it imports nothing from the rest of the app and gets every operation from boot, so it never touches the
 // store or sends a frame itself.

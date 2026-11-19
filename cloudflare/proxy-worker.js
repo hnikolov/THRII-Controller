@@ -1,6 +1,6 @@
 // Cloudflare Worker: the hosted form of the /api proxy in scripts/serve.py. Paste this file into the Worker's editor
 // in the Cloudflare dashboard. It forwards /api/* to the preset generator of amplifier-presets.com, which answers
-// browsers only on its own site (the authors are asked for their consent, see plan_pwa.md 5.3).
+// browsers only on its own site (its authors are asked for their consent to this proxy).
 // The app calls it from another origin, so it answers CORS, and only for the origins listed here.
 
 const UPSTREAM = 'https://api.amplifier-presets.com';
@@ -38,7 +38,7 @@ export default {
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
 
-    // Answered here, without calling the generator: tells the app that Import AI can be offered (plan_pwa.md 5.1).
+    // Answered here, without calling the generator: tells the app that Import AI can be offered.
     if (request.method === 'GET' && url.pathname === '/api/health') {
       return Response.json({ ok: true }, { headers: cors });
     }

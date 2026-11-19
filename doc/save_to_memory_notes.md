@@ -46,7 +46,7 @@ All frames below are on group 1. Counters come from `nextCommandCounter`.
 | Memory 1 as found (compact layout) | 629 | 613 bytes | 3 |
 | A memory written by the app | as uploaded | 1109 bytes | 5 |
 
-### Upload to a memory (`buildSlotUploadFrames` in `src/protocol/upload.js`)
+### Upload to a memory (`buildSlotUploadFrames` in `src/protocol/builders.js`)
 
 - Header frame: opcode `0x0d`, then six words: total length (patch + 20), memory index 0 to 4, length minus 8 (patch + 12), `0`, `1`, `0`.
 - Body frames: the patch in pieces of 210 decoded bytes (`0d 01` in the last-index field; the last frame is shorter). A 1109-byte patch gives 6 body frames, a 613-byte patch 3.

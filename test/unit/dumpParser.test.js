@@ -4,7 +4,7 @@ import { createDumpAssembler } from '../../src/protocol/dumpAssembly.js';
 import { loadNameOf, loadSymbolTable, makeNameOf, makeLiveIdOf } from '../../src/protocol/symbolTable.js';
 import { parseDumpPatch, parsePatchName } from '../../src/protocol/dumpParser.js';
 import { thrTypeCode } from '../../src/protocol/constants.js';
-import { applyDumpPatch } from '../../src/state/applyDumpPatch.js';
+import { applyDumpPatch } from '../../src/state/applyDeviceEvent.js';
 import { createStore, createEmptyDeviceState } from '../../src/state/shadowStore.js';
 import { findParamByName, findParamById, findUnitByName } from '../../src/state/selectors.js';
 import { selectRuntimeModel } from '../../src/ui/runtime/viewModel.js';

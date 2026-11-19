@@ -2,7 +2,7 @@ import { it, assertEqual, assertDeepEqual, assertTrue } from '../support/assert.
 import { createTransportManager } from '../../src/transports/transportManager.js';
 import { createBleSysExInput } from '../../src/transports/bleTransport.js';
 import { sleep } from '../../src/core/bytes.js';
-import { nextCommandCounter } from '../../src/protocol/counter.js';
+import { nextCommandCounter } from '../../src/protocol/builders.js';
 
 // A BLE characteristic that takes time per write (like a real radio), records each packet with its time,
 // and can be told to fail once.

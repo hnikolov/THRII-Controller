@@ -1,7 +1,6 @@
 import { writeF32LE } from '../core/bytes.js';
 import { thrTypeCode } from '../protocol/constants.js';
-import { setUnitType } from './applyDeviceEvent.js';
-import { ensureUnit } from './applyDumpPatch.js';
+import { ensureUnit, setUnitType } from './applyDeviceEvent.js';
 import { findParamByName, findUnitById } from './selectors.js';
 
 const KINDS = {

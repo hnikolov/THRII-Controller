@@ -4,7 +4,7 @@ import { selectRuntimeModel, knobToValue } from '../../src/ui/runtime/viewModel.
 import { createRuntimeIntents } from '../../src/ui/runtime/intents.js';
 import { mountRuntime } from '../../src/ui/runtime/mount.js';
 import { RUNTIME_LAYOUT } from '../../src/ui/runtime/layout.js';
-import { normalizedParamName } from '../../src/state/selectors.js';
+import { normalizedParamName } from '../../src/protocol/symbolTable.js';
 import { flags } from '../../src/core/flags.js';
 
 const loadMock = async () => (await fetch('/test/fixtures/mockState.json')).json();

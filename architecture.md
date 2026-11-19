@@ -166,9 +166,9 @@ The symbol table still belongs under the parser/semantic foundation, not under t
 
 The production app should have a top-level root HTML entry point, and that entry point is `index.html` as the expected web entry shell for a PWA build.
 
-The current UI implementation in `thrii_ui.html` is intended to replace the older runtime UI embedded in `thrii_ctrl.html`.
+Current implementation: `index.html` is that entry. It mounts the runtime UI (`src/ui/runtime`) through `src/app/main.js`, which adds the service worker, the update offer and the screen wake lock to the shared composition in `src/app/boot.js`. It replaced both the runtime UI embedded in the legacy prototype `thrii_ctrl.html` (removed; kept under the git tag `legacy-prototype`) and the interim shell `thrii_ui.html` (removed).
 
-`thrii_ui.html` is deliberately a portrait-only, mobile-first interface for actual runtime use. It is not intended to host debug instrumentation or raw protocol inspection. The runtime UI should be clean, compact, and optimized for phone-sized screens.
+The runtime UI is deliberately a portrait-only, mobile-first interface for actual runtime use. It is not intended to host debug instrumentation or raw protocol inspection. The runtime UI should be clean, compact, and optimized for phone-sized screens.
 
 The debug interface must be a separate, independent surface. The preferred pattern is:
 
@@ -179,12 +179,11 @@ The debug interface must be a separate, independent surface. The preferred patte
 
 This means the intended migration path is:
 
-- `thrii_ctrl.html` = legacy prototype / debug harness
-- `thrii_ui.html` = new production UI implementation that will become the runtime UI layer for the app
-- `index.html` = final PWA entry page that loads the modular app shell and runtime UI
-- optional debug module = separated diagnostic UI, loaded only for development or debugging builds, not included in the release app
+- `thrii_ctrl.html` = legacy prototype / debug harness, removed; kept under the git tag `legacy-prototype`
+- `index.html` = PWA entry page that loads the modular app shell and runtime UI
+- `dev.html` = development page: the same runtime composition plus the separated debug module, not included in the release app
 
-In other words, the UI code should not be treated as a permanent part of the old prototype structure. `thrii_ui.html` is the target replacement surface for the currently mixed-in UI logic, and the final architecture should treat it as the canonical runtime front end once the module split is complete. The debug tooling should be removable and independent, not embedded in the runtime app logic.
+In other words, the UI code is not a permanent part of the old prototype structure: the runtime UI under `src/ui/runtime` is the canonical front end. The debug tooling should be removable and independent, not embedded in the runtime app logic.
 
 ## Topology
 

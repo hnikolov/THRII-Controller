@@ -2,7 +2,7 @@ import { boot } from './boot.js';
 import { APP_VERSION } from './version.js';
 import { keepScreenOn } from './wakeLock.js';
 
-// Entry of the installed app (index.html): the shared composition plus what only the app shell does (plan_pwa.md 3, 4):
+// Entry of the installed app (index.html): the shared composition plus what only the app shell does:
 // the screen kept on, a guard against an accidental reload, and the service worker with its update offer.
 // The development page calls boot() directly and does none of this.
 export async function main(rootEl, bootOptions) {
@@ -19,7 +19,7 @@ export async function main(rootEl, bootOptions) {
 }
 
 // A new release installs in the background and waits. It is applied when the user presses the update button, or by the
-// browser once no window of the app is open; never by a reload of its own (plan_pwa.md 3.3, 3.6).
+// browser once no window of the app is open; never by a reload of its own (doc/release.md).
 async function watchUpdates(app, guard) {
   const registration = await navigator.serviceWorker.register('./sw.js', { type: 'module', updateViaCache: 'none' });
 

@@ -1,3 +1,6 @@
+import { parseSysExHex } from '../core/bytes.js';
+import { thrActivateSequenceHex } from './constants.js';
+
 // Device identity from the universal identity reply (doc: F0 7E KK 06 02 MA MB MC F1 F2 M1 M2 V1..V4 F7).
 // Family and model are header bytes 4 and 5 of every THR frame (for example 24 01 4d for thr10ii).
 let deviceIdentity = null;
@@ -41,4 +44,24 @@ export function withIdentity(frame, identity) {
   out[4] = identity.family;
   out[5] = identity.model;
   return out;
+}
+
+// Pause between the activation frames.
+const ACTIVATION_SPACING_MS = 500;
+
+// Frame 1 is the universal identity request. Its reply gives the family and model code, and the
+// remaining frames are sent with those bytes instead of constants. The reply is awaited before frame 2.
+export async function runActivation({ send, awaitIdentity, sleep, setIdentity }) {
+  const frames = thrActivateSequenceHex.map(parseSysExHex);
+  const identityReply = awaitIdentity();
+  identityReply.catch(() => {});
+  await send(frames[0], 'TX THR activation 1/' + frames.length);
+  const identity = await identityReply;
+  setIdentity(identity);
+
+  for (let i = 1; i < frames.length; i += 1) {
+    await sleep(ACTIVATION_SPACING_MS);
+    await send(withIdentity(frames[i], identity), 'TX THR activation ' + (i + 1) + '/' + frames.length);
+  }
+  return identity;
 }

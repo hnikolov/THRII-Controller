@@ -4,7 +4,7 @@ import {
   parseThrl6Preset, presetFileName, presetToPlan, presetToText, sanitizePresetName, storeToPreset, PRESET_NAME_MAX
 } from '../../src/domain/presetModel.js';
 import { applyPresetPlan, comparePlan } from '../../src/state/applyPreset.js';
-import { applyDumpPatch } from '../../src/state/applyDumpPatch.js';
+import { applyDumpPatch } from '../../src/state/applyDeviceEvent.js';
 import { createStore, createEmptyDeviceState } from '../../src/state/shadowStore.js';
 import { selectRuntimeModel } from '../../src/ui/runtime/viewModel.js';
 import { loadSymbolTable, makeIdOfName, makeLiveIdOf, makeNameOf, makeStateIdOf } from '../../src/protocol/symbolTable.js';
@@ -12,7 +12,7 @@ import { createDumpAssembler } from '../../src/protocol/dumpAssembly.js';
 import { parseIncomingThrFrame } from '../../src/protocol/frames.js';
 import { parseDumpPatch, parsePatchName, withPatchName } from '../../src/protocol/dumpParser.js';
 import { buildCommandFrameFromRawPayload } from '../../src/protocol/builders.js';
-import { buildSlotUploadFrames } from '../../src/protocol/upload.js';
+import { buildSlotUploadFrames } from '../../src/protocol/builders.js';
 import { buildPresetPatch, memoryHolds, toMemoryPatch } from '../../src/protocol/memoryPatch.js';
 import { decodeIncomingEvent } from '../../src/protocol/incoming.js';
 import { setDeviceIdentity } from '../../src/protocol/identity.js';

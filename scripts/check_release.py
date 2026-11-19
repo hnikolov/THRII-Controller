@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Release check of the installed app (plan_pwa.md 9D). Standard library only.
+"""Release check of the installed app (see doc/release.md). Standard library only.
 
     python scripts/check_release.py            check; exit code 1 on any problem
     python scripts/check_release.py --stamp    write the file list into sw.js and the build hash into

@@ -1,6 +1,6 @@
 # THR-II SysEx Parser Architecture
 
-This document describes the runtime parser design in [thrii_ctrl.html](thrii_ctrl.html), including how bytes become semantic events, how state is updated, and how UI sync is kept side-effect free.
+This document describes the runtime parser design in `thrii_ctrl.html` (the legacy prototype, git tag `legacy-prototype`), including how bytes become semantic events, how state is updated, and how UI sync is kept side-effect free.
 
 ## Purpose
 - Decode incoming THR-II SysEx traffic from USB and BLE safely.
@@ -10,7 +10,7 @@ This document describes the runtime parser design in [thrii_ctrl.html](thrii_ctr
 
 ## Runtime Scope
 - Main runtime owner: window.thrIncomingParser
-- Primary file: [thrii_ctrl.html](thrii_ctrl.html)
+- Primary file: `thrii_ctrl.html` (the legacy prototype, git tag `legacy-prototype`)
 - Symbol source preload: [doc/thr10ii_w_symbol_table_1_44_0_a.js](doc/thr10ii_w_symbol_table_1_44_0_a.js)
 
 ## Architecture Overview

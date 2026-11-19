@@ -3,7 +3,7 @@ import { applyPresetPlan, comparePlan } from '../state/applyPreset.js';
 import { findUnitById } from '../state/selectors.js';
 import { parsePatchName, withPatchName } from '../protocol/dumpParser.js';
 import { buildPresetPatch, memoryDifferences } from '../protocol/memoryPatch.js';
-import { buildSlotUploadFrames, buildUploadFrames, UPLOAD_PACE_MS } from '../protocol/upload.js';
+import { buildSlotUploadFrames, buildUploadFrames, UPLOAD_PACE_MS } from '../protocol/builders.js';
 
 const SLOT_COUNT = 5;
 // Time the amp gets to store an uploaded memory before it is recalled.

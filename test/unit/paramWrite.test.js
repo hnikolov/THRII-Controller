@@ -1,7 +1,7 @@
 import { it, assertDeepEqual } from '../support/assert.js';
 import { parseSysExHex } from '../../src/core/bytes.js';
 import { decodeBitBucket7THR } from '../../src/protocol/frames.js';
-import { buildParamWriteFrames } from '../../src/protocol/paramWrite.js';
+import { buildParamWriteFrames } from '../../src/protocol/builders.js';
 import { setDeviceIdentity } from '../../src/protocol/identity.js';
 
 // Body frame of the legacy "effect -> ON" toggle (test/fixtures/transcripts/toggle_effect.txt):

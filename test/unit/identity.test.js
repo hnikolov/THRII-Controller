@@ -1,7 +1,6 @@
 import { it, assertEqual, assertDeepEqual, assertTrue } from '../support/assert.js';
 import { parseSysExHex, toHex } from '../../src/core/bytes.js';
-import { formatFirmwareVersion, parseIdentityReply, setDeviceIdentity, getDeviceIdentity, resolveIdentity, withIdentity } from '../../src/protocol/identity.js';
-import { runActivation } from '../../src/protocol/activation.js';
+import { formatFirmwareVersion, parseIdentityReply, runActivation, setDeviceIdentity, getDeviceIdentity, resolveIdentity, withIdentity } from '../../src/protocol/identity.js';
 import { thrActivateSequenceHex } from '../../src/protocol/constants.js';
 
 async function loadInboundFrames(path) {

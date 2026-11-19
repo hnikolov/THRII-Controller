@@ -1,6 +1,6 @@
 import { it, assertEqual, assertDeepEqual, assertTrue } from '../support/assert.js';
 import { createStore } from '../../src/state/shadowStore.js';
-import { buildShadowParameterIndex, getLatestShadowUnitById, readShadowParamByName } from '../../src/state/selectors.js';
+import { findUnitByName } from '../../src/state/selectors.js';
 
 const flushMicrotasks = () => Promise.resolve();
 
@@ -31,31 +31,13 @@ it('unsubscribed listeners are not notified', async () => {
   assertEqual(calls, 0, 'calls after unsubscribe');
 });
 
-it('readShadowParamByName returns the most recently updated match', () => {
+it('findUnitByName picks the unit with the newest parameter update', () => {
   const state = {
     units: {
-      a: { id: 1, name: 'FX1', parameters: { 9: { id: 9, name: 'Level', updatedAtMs: 10, value: 0.1 } } },
-      b: { id: 2, name: 'FX2', parameters: { 9: { id: 9, name: 'Level', updatedAtMs: 20, value: 0.2 } } }
+      a: { id: 5, name: 'FX1', parameters: { 1: { updatedAtMs: 1 } } },
+      b: { id: 6, name: 'FX1', parameters: { 1: { updatedAtMs: 9 } } }
     }
   };
-  assertEqual(readShadowParamByName(state, 'Level').param.value, 0.2, 'newest Level');
-  assertEqual(readShadowParamByName(state, 'Missing'), null, 'no match');
-});
-
-it('getLatestShadowUnitById picks the unit with the newest parameter update', () => {
-  const state = {
-    units: {
-      a: { id: 5, name: 'Old', parameters: { 1: { updatedAtMs: 1 } } },
-      b: { id: 5, name: 'New', parameters: { 1: { updatedAtMs: 9 } } }
-    }
-  };
-  assertEqual(getLatestShadowUnitById(state, 5).name, 'New', 'newest unit');
-});
-
-it('buildShadowParameterIndex keys entries by unit:parameter', () => {
-  const state = {
-    units: { a: { id: 3, parameters: { 7: { id: 7, typeCode: 4, rawU32: 0x3f800000, value: 1 } } } }
-  };
-  const index = buildShadowParameterIndex(state);
-  assertEqual(index.get('3:7').rawU32, 0x3f800000, 'indexed raw value');
+  assertEqual(findUnitByName(state, 'FX1').id, 6, 'newest unit');
+  assertEqual(findUnitByName(state, 'Missing'), null, 'no match');
 });
