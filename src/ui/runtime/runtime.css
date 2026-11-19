@@ -37,6 +37,8 @@ html, body {
   width: 100%;
   min-height: 100%;
   overflow: hidden;
+  /* No pull-to-refresh: a reload would drop the amp connection and cut off an upload. */
+  overscroll-behavior: none;
 }
 
 body {
@@ -274,6 +276,38 @@ body {
 
 .strip-button:disabled {
   cursor: default;
+}
+
+/* The app's version under CONNECT. */
+.strip-caption {
+  display: block;
+  margin-top: 2px;
+  font-size: 9px;
+  opacity: 0.75;
+}
+
+/* Shown only while an app update waits: one press installs it (the app restarts). */
+.strip-update-button {
+  min-width: 34px;
+  min-height: var(--header-height);
+  border: 0;
+  margin: 0;
+  padding: 0 4px;
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.strip-update-button:hover,
+.strip-update-button:focus-visible {
+  outline: none;
+  background: rgba(255, 246, 218, 0.08);
+}
+
+.strip-update-button[hidden] {
+  display: none;
 }
 
 .footer-memory-button.is-selected {

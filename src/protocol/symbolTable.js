@@ -1,4 +1,5 @@
-// Symbol names by id. The legacy page loads the .js form of doc/thr10ii_w_symbol_table_1_44_0_a; this loads its JSON form.
+// Symbol names by id, from src/data/thr10ii_w_symbol_table_1_44_0_a.json (a copy of the JSON form in doc/; the legacy
+// page loads the .js form from doc/).
 // JSON.parse keeps the last value of a duplicated key, as the .js object literal does.
 export function makeNameOf(byId) {
   return key => {
@@ -9,7 +10,7 @@ export function makeNameOf(byId) {
 
 // Symbol table (id to name) from the JSON form of the legacy .js table. JSON.parse keeps the last value of a
 // duplicated key, as the .js object literal does.
-export async function loadSymbolTable(url = 'doc/thr10ii_w_symbol_table_1_44_0_a.json') {
+export async function loadSymbolTable(url = 'src/data/thr10ii_w_symbol_table_1_44_0_a.json') {
   const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) throw new Error('Symbol table HTTP ' + response.status);
   const table = await response.json();

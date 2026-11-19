@@ -1,0 +1,42 @@
+# Publishes the installed app to GitHub Pages (plan_pwa.md D1, 9D). On every push to main: the release check and the
+# unit tests run first, and only the release files (scripts/check_release.py --out) are published. A failure stops
+# the deploy. Repository setting needed once: Settings > Pages > Source: GitHub Actions.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Release check
+        run: python scripts/check_release.py
+      - name: Unit tests (headless Chrome)
+        run: python scripts/run_tests.py
+      - name: Collect the release files
+        run: python scripts/check_release.py --out dist
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -185,7 +185,7 @@ it('intent selectUnit updates the unit type in the store', async () => {
 });
 
 it('layout: every knob and enable name (candidates included) is a symbol table name', async () => {
-  const table = await (await fetch('/doc/thr10ii_w_symbol_table_1_44_0_a.json')).json();
+  const table = await (await fetch('/src/data/thr10ii_w_symbol_table_1_44_0_a.json')).json();
   const known = new Set(Object.values(table.byId).map(normalizedParamName));
   const names = [];
   const addKnobs = knobs => knobs.forEach(knob => names.push(...[].concat(knob.param)));
@@ -267,6 +267,32 @@ it('mount: the CONNECT button connects, and disconnects once the shell reports a
     assertEqual(button.textContent, 'FW 1.44.0.a', 'firmware version once activated');
     button.click();
     assertDeepEqual(calls, ['connect', 'disconnect'], 'intents');
+  } finally {
+    runtime.destroy();
+    container.remove();
+  }
+});
+
+it('mount: the app version shows under CONNECT without an amp, and the update button only while an update waits', () => {
+  const store = createStore(createEmptyDeviceState());
+  const intents = createRuntimeIntents({ store, flags, sendParam: () => {} });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const runtime = mountRuntime(container, { store, intents });
+  try {
+    const button = container.querySelector('.strip-button');
+    const update = container.querySelector('[aria-label="Update the app"]');
+    runtime.setAppInfo({ version: '1.2.3' });
+    assertEqual(button.textContent, 'CONNECTv1.2.3', 'version under CONNECT');
+    assertEqual(update.hidden, true, 'no update button without an update');
+    runtime.setConnection({ kind: 'usb', version: '1.44.0.a' });
+    assertEqual(button.textContent, 'FW 1.44.0.a', 'the firmware version replaces it while connected');
+    let pressed = 0;
+    runtime.setAppInfo({ version: '1.2.3', onUpdate: () => { pressed += 1; } });
+    assertEqual(update.hidden, false, 'update button while an update waits');
+    assertEqual(button.textContent, 'FW 1.44.0.a', 'the connection label stays');
+    update.click();
+    assertEqual(pressed, 1, 'a press asks the shell to update');
   } finally {
     runtime.destroy();
     container.remove();

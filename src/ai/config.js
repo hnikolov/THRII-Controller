@@ -1,7 +1,7 @@
-// Where the preset generator is reached. '/api' is the local proxy of scripts/serve.py (same origin as the app); the
-// backend itself (https://api.amplifier-presets.com) answers browsers only on its own site. For a hosted proxy, or the
-// backend once its authors allow this app's origin, change this one value.
-// export const API_BASE = '/api';
+// Where the preset generator is reached. The backend (https://api.amplifier-presets.com) answers browsers only on its
+// own site, so the app goes through the proxy Worker (cloudflare/proxy-worker.js), from localhost and the hosted app
+// alike. API_BASE = '/api' is the local proxy of scripts/serve.py instead. If the authors allow this app's origin, this becomes
+// their URL.
 export const API_BASE = 'https://thrii-proxy.hnikolov.workers.dev/api';
 
 // The backend's amplifier id for the connected amp, by the model code of its identity reply. 0x01 (THR10II Wireless)

@@ -13,7 +13,7 @@ import { decodeIncomingEvent } from '../../src/protocol/incoming.js';
 import { applyDeviceEvent } from '../../src/state/applyDeviceEvent.js';
 
 const ACTUAL_DUMP = '/test/fixtures/transcripts/actual_dump.txt';
-const SYMBOLS = '../doc/thr10ii_w_symbol_table_1_44_0_a.json';
+const SYMBOLS = '../src/data/thr10ii_w_symbol_table_1_44_0_a.json';
 const HEADER_BYTES = 16;
 
 // Golden from the legacy page (thrii_ctrl.html: parseDumpPatchDomain, then projectDumpDomainToShadowState) for the

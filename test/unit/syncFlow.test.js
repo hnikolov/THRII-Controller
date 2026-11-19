@@ -6,7 +6,7 @@ import { loadNameOf } from '../../src/protocol/symbolTable.js';
 import { loadInboundFrames } from '../support/transcripts.js';
 import { createFakeClock } from '../support/fakeClock.js';
 
-const SYMBOLS = '../doc/thr10ii_w_symbol_table_1_44_0_a.json';
+const SYMBOLS = '../src/data/thr10ii_w_symbol_table_1_44_0_a.json';
 
 function harness() {
   const sent = [];

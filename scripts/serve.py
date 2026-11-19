@@ -41,6 +41,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_GET(self):
+        if self.path == "/api/health":  # answered here: the app's availability check, no call to the generator
+            return self.reply(200, b'{"ok":true}', "application/json")
         if self.path.startswith("/api/"):
             return self.proxy()
         return super().do_GET()

@@ -12,6 +12,17 @@ function describeError(status, text) {
   return `Request failed (${status}): ${text.slice(0, 200) || 'no details'}`;
 }
 
+// Whether Import AI can be offered: the proxy answers its health check (it never calls the generator). Offline, a
+// missing or refusing proxy (404, 403) and no answer within timeoutMs all give false, so the shell leaves the AI out.
+export async function aiAvailable({ base = API_BASE, fetch = (...args) => globalThis.fetch(...args), timeoutMs = 1500 } = {}) {
+  try {
+    const response = await fetch(base + '/health', { signal: AbortSignal.timeout(timeoutMs) });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 // The three calls to the preset generator of amplifier-presets.com (contract: ai_presets_example/CLAUDE.md).
 // Every failure is an Error with a readable message; an aborted request keeps its AbortError.
 export function createApi({ base = API_BASE, fetch = (...args) => globalThis.fetch(...args) } = {}) {

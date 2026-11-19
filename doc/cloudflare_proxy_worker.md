@@ -18,15 +18,15 @@ A free Cloudflare account is enough. Nothing needs to be installed on the PC.
 5. Click **Edit code**, replace everything in the editor with the contents of `cloudflare/proxy-worker.js`, and click **Deploy**.
 6. Note the Worker's address, for example `https://thrii-proxy.<your-subdomain>.workers.dev`.
 
-## 2. Allow the hosted app (when it exists)
+## 2. Allow the hosted app
 
-In `cloudflare/proxy-worker.js`, add the app's address to `ALLOWED_ORIGINS` (no trailing slash, no path), then paste and deploy again:
+`ALLOWED_ORIGINS` in `cloudflare/proxy-worker.js` lists the addresses of the hosted app (no trailing slash, no path). The app is on GitHub Pages, so it holds:
 
 ```js
-const ALLOWED_ORIGINS = ['https://thrii.pages.dev'];
+const ALLOWED_ORIGINS = ['https://hnikolov.github.io'];
 ```
 
-Localhost needs no entry.
+After changing the list, paste the file into the Worker again and deploy. Localhost needs no entry.
 
 ## 3. Check it
 
@@ -49,7 +49,9 @@ In `src/ai/config.js`:
 export const API_BASE = 'https://thrii-proxy.<your-subdomain>.workers.dev/api';
 ```
 
-To test from the PC without the local proxy, serve the app with the plain server, open `http://localhost:8080/dev.html`, hard-reload (Ctrl+Shift+R), and generate a sound on the AI screen:
+This is the app's setting (localhost and the hosted app both use the Worker). At start the app asks `<API_BASE>/health`; only when that answers 200 is the AI button shown, so offline or without the Worker the rest of the app works as usual.
+
+To test from the PC, serve the app with the plain server, open `http://localhost:8080/dev.html`, hard-reload (Ctrl+Shift+R), and generate a sound on the AI screen:
 
 ```
 python -m http.server 8080

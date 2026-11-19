@@ -5,8 +5,8 @@
 
 const UPSTREAM = 'https://api.amplifier-presets.com';
 
-// The hosted app's origin(s), no trailing slash, e.g. 'https://thrii.pages.dev'. Any localhost port is allowed too.
-const ALLOWED_ORIGINS = [];
+// The hosted app's origin(s), no trailing slash and no path. Any localhost port is allowed too.
+const ALLOWED_ORIGINS = ['https://hnikolov.github.io'];
 const LOCAL_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 // The upstream answers only requests that come from its own site.

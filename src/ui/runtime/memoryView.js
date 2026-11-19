@@ -57,6 +57,15 @@ export class MemoryView {
 
     const connectSlot = document.createElement('div');
     connectSlot.className = 'strip-item is-end';
+    this.updateButton = document.createElement('button');
+    this.updateButton.type = 'button';
+    this.updateButton.className = 'strip-update-button';
+    this.updateButton.textContent = '⇪';
+    this.updateButton.title = 'App update ready. Press to update (the app restarts).';
+    this.updateButton.setAttribute('aria-label', 'Update the app');
+    this.updateButton.hidden = true;
+    this.updateButton.addEventListener('click', () => this.onUpdate && this.onUpdate());
+    connectSlot.append(this.updateButton);
     this.connectButton = document.createElement('button');
     this.connectButton.type = 'button';
     this.connectButton.className = 'strip-button';
@@ -84,12 +93,28 @@ export class MemoryView {
 
   // Shell-driven: one press connects; once connected the same button disconnects and shows the amp's firmware version
   // (DISCONNECT until the activation has reported it). kind is the transport in use.
+  // Without an amp, the app's own version shows under CONNECT.
   setConnection({ kind = null, version = '', busy = false, error = '' } = {}) {
+    this.connection = { kind, version, busy, error };
     this.connected = !!kind;
     const connectedLabel = version ? `FW ${version}` : 'DISCONNECT';
     this.connectButton.textContent = busy ? 'CONNECTING' : (kind ? connectedLabel : 'CONNECT');
+    if (!kind && !busy && this.appVersion) {
+      const caption = document.createElement('span');
+      caption.className = 'strip-caption';
+      caption.textContent = `v${this.appVersion}`;
+      this.connectButton.append(caption);
+    }
     this.connectButton.disabled = busy;
     this.connectButton.title = kind ? `Connected over ${kind.toUpperCase()}. Press to disconnect.` : error;
+  }
+
+  // Shell-driven: the app's version, and onUpdate while an app update waits (null hides the update button).
+  setAppInfo({ version = '', onUpdate = null } = {}) {
+    this.appVersion = version;
+    this.onUpdate = onUpdate;
+    this.updateButton.hidden = !onUpdate;
+    this.setConnection(this.connection);
   }
 
   buildFooter() {

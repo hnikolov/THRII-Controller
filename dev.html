@@ -34,7 +34,8 @@
     import { createRawObserver } from './src/debug/observer.js';
     import { mountRawTracePanel } from './src/ui/debug/rawTracePanel.js';
     import { flags } from './src/core/flags.js';
-    // Optional plug-in (the AI button and its screen), as on thrii_ui.html.
+    // Optional plug-in (the AI button and its screen), as on index.html: offered only when its proxy answers.
+    import { aiAvailable } from './src/ai/api.js';
     import { aiPresetSource } from './src/ai/aiPresets.js';
 
     // Dev-only: ?flag=<name> turns on a switch from src/core/flags.js that is still off by default.
@@ -51,7 +52,7 @@
     // Runtime pane (left): the same composition as thrii_ui.html. Its CONNECT button and the buttons here share one connection.
     const app = await boot(document.getElementById('runtime-pane'), {
       fixture,
-      presetSources: { importAi: aiPresetSource },
+      presetSources: (await aiAvailable()) ? { importAi: aiPresetSource } : {},
       onStatus: text => { statusEl.textContent = text; }
     });
     mountRawTracePanel(document.getElementById('raw'), createRawObserver(app.transports.bus));

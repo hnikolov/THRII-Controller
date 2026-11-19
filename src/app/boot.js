@@ -24,7 +24,7 @@ import { choose, download, pickText, pickTexts } from './files.js';
 import { createPresetFlow } from './presetFlow.js';
 import { createPresetLibrary } from '../presets/presetLibrary.js';
 
-const SYMBOL_TABLE_URL = new URL('../../doc/thr10ii_w_symbol_table_1_44_0_a.json', import.meta.url);
+const SYMBOL_TABLE_URL = new URL('../data/thr10ii_w_symbol_table_1_44_0_a.json', import.meta.url);
 
 // Effect-mode changes need pauses: the amp hard-stopped on rapid switches (thrii_sysex_bitbucket_ble.md, 256 ms before, 512 ms after).
 // The default values are spaced 50 ms apart (without that gap the amp did not change its sound on the hardware).
@@ -433,5 +433,10 @@ export async function boot(rootEl, {
   const runtime = mountRuntime(rootEl, { store, intents, layout });
   if (library) store.subscribe(() => library.update());
 
-  return { transports, connect, disconnect, activate, importText };
+  return {
+    transports, connect, disconnect, activate, importText,
+    isConnected: () => transports.isConnected(),
+    isBusy: () => busy,
+    setAppInfo: info => runtime.setAppInfo(info)
+  };
 }

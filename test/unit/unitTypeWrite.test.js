@@ -91,7 +91,7 @@ const LEGACY_AMP_IDS = {
 };
 
 it('amp models: every family model is a device symbol with the legacy amp id', async () => {
-  const table = await (await fetch('/doc/thr10ii_w_symbol_table_1_44_0_a.json')).json();
+  const table = await (await fetch('/src/data/thr10ii_w_symbol_table_1_44_0_a.json')).json();
   const idOfName = makeIdOfName(table.byId);
   const models = AMP_FAMILY_ORDER.flatMap(key => AMP_FAMILIES[key].models.map(model => model.value));
   assertEqual(models.length, 24, 'eight models per family');
@@ -134,7 +134,7 @@ const TYPE_DEFAULT_CASES = [
 ];
 
 it('type defaults: picking a type in the UI shows the amp default values on its knobs, before the amp reports anything', async () => {
-  const table = await (await fetch('/doc/thr10ii_w_symbol_table_1_44_0_a.json')).json();
+  const table = await (await fetch('/src/data/thr10ii_w_symbol_table_1_44_0_a.json')).json();
   const idOfName = makeIdOfName(table.byId);
   TYPE_DEFAULT_CASES.forEach(([moduleKey, unitName, typeValue, expected]) => {
     const module = RUNTIME_LAYOUT.rows.flatMap(row => (row.type === 'dual' ? row.modules : [row.module]))

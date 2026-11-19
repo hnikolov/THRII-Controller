@@ -1,6 +1,6 @@
 import { it, assertEqual, assertDeepEqual, assertTrue } from '../support/assert.js';
 import { until } from '../support/fakeAmp.js';
-import { createApi } from '../../src/ai/api.js';
+import { aiAvailable, createApi } from '../../src/ai/api.js';
 import { createAiPresetSource } from '../../src/ai/aiPresets.js';
 
 const AMPS = [
@@ -499,4 +499,19 @@ it('import AI: a later showing tries an unreachable generator again and follows 
   } finally {
     ctx.cleanup();
   }
+});
+
+it('AI availability: only a 200 from the proxy health check offers Import AI; 404, 403, offline and no answer do not', async () => {
+  const calls = [];
+  const answering = status => (url, options) => {
+    calls.push(url);
+    return Promise.resolve({ ok: status === 200, status });
+  };
+  assertEqual(await aiAvailable({ base: '/api', fetch: answering(200) }), true, '200');
+  assertEqual(await aiAvailable({ base: '/api', fetch: answering(404) }), false, '404 (no proxy)');
+  assertEqual(await aiAvailable({ base: '/api', fetch: answering(403) }), false, '403 (origin not allowed)');
+  assertEqual(await aiAvailable({ base: '/api', fetch: () => Promise.reject(new TypeError('Failed to fetch')) }), false, 'offline');
+  const silent = (url, { signal }) => new Promise((resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason)));
+  assertEqual(await aiAvailable({ base: '/api', fetch: silent, timeoutMs: 20 }), false, 'no answer in time');
+  assertDeepEqual(calls, ['/api/health', '/api/health', '/api/health'], 'only the health check is asked, never the generator');
 });

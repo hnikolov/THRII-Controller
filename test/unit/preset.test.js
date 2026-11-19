@@ -18,7 +18,7 @@ import { decodeIncomingEvent } from '../../src/protocol/incoming.js';
 import { setDeviceIdentity } from '../../src/protocol/identity.js';
 import { writeU32LE } from '../../src/core/bytes.js';
 
-const SYMBOLS = '../doc/thr10ii_w_symbol_table_1_44_0_a.json';
+const SYMBOLS = '../src/data/thr10ii_w_symbol_table_1_44_0_a.json';
 const loadSample = async () => (await fetch('/test/fixtures/presets/' + encodeURIComponent('01. EarlyVH.thrl6p'))).json();
 const loadGolden = async () => (await fetch('/test/fixtures/preset.normalized.golden.json')).json();
 const sorted = value => (value && typeof value === 'object' && !Array.isArray(value)

@@ -15,7 +15,7 @@ const RATE_PARAM = { StereoSquareChorus: 'Freq', L6Flanger: 'Freq', Phaser: 'Spe
 
 async function sweepNamesByType() {
   setDeviceIdentity({ family: 0x24, model: 0x01 });
-  const table = await (await fetch('/doc/thr10ii_w_symbol_table_1_44_0_a.json')).json();
+  const table = await (await fetch('/src/data/thr10ii_w_symbol_table_1_44_0_a.json')).json();
   const nameOf = makeNameOf(table.byId);
   const text = await (await fetch('/test/fixtures/transcripts/chorus_flanger_phaser_tremolo.txt')).text();
   const namesByType = {};

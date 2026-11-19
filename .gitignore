@@ -1,0 +1,3 @@
+# Release files collected by `python scripts/check_release.py --out dist` (published by the Pages workflow).
+dist/
+__pycache__/

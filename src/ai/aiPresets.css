@@ -145,6 +145,7 @@
   margin: 0;
   padding: 6px 8px;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* With this amp, make this, go. */
@@ -218,6 +219,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .ai-hint {
