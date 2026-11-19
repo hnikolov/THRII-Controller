@@ -114,3 +114,11 @@ Use a thin runtime UI layer that consumes the shared THR-II model and dispatches
 - debug UI = separate, optional, excluded from the final PWA release
 
 This preserves the mobile control product goal while keeping the architecture clean and maintainable.
+
+## In this codebase
+
+- Target screen 390x844, portrait. `src/ui/runtime/layout.js` declares the screen (which unit and parameter each control reads); `viewModel.js` turns the store into what the views show; views report user actions as intents (`intents.js`).
+- `mountRuntime` (`mount.js`) is the only entry point; the shell talks back through its handle (`setConnection`, `setStatus`, `setBusy`, `setAppInfo`, `setPageActivity`), never through the store.
+- The tabs on the top strip switch between the knobs and the screens beside them (Presets, Import AI), which are self-contained modules.
+- One long operation at a time: while boot's busy lock is held, the controls take no input.
+- No pull-to-refresh (`overscroll-behavior`), no text selection outside text fields; feedback is the short status toast.

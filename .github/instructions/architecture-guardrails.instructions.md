@@ -1,7 +1,7 @@
 ---
 name: thrii-architecture-guardrails
 description: Enforces the THR-II app architecture for state ownership, protocol layering, separate debug tooling, and PWA release boundaries.
-applyTo: "**/*.js,**/*.html,**/architecture.md"
+applyTo: "**/*.js,**/*.html,**/app_internals.md"
 ---
 
 # THR-II Architecture Guardrails
@@ -130,3 +130,13 @@ If debug code is included in the PWA release path, it is wrong.
 - No production debug bundle
 
 This keeps the app maintainable, debuggable, and release-safe while preserving the actual protocol behavior of the THR-II.
+
+## In this codebase
+
+The design, topology and file map are in `doc/app_internals.md`.
+
+- Layers: `src/transports` -> `src/protocol` (frames, events, dumps, symbol table, builders, write scheduler) -> `src/state` (store) -> `src/ui`. `src/domain/presetModel.js` holds the preset format. Composition is only in `src/app/boot.js`.
+- The protocol layer imports nothing from `src/state`; `src/ui/runtime` imports nothing from `src/protocol`, `src/transports` or `src/debug`.
+- Screens beside the knobs (`src/ui/presets`, `src/ai`) are self-contained: they import nothing from the rest of `src/` and get every operation from `boot`. Only the shells import `src/ai`.
+- Debug code (`src/debug`, `src/ui/debug`) is imported by `dev.html` only. There is no build step: the release is the file set checked by `scripts/check_release.py`.
+- No Node.js and no dependencies; tools are Python.

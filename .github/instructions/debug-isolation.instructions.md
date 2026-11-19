@@ -53,7 +53,6 @@ Preferred patterns:
 
 - separate debug tab/page
 - dedicated debug module imported only in development builds
-- optional debug bootstrap guarded by environment or build-time flags
 
 Avoid:
 
@@ -65,9 +64,9 @@ Avoid:
 
 The final PWA release must not ship with debug panels, raw frame dumps, or protocol-inspection overlays.
 
-- runtime build = app only
-- debug build = app + debug module
-- release build = app without debug module
+- runtime page = app only (`index.html`)
+- development page = app + debug module (`dev.html`)
+- release = app without debug module (the file set checked by `scripts/check_release.py`)
 
 If the debug module is required for the app to work, it is structurally wrong.
 
@@ -112,3 +111,9 @@ The cleanest implementation is:
 - no shared state authority between production and debug flows
 
 This allows deep protocol inspection during development without risking runtime state drift or release bundle contamination.
+
+## In this codebase
+
+- Debug code: `src/debug/observer.js` and `src/ui/debug/rawTracePanel.js`. They listen to the transport bus (`raw:in`, `raw:out`, `note`) and nothing else.
+- Only `dev.html` imports them. No other page or module may import them or name `dev.html`; `scripts/check_release.py` fails if a shipped file refers to them.
+- Status text for the trace goes through boot's `onStatus` and the bus topic `note`; the runtime UI shows only user-facing messages.

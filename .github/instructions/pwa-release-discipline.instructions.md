@@ -101,3 +101,10 @@ Use a clean split:
 - debug module: optional, isolated, development-only, excluded from release build
 
 This keeps the app production-safe, maintainable, and aligned with a clean PWA deployment model.
+
+## In this codebase
+
+- `index.html` -> `src/app/main.js` (service worker, update offer, wake lock, reload guard) -> `boot()`. `dev.html` calls `boot()` directly.
+- `sw.js` caches the release set under a name made of `APP_VERSION` and `BUILD` (`src/app/version.js`); the app must work offline, except Import AI, whose button is shown only when its proxy answers.
+- An update installs in the background and is applied only when the user presses the update button or the app is closed; the app never reloads itself.
+- After changing any shipped file, run `python scripts/check_release.py --stamp`; bump `APP_VERSION` for a release. The GitHub Pages workflow runs the release check and the unit tests before it publishes. Details: `doc/release.md`.

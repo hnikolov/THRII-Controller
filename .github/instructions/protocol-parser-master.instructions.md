@@ -25,7 +25,7 @@ The amp can send unsolicited updates, especially when:
 - a parameter or session state changes outside the app
 
 A memory-slot selection is not the same as a full settings dump.
-It should be treated as a trigger event that may require a follow-up state sync query and actual-settings read.
+It is a trigger event: the app reads the Actual settings next. (The amp's "have settings changed?" answer is not used: after a memory switch it reports no change.)
 
 ### 2) The parser turns raw bytes into semantic events
 
@@ -196,3 +196,11 @@ And for diagnostics:
 Transport/Parser -> Debug observer/logging module
 
 The app may be observed in parallel, but it must never be owned in parallel.
+
+## In this codebase
+
+- Outbound frames: `src/protocol/builders.js` (command counter, bit buckets, parameter writes, type and memory select, dump requests, uploads). The session identity (family and model bytes) comes from the amp's identity reply (`src/protocol/identity.js`), never from constants.
+- Inbound: `frames.js` (frame extraction and decoding) -> `incoming.js` (group 0 events) or, for dumps, `syncFlow.js` -> `dumpAssembly.js` -> `dumpParser.js`.
+- Symbol resolution: `src/protocol/symbolTable.js` only (id to name, name to id, dump id to the live id the amp reports, name normalization).
+- Timing found on the hardware (pauses, pacing, BLE gap, counter range) is listed in `doc/app_internals.md`. Do not change wire bytes, frame order or timing in a refactor; new protocol behavior goes behind a flag in `src/core/flags.js` that stays off until checked on the amp.
+- Every builder change gets a golden test; inbound changes get a test on a captured transcript (`test/fixtures/transcripts/`).

@@ -1,5 +1,4 @@
-// Symbol names by id, from src/data/thr10ii_w_symbol_table_1_44_0_a.json (a copy of the JSON form in doc/).
-// JSON.parse keeps the last value of a duplicated key, as the .js object literal does.
+// Symbol names by id, from src/data/thr10ii_w_symbol_table_1_44_0_a.json (a copy of the table in doc/).
 export function makeNameOf(byId) {
   return key => {
     const name = byId[String(Number(key) >>> 0)];

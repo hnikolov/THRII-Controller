@@ -23,7 +23,7 @@ export async function aiAvailable({ base = API_BASE, fetch = (...args) => global
   }
 }
 
-// The three calls to the preset generator of amplifier-presets.com (contract: ai_presets_example/CLAUDE.md).
+// The three calls to the preset generator of amplifier-presets.com.
 // Every failure is an Error with a readable message; an aborted request keeps its AbortError.
 export function createApi({ base = API_BASE, fetch = (...args) => globalThis.fetch(...args) } = {}) {
   async function call(path, options = {}) {

@@ -13,6 +13,10 @@ The plans of the migration from the single-file prototype to the modular app, as
 | `plan_ui.md`, `plan_ui_simple.md`, `new_ui_plan.md` | Design iterations of the Import AI screen |
 | `presets_ui_plan.md` | Design of the Presets screen |
 
+## architecture.md, architecture-topology-redrawn.md
+
+The original target design, written before the migration, and a redraw of its diagram. Replaced by `doc/app_internals.md`, which describes the app as built.
+
 ## The legacy prototype
 
 `thrii_ctrl.html`, the original single-file prototype, was removed. It is kept one checkout away under the git tag `legacy-prototype`:
@@ -26,7 +30,7 @@ then open `http://localhost:8080/thrii_ctrl.html`. Return with `git checkout mai
 
 ## Where things live now
 
-- How the app is built: `architecture.md`, `CLAUDE.md`
+- How the app is built: `doc/app_internals.md`, `CLAUDE.md`
 - Testing: `doc/testing.md`
 - Publishing and updates: `doc/release.md`
 - Protocol notes: `doc/`

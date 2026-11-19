@@ -74,6 +74,8 @@ This includes:
 
 Never generate serialized device payloads directly from the current DOM state if the canonical model exists.
 
+One deliberate exception: a whole patch upload (save to memory, quick import, restore) is built on the amp's own dump bytes, because the store does not keep everything a patch holds. Such an upload must always be checked by reading the amp back, and the store is then filled from that read.
+
 ### 5) Sync boundaries must be explicit
 
 The project needs an explicit boundary between:
@@ -175,3 +177,11 @@ Use this pattern for all runtime data:
 - serialize writes from the shadow store only
 
 This keeps the app deterministic, debuggable, and safe for future refactoring and PWA release work.
+
+## In this codebase
+
+- The store is `src/state/shadowStore.js`: `{ units, activeSlot, presetName, modified }`, changed only by `store.commit(mutate, source)`.
+- Sources: `'ui'` (an edit; the only one that leads to outbound writes), `'device'` (an amp event), `'dump'` (a settings read; replaces the units), `'import'` (a preset plan).
+- `activeSlot` is device-owned: set by the amp's memory notification, or by the Actual read that follows a slot select from the app; never by the UI.
+- User intent goes through `src/ui/runtime/intents.js` (commit `'ui'`, then `src/protocol/writeScheduler.js`, 40 ms quiet / 120 ms max, value read from the store at flush time).
+- Device data comes in through `src/state/applyDeviceEvent.js` (events and dumps) and presets through `src/state/applyPreset.js`.
