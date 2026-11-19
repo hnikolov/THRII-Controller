@@ -1,11 +1,14 @@
 // Where the preset generator is reached. '/api' is the local proxy of scripts/serve.py (same origin as the app); the
 // backend itself (https://api.amplifier-presets.com) answers browsers only on its own site. For a hosted proxy, or the
 // backend once its authors allow this app's origin, change this one value.
-export const API_BASE = '/api';
+// export const API_BASE = '/api';
+export const API_BASE = 'https://thrii-proxy.hnikolov.workers.dev/api';
 
-// The backend's amplifier id for the connected amp, by the model code of its identity reply. Only 0x01 (THR10II
-// Wireless) has been seen on hardware; other THR-II amps are picked by hand on the AI screen until their code is known.
-export const AMP_ID_BY_MODEL = { 0x01: 'yamaha-thr-10-ii' };
+// The backend's amplifier id for the connected amp, by the model code of its identity reply. 0x01 (THR10II Wireless)
+// was seen on this app's hardware; 0x02 (THR30II Wireless) is from martinzw's pedalboard source and the 0xTHR-II notes;
+// 0x00 (THR10II without wireless) is from a single user report and not confirmed. The THR30IIA's code is unknown; any
+// amp not listed here is picked by hand on the AI screen.
+export const AMP_ID_BY_MODEL = { 0x00: 'yamaha-thr-10-ii', 0x01: 'yamaha-thr-10-ii', 0x02: 'yamaha-thr-30-ii' };
 
 // Sounds kept in the list (each with up to five versions); beyond this the one generated longest ago drops out.
 export const SOUNDS_MAX = 20;
