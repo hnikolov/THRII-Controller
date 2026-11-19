@@ -1,6 +1,6 @@
 # THR-II SysEx Protocol Engineering Notes
 
-This document distills the key protocol knowledge from [doc/SYSEX_PROTOCOL_THR30II.pdf](doc/SYSEX_PROTOCOL_THR30II.pdf) (via extracted text) and organizes it for implementation.
+This document distills the key protocol knowledge from `SYSEX_PROTOCOL_THR30II.pdf` in martinzw's [THRII-direct-USB-pedalboard](https://github.com/martinzw/THRII-direct-USB-pedalboard) repository and organizes it for implementation.
 
 Goal focus:
 - Reliable command building for parameters, amp/effect selection, and patch operations.
@@ -286,8 +286,7 @@ Design implications:
 
 ## 12) Source references in this workspace
 
-- Protocol PDF: [doc/SYSEX_PROTOCOL_THR30II.pdf](doc/SYSEX_PROTOCOL_THR30II.pdf)
-- Extracted text snapshot: [doc/SYSEX_PROTOCOL_THR30II_extracted.txt](doc/SYSEX_PROTOCOL_THR30II_extracted.txt)
+- Protocol PDF: `SYSEX_PROTOCOL_THR30II.pdf` in [martinzw/THRII-direct-USB-pedalboard](https://github.com/martinzw/THRII-direct-USB-pedalboard)
 - Symbol table dump: [doc/thr10ii_w_symbol_table_1_44_0_a.txt](doc/thr10ii_w_symbol_table_1_44_0_a.txt)
 - Amp mapping helper: [doc/amp_sim_symbol_ids.txt](doc/amp_sim_symbol_ids.txt)
 - Bit-bucketing note: [doc/thrii_sysex_bit_bucketing.md](doc/thrii_sysex_bit_bucketing.md)
