@@ -2,6 +2,16 @@
 
 A browser-based editor and controller for Yamaha THR-II amplifiers, over USB (Web MIDI) and Bluetooth (Web Bluetooth).
 
+The app can be run online [here](https://hnikolov.github.io/THRII-Controller/).
+
+To run the app locally, from the repository folder, start the plain server and open the app in Chrome:
+
+`python -m http.server 8080`
+
+Then open:
+
+`http://localhost:8080/`.
+
 ## Supported models
 
 The app reads the amp's model from its identity reply and uses it in every message it sends.
