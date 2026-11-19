@@ -19,7 +19,7 @@ import { setDeviceIdentity } from '../../src/protocol/identity.js';
 import { writeU32LE } from '../../src/core/bytes.js';
 
 const SYMBOLS = '../doc/thr10ii_w_symbol_table_1_44_0_a.json';
-const loadSample = async () => (await fetch('/doc/' + encodeURIComponent('01. EarlyVH.thrl6p'))).json();
+const loadSample = async () => (await fetch('/test/fixtures/presets/' + encodeURIComponent('01. EarlyVH.thrl6p'))).json();
 const loadGolden = async () => (await fetch('/test/fixtures/preset.normalized.golden.json')).json();
 const sorted = value => (value && typeof value === 'object' && !Array.isArray(value)
   ? Object.fromEntries(Object.keys(value).sort().map(key => [key, sorted(value[key])]))
@@ -88,7 +88,7 @@ it('preset plan: unknown names and unknown types refuse the whole plan', async (
 // Exports of the amplifier-presets.com generator: other key order than THR Remote's files, and a tempo outside the range.
 it('preset plan: the generated sample presets resolve; their tempo is cut to the range and kept locally', async () => {
   for (const file of ['walsh-hotel-solo.thrl6p', 'neo-classical-fury.thrl6p']) {
-    const json = await (await fetch('/doc/' + file)).json();
+    const json = await (await fetch('/test/fixtures/presets/' + file)).json();
     const plan = await samplePlan({ json });
     assertEqual(plan.presetName, json.data.meta.name, file + ' name');
     assertEqual(plan.modules.length, 8, file + ' modules');

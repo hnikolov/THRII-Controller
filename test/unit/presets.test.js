@@ -3,7 +3,7 @@ import { bootApp, until } from '../support/fakeAmp.js';
 
 const SAMPLES = ['01. EarlyVH', 'Clean Megadeth', 'Crunch Ico LP', 'Ico Solo 1', 'Master of Puppets Rhythm', 'One 1 wip',
   'Samba_Pa_Ti_Bloom', 'Samba_Sustain', 'neo-classical-fury', 'walsh-hotel-solo'];
-const sample = async name => ({ name: `${name}.thrl6p`, text: await (await fetch('/doc/' + encodeURIComponent(name) + '.thrl6p')).text() });
+const sample = async name => ({ name: `${name}.thrl6p`, text: await (await fetch('/test/fixtures/presets/' + encodeURIComponent(name) + '.thrl6p')).text() });
 
 // The list as lines: '> ' marks the loaded row, the name as shown (with ' *' when edited), its amp model, and '↻'
 // when the row offers an update.

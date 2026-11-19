@@ -109,7 +109,7 @@ it('boot: the Presets page is the app\'s own; a preset source adds its page butt
     opened[0].setActivity(false);
     assertEqual(button.classList.contains('is-active'), false, 'and goes');
 
-    const text = await (await fetch('/doc/walsh-hotel-solo.thrl6p')).text();
+    const text = await (await fetch('/test/fixtures/presets/walsh-hotel-solo.thrl6p')).text();
     assertDeepEqual(await opened[0].importText(text), { ok: true, message: 'Imported Walsh Hotel Solo (amp not connected)' }, 'import result');
     await until(() => app.nameBox().value === 'Walsh Hotel Solo', 'the preset in the store');
   } finally {

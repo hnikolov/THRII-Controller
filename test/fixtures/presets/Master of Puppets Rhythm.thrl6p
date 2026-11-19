@@ -1,0 +1,72 @@
+{
+ "data": {
+  "device": 2359298,
+  "device_version": 20971617,
+  "meta": {
+   "name": "Master of Puppets Rhythm",
+   "tnid": 0
+  },
+  "tone": {
+   "THRGroupAmp": {
+    "@asset": "THR10X_Brown2",
+    "Bass": 0.44,
+    "Drive": 0.68,
+    "Master": 0.565185,
+    "Mid": 0.28,
+    "Treble": 0.73
+   },
+   "THRGroupCab": {
+    "@asset": "speakerSimulator",
+    "SpkSimType": 1
+   },
+   "THRGroupFX1Compressor": {
+    "@asset": "RedComp",
+    "@enabled": true,
+    "Level": 0.685185,
+    "Sustain": 0.351852
+   },
+   "THRGroupFX2Effect": {
+    "@asset": "StereoSquareChorus",
+    "@enabled": false,
+    "@wetDry": 0,
+    "Depth": 0,
+    "Feedback": 0,
+    "Freq": 0,
+    "Pre": 0
+   },
+   "THRGroupFX3EffectEcho": {
+    "@asset": "TapeEcho",
+    "@enabled": false,
+    "@wetDry": 0,
+    "Bass": 0,
+    "Feedback": 0,
+    "Time": 0,
+    "Treble": 0
+   },
+   "THRGroupFX4EffectReverb": {
+    "@asset": "SmallRoom1",
+    "@enabled": true,
+    "@wetDry": 0.06,
+    "Decay": 0.08,
+    "PreDelay": 0.1,
+    "Tone": 0.52
+   },
+   "THRGroupGate": {
+    "@asset": "noiseGate",
+    "@enabled": true,
+    "Decay": 0.24,
+    "Thresh": -27.16
+   },
+   "global": {
+    "THRPresetParamTempo": 110
+   }
+  }
+ },
+ "meta": {
+  "original": 0,
+  "pbn": 0,
+  "premium": 0
+ },
+ "schema": "L6Preset",
+ "version": 5
+}

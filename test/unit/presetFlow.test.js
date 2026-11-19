@@ -2,7 +2,7 @@ import { it, assertEqual, assertDeepEqual, assertTrue } from '../support/assert.
 import { bootApp, until } from '../support/fakeAmp.js';
 import { flags } from '../../src/core/flags.js';
 
-const sampleText = async () => (await fetch('/doc/' + encodeURIComponent('01. EarlyVH.thrl6p'))).text();
+const sampleText = async () => (await fetch('/test/fixtures/presets/' + encodeURIComponent('01. EarlyVH.thrl6p'))).text();
 const statusHas = (app, text) => until(() => app.status().includes(text), `status "${text}" (got "${app.status()}")`);
 
 it('presets without an amp: import shows the preset, an edit changes it, export writes the edited preset', async () => {
@@ -80,13 +80,13 @@ it('quick import: the preset goes to the amp as one upload, and the read-back ma
 it('import of a text without an amp: the generated sample presets are accepted with the types the menus offer', async () => {
   const app = await bootApp();
   try {
-    const walsh = await app.app.importText(await (await fetch('/doc/walsh-hotel-solo.thrl6p')).text());
+    const walsh = await app.app.importText(await (await fetch('/test/fixtures/presets/walsh-hotel-solo.thrl6p')).text());
     assertDeepEqual(walsh, { ok: true, message: 'Imported Walsh Hotel Solo (amp not connected)' }, 'result');
     assertEqual(app.status(), walsh.message, 'the status shows the same message');
     await until(() => app.knob('MASTER').getAttribute('aria-valuenow') === '68', 'MASTER of the preset');
     assertEqual(app.nameBox().value, 'Walsh Hotel Solo', 'name in the label');
 
-    const fury = await app.app.importText(await (await fetch('/doc/neo-classical-fury.thrl6p')).text());
+    const fury = await app.app.importText(await (await fetch('/test/fixtures/presets/neo-classical-fury.thrl6p')).text());
     assertDeepEqual(fury, { ok: true, message: 'Imported Neo-Classical Fury (amp not connected)' }, 'second preset');
     await until(() => app.nameBox().value === 'Neo-Classical Fury', 'the second name');
   } finally {
