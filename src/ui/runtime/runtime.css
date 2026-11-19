@@ -738,8 +738,6 @@ body {
   filter: grayscale(0.15);
 }
 
-.module-section.is-off .module-title,
-.module-section.is-off .module-mode,
 button.module-badge {
   border: 0;
   margin: 0;
@@ -1027,18 +1025,43 @@ button.module-badge:disabled {
     --center-font-size: min(3.6vw, 14px);
     --knob-font-size: min(2.7vw, 11px);
     --led-size: 18px;
+    --strip-side: 116px;
   }
 
+  /* Both sides of the top strip are as wide as three tabs, so the preset name stays on the screen centre; the name
+     takes all the width between them, and the view sets a long name smaller until it fits. */
   .top-strip {
-    font-size: 11px;
+    font-size: 13px;
+    grid-template-columns: var(--strip-side) minmax(0, 1fr) var(--strip-side);
+    gap: 4px;
+  }
+
+  .strip-item.editable-memory {
+    width: auto;
+  }
+
+  .strip-editable-input {
+    max-width: none;
+  }
+
+  .strip-button {
+    padding: 0 6px;
   }
 
   .strip-caption {
     font-size: 10px;
   }
 
+  .strip-item.has-pages {
+    gap: 0;
+  }
+
   .strip-page-button {
-    min-width: 46px;
+    min-width: 38px;
+  }
+
+  .strip-update-button {
+    min-width: 30px;
   }
 
   .strip-page-button.is-icon,
@@ -1074,6 +1097,17 @@ button.module-badge:disabled {
 
   .module-badge {
     font-size: 11px;
+  }
+
+  /* The module head sits 2 px lower, clear of the line above; the LED moves with the title (it is centred on the
+     head, whose top padding is now 4 px more than the bottom). */
+  .module-head {
+    min-height: 28px;
+    padding-top: 6px;
+  }
+
+  .module-head .module-led-slot {
+    top: calc(50% + 2px);
   }
 
   .label {

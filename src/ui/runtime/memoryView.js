@@ -51,8 +51,14 @@ export class MemoryView {
     this.labelInput.setAttribute('aria-label', 'User memory label');
     this.labelInput.maxLength = PRESET_NAME_MAX;
     this.labelInput.addEventListener('focus', () => this.labelInput.select());
-    this.labelInput.addEventListener('input', event => this.onName(event.target.value));
-    this.labelInput.addEventListener('blur', () => { this.labelInput.value = this.label; });
+    this.labelInput.addEventListener('input', event => {
+      this.onName(event.target.value);
+      this.fitLabel();
+    });
+    this.labelInput.addEventListener('blur', () => {
+      this.labelInput.value = this.label;
+      this.fitLabel();
+    });
     labelSlot.append(this.labelInput);
 
     const connectSlot = document.createElement('div');
@@ -144,8 +150,22 @@ export class MemoryView {
     this.label = name || labelFor(activeSlot);
     // While the name is being typed and is empty, the box stays empty; the default label returns when it loses focus.
     const clearing = !name && document.activeElement === this.labelInput;
-    if (this.labelInput && this.labelInput.value !== this.label && !clearing) this.labelInput.value = this.label;
+    if (this.labelInput && this.labelInput.value !== this.label && !clearing) {
+      this.labelInput.value = this.label;
+      this.fitLabel();
+    }
     this.renderSlots();
+  }
+
+  // The name keeps to one line of its box: one too long for the strip's font is set smaller, down to 9 px.
+  fitLabel() {
+    const input = this.labelInput;
+    input.style.fontSize = '';
+    let size = parseFloat(getComputedStyle(input).fontSize);
+    while (input.scrollWidth > input.clientWidth && size > 9) {
+      size -= 0.5;
+      input.style.fontSize = `${size}px`;
+    }
   }
 
   renderSlots() {
