@@ -16,14 +16,14 @@ Then open:
 
 The app reads the amp's model from its identity reply and uses it in every message it sends.
 
-| Amp | Model code | Connection | Status |
-|---|---|---|---|
-| THR10II Wireless | `0x01` | USB, Bluetooth | Tested |
-| THR30II Wireless | `0x02` | USB, Bluetooth | Expected to work; not tested yet |
-| THR10II | `0x00` | USB, Bluetooth | Expected to work; not tested yet |
-| THR30IIA Wireless (acoustic) | unknown | USB, Bluetooth | Unknown: its amp and effect models differ, so it likely needs its own symbol table |
+| Amp | Model code | Status |
+|---|---|---|
+| THR10II Wireless | `0x01` | Tested |
+| THR30II Wireless | `0x02` | Expected to work; not tested yet |
+| THR10II | `0x00` | Expected to work; not tested yet |
+| THR30IIA Wireless (acoustic) | unknown | Unknown: its amp and effect models differ, so it likely needs its own symbol table |
 
-If you own one of the untested models, a report with the identity reply from `dev.html` (the `F0 7E 7F 06 02 ...` line in the raw trace) is very welcome.
+If you own one of the untested models, a confirmation if the app works with your amp model is very welcome.
 
 ## Credits
 
