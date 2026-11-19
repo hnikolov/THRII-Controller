@@ -79,8 +79,8 @@ The symbol table is a critical semantic metadata layer and must be treated as a 
 
 Current usage pattern in the implementation:
 
-- the app loads the THR-II symbol dictionary from `doc/thr10ii_w_symbol_table_1_44_0_a.js` and falls back to `doc/thr10ii_w_symbol_table_1_44_0_a.json`
-- the parser calls `ensureParserSymbolsLoaded()` at startup and on demand
+- the app loads the THR-II symbol dictionary from `src/data/thr10ii_w_symbol_table_1_44_0_a.json` (`loadSymbolTable` in `src/protocol/symbolTable.js`; a copy of the table in `doc/`)
+- `boot()` loads it once at startup; without it the dump parsing, slot sync and presets stay off
 - the dictionary is stored as a two-way lookup:
   - by numeric ID -> symbol name
   - by symbol name -> numeric ID

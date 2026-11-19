@@ -1,7 +1,7 @@
 # Preset import on the amp: what the capture shows
 
 Source: `test/fixtures/transcripts/upload_preset_with_amp_reply.txt` (USB, thr10ii, firmware 1.44.0.a, 2026-11-12).
-The app imported `doc/01. EarlyVH.thrl6p` while connected. The file has `TX <label>: <hex>` lines for what the app sent, `RX USB: <hex>` lines for what the amp sent, and `Sync: ...` status lines. `test/support/transcripts.js` (`loadInboundFrames`) reads the RX lines; `decodeIncomingEvent` in `src/protocol/incoming.js` decodes them. `test/unit/preset.test.js` ("import capture") checks the counts below.
+The app imported `01. EarlyVH.thrl6p` (now `test/fixtures/presets/01. EarlyVH.thrl6p`) while connected. The file has `TX <label>: <hex>` lines for what the app sent, `RX USB: <hex>` lines for what the amp sent, and `Sync: ...` status lines. `test/support/transcripts.js` (`loadInboundFrames`) reads the RX lines; `decodeIncomingEvent` in `src/protocol/incoming.js` decodes them. `test/unit/preset.test.js` ("import capture") checks the counts below.
 
 ## Sequence
 

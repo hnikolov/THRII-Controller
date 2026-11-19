@@ -7,8 +7,7 @@ export function makeNameOf(byId) {
   };
 }
 
-// Symbol table (id to name) from the JSON form of the legacy .js table. JSON.parse keeps the last value of a
-// duplicated key, as the .js object literal does.
+// Symbol table (id to name). Some ids appear twice in the file; JSON.parse keeps the last value of each.
 export async function loadSymbolTable(url = 'src/data/thr10ii_w_symbol_table_1_44_0_a.json') {
   const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) throw new Error('Symbol table HTTP ' + response.status);

@@ -7,6 +7,8 @@ Files looked at:
 - `doc/THR-Backup-orig.thrl6a`: a backup written by Yamaha's THR Remote app.
 - `doc/THR backup 2026-11-13.json`: a backup written by this app (Backup THR in the PRESETS menu).
 
+Both files were removed from `doc/` later; they are in the git history (`git show c2b8c0e:"doc/THR-Backup-orig.thrl6a"`).
+
 Both were taken from the same amp (THR10II Wireless, firmware 1.44.0.a), at different times.
 
 ## Conclusion
@@ -110,7 +112,7 @@ All of these would be additions; none replaces the current Backup and Restore.
 
 ## Side finding: device fields in exported presets
 
-The `.thrl6a` records `device` `0x240001` and `device_version` 1.44.0.a, the values of the connected amp. This app's exported `.thrl6p` files carry fixed values copied from the sample preset `doc/01. EarlyVH.thrl6p`: `device` 2359298 (`0x240002`) and `device_version` 20971617 (`0x01400061`, 1.40.0.a); see `FORMAT` in `src/domain/presetModel.js`. Whether THR Remote checks these fields on import is unknown. If exports are meant to open in THR Remote, writing the connected amp's values (from the identity reply) would be the safer choice.
+The `.thrl6a` records `device` `0x240001` and `device_version` 1.44.0.a, the values of the connected amp. This app's exported `.thrl6p` files carry fixed values copied from the sample preset `test/fixtures/presets/01. EarlyVH.thrl6p`: `device` 2359298 (`0x240002`) and `device_version` 20971617 (`0x01400061`, 1.40.0.a); see `FORMAT` in `src/domain/presetModel.js`. Whether THR Remote checks these fields on import is unknown. If exports are meant to open in THR Remote, writing the connected amp's values (from the identity reply) would be the safer choice.
 
 ## Other observations
 

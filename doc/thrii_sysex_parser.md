@@ -11,7 +11,7 @@ This document describes the runtime parser design in `thrii_ctrl.html` (the lega
 ## Runtime Scope
 - Main runtime owner: window.thrIncomingParser
 - Primary file: `thrii_ctrl.html` (the legacy prototype, git tag `legacy-prototype`)
-- Symbol source preload: [doc/thr10ii_w_symbol_table_1_44_0_a.js](doc/thr10ii_w_symbol_table_1_44_0_a.js)
+- Symbol source preload: `doc/thr10ii_w_symbol_table_1_44_0_a.js` (removed later; `doc/thr10ii_w_symbol_table_1_44_0_a.json` holds the same table)
 
 ## Architecture Overview
 
