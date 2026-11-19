@@ -89,12 +89,12 @@ body {
   text-transform: uppercase;
 }
 
-/* Equal sides: the preset name sits on the screen centre whatever the buttons beside it read. The sides reach
-   nearly to the frame's edge, so three tabs fit on the left. */
+/* Equal sides: the preset name sits on the screen centre whatever the buttons beside it read. The sides reach the
+   frame's edge (no padding: a lit tab would show a sliver of gold beside it), so three tabs fit on the left. */
 .top-strip {
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   gap: 10px;
-  padding: 0 2px;
+  padding: 0;
 }
 
 .footer-strip {
@@ -1018,14 +1018,96 @@ button.module-badge:disabled {
     box-shadow: none;
   }
 
+  /* On a phone the frame is the whole screen: strips of touch size, larger text, and knobs as wide as five fit. */
   :root {
     --app-width: 100vw;
-    --knob-size: min(17.2vw, 72px);
-    --center-font-size: min(3.2vw, 12px);
-    --knob-font-size: min(2.4vw, 10px);
+    --header-height: 44px;
+    --ui-font-size: 12px;
+    --knob-size: min(18vw, 76px);
+    --center-font-size: min(3.6vw, 14px);
+    --knob-font-size: min(2.7vw, 11px);
+    --led-size: 18px;
   }
 
   .top-strip {
-    font-size: 9px;
+    font-size: 11px;
+  }
+
+  .strip-caption {
+    font-size: 10px;
+  }
+
+  .strip-page-button {
+    min-width: 46px;
+  }
+
+  .strip-page-button.is-icon,
+  .strip-update-button {
+    font-size: 20px;
+  }
+
+  .strip-page-button.is-knob::before {
+    width: 20px;
+    height: 20px;
+  }
+
+  .strip-page-button.is-knob::after {
+    top: calc(50% - 9px);
+    height: 9px;
+  }
+
+  .footer-strip {
+    font-size: 15px;
+  }
+
+  .amp-name,
+  .amp-cab,
+  .unit-selector.is-amp .unit-selector-button,
+  .unit-selector.is-cab .unit-selector-button {
+    font-size: 14px;
+  }
+
+  .unit-selector-button,
+  .unit-selector-option {
+    font-size: 12px;
+  }
+
+  .module-badge {
+    font-size: 11px;
+  }
+
+  .label {
+    letter-spacing: 0.1em;
+  }
+
+  /* The knob area fills the height between the strips: each row takes an equal share of what is left and centres
+     its knobs in it. (No scrolling here: it would clip the type menus, which may reach over the footer strip.) */
+  .ui-body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .amp-head,
+  .module-row {
+    flex: 1 0 auto;
+  }
+
+  .module-row {
+    display: flex;
+  }
+
+  .module-row > .module-section {
+    flex: 1;
+  }
+
+  .module-section {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .amp-knobs,
+  .module-knobs {
+    flex: 1 0 auto;
+    align-items: center;
   }
 }
