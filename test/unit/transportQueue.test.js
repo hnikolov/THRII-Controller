@@ -54,6 +54,18 @@ it('queue: consecutive BLE frames keep the gap (50 ms by default)', async () => 
   assertTrue(gap >= 45, `gap between frames is ${gap} ms`);
 });
 
+it('queue: the packets of one BLE frame are written 20 ms apart (an upload frame is about 15 packets)', async () => {
+  const transports = createTransportManager({ bleFrameGapMs: 0 });
+  const char = slowBleCharacteristic();
+  transports.ble.setCharacteristic(char);
+  await transports.send(frame(0x10, 48), 'A');
+  assertTrue(char.packets.length >= 3, 'several packets');
+  char.packets.slice(1).forEach((packet, i) => {
+    const gap = packet.at - char.packets[i].at;
+    assertTrue(gap >= 18, `gap between packets is ${gap} ms`);
+  });
+});
+
 it('queue: a failed write rejects its own send and the next frame is still written', async () => {
   const transports = createTransportManager({ bleFrameGapMs: 0 });
   const char = slowBleCharacteristic({ failFirst: true });

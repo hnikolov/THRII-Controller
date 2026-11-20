@@ -1,3 +1,5 @@
+import { sleep } from '../core/bytes.js';
+
 export const MIDI_SERVICE_UUID = '03b80e5a-ede8-4b33-a751-6ce34ec4c700';
 export const MIDI_CHAR_UUID = '7772e5db-3868-4112-a1a9-f2669d106bf3';
 
@@ -8,6 +10,12 @@ const DEFAULT_PACKET_BYTES = 20;
 // Verify when presets are uploaded to the amp, then keep or set to false.
 // false forces the 20-byte default regardless of what the browser reports.
 export const BLE_USE_REPORTED_PACKET_SIZE = true;
+
+// Pause between the packets of one frame. Without it a frame's packets go out back to back: a parameter write is 2 or 3
+// packets, an upload frame (about 280 bytes) about 15. Over BLE, imports (the uploads) failed while the controls worked,
+// and the amp then answered nothing until it was switched off and on, as when fast writes overflowed its input (phone,
+// 2026-11-20). UNVERIFIED on hardware that this pause cures it.
+export const BLE_PACKET_GAP_MS = 20;
 
 // BLE-MIDI input. A packet is [header][timestamp][data]; a SysEx can continue in later packets, each with its own
 // header, and a timestamp also sits before F7. Inside SysEx every data byte is below 0x80, so other top-bit bytes are
@@ -29,7 +37,7 @@ export function createBleSysExInput(onFrame) {
   };
 }
 
-export function createBleTransport(onBytes, { useReportedPacketSize = BLE_USE_REPORTED_PACKET_SIZE } = {}) {
+export function createBleTransport(onBytes, { useReportedPacketSize = BLE_USE_REPORTED_PACKET_SIZE, packetGapMs = BLE_PACKET_GAP_MS } = {}) {
   let characteristic = null;
   let notificationHandler = null;
   let timestamp = 0;
@@ -98,10 +106,12 @@ export function createBleTransport(onBytes, { useReportedPacketSize = BLE_USE_RE
     },
 
     isConnected: () => !!characteristic,
+    packetBytes: () => maxPacketBytes,
 
     async send(bytes) {
       if (!characteristic) throw new Error('BLE is not connected.');
-      for (const packet of buildPackets(bytes)) {
+      for (const [index, packet] of buildPackets(bytes).entries()) {
+        if (index > 0) await sleep(packetGapMs);
         if (typeof characteristic.writeValueWithoutResponse === 'function') {
           await characteristic.writeValueWithoutResponse(packet);
         } else {

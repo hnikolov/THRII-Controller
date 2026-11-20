@@ -108,6 +108,7 @@ Browser storage (per site, `localStorage`): the Presets list (`thrii.presets`) a
 | Write coalescing | 40 ms quiet, 120 ms max | `protocol/writeScheduler.js` | a burst of writes over BLE overflowed the amp |
 | BLE frame gap | 50 ms | `transports/transportManager.js` | back-to-back BLE writes overflowed the amp's input |
 | BLE packet size | as reported by the browser, else 20 bytes | `transports/bleTransport.js` | 20 is the default ATT payload; whether the amp takes larger packets is unverified (`BLE_USE_REPORTED_PACKET_SIZE`) |
+| BLE packet gap | 20 ms between the packets of one frame | `transports/bleTransport.js` | imports (uploads: about 15 packets per frame) failed over BLE and left the amp unresponsive; unverified that the gap cures it |
 | Activation spacing | 500 ms | `protocol/identity.js` | between activation frames |
 | Type change pauses | 256 ms before, 512 ms after, defaults 50 ms apart | `app/boot.js` | the amp hard-stopped on rapid switches |
 | Upload pace | 18 ms per frame | `protocol/builders.js` | pacing the amp accepts for patch uploads |

@@ -206,7 +206,8 @@ export async function boot(rootEl, {
   const open = {
     ble: async () => {
       const result = await transports.connectBle();
-      return 'BLE connected: ' + result.name + (result.notifications ? '' : ' (notifications unavailable)');
+      return `BLE connected: ${result.name}, packets of ${transports.ble.packetBytes()} bytes`
+        + (result.notifications ? '' : ' (notifications unavailable)');
     },
     usb: async () => {
       const result = await transports.connectUsb();

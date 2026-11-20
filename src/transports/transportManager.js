@@ -7,11 +7,11 @@ import { createUsbTransport } from './usbTransport.js';
 // (the activation notes space requests 50 to 100 ms apart). USB needs no gap.
 export const BLE_FRAME_GAP_MS = 50;
 
-export function createTransportManager({ useReportedPacketSize, bleFrameGapMs = BLE_FRAME_GAP_MS } = {}) {
+export function createTransportManager({ useReportedPacketSize, bleFrameGapMs = BLE_FRAME_GAP_MS, blePacketGapMs } = {}) {
   const bus = createBus();
   const onBytes = (bytes, source) => bus.emit('raw:in', { bytes, source });
   const usb = createUsbTransport(onBytes);
-  const ble = createBleTransport(onBytes, { useReportedPacketSize });
+  const ble = createBleTransport(onBytes, { useReportedPacketSize, packetGapMs: blePacketGapMs });
   let bleDevice = null;
   let midiAccess = null;
   // The link was lost from the amp's side: BLE out of range or switched off, or the USB cable pulled.

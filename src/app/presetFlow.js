@@ -96,6 +96,7 @@ export function createPresetFlow(deps) {
       await deps.send(frame, `TX import upload ${index + 1}/${frames.length}`);
       await deps.pause(UPLOAD_PACE_MS);
     }
+    deps.log(`Quick import: ${frames.length} upload frames sent; reading the amp back`);
     await deps.pause(UPLOAD_SETTLE_MS);
     return readBack(plan);
   }
