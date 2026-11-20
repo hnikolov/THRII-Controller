@@ -59,10 +59,7 @@
   min-width: 84px;
 }
 
-.pr-action:hover:not(:disabled),
-.pr-action:focus-visible,
 .pr-action[aria-expanded="true"] {
-  outline: none;
   background: var(--ink, #141414);
   color: var(--paper, #ede6d2);
 }
@@ -96,11 +93,6 @@
   font-weight: 700;
 }
 
-.pr-slot:hover,
-.pr-slot:focus-visible {
-  outline: none;
-  background: var(--gold-light, #b88c18);
-}
 
 .pr-search {
   display: flex;
@@ -223,21 +215,35 @@
   white-space: nowrap;
 }
 
-.pr-name:hover:not(:disabled),
-.pr-name:focus-visible,
-.pr-amp:hover:not(:disabled),
-.pr-amp:focus-visible,
-.pr-icon:hover:not(:disabled),
-.pr-icon:focus-visible {
-  outline: none;
-  background: rgba(154, 111, 8, 0.18);
-  color: var(--ink, #141414);
+/* A button's fill follows the pointer, so only where there is one: on a touch screen :hover stays on a tapped button
+   (Import, Export) until the next tap elsewhere. Keyboard focus gets a ring, not the fill: focus also comes back to the
+   button when a file or confirm dialog closes. */
+@media (hover: hover) {
+  .pr-action:hover:not(:disabled) {
+    background: var(--ink, #141414);
+    color: var(--paper, #ede6d2);
+  }
+
+  .pr-slot:hover {
+    background: var(--gold-light, #b88c18);
+  }
+
+  .pr-name:hover:not(:disabled),
+  .pr-amp:hover:not(:disabled),
+  .pr-icon:hover:not(:disabled) {
+    background: rgba(154, 111, 8, 0.18);
+    color: var(--ink, #141414);
+  }
+
+  .pr-remove:hover:not(:disabled) {
+    background: rgba(138, 28, 20, 0.14);
+    color: #8a1c14;
+  }
 }
 
-.pr-remove:hover:not(:disabled),
-.pr-remove:focus-visible {
-  background: rgba(138, 28, 20, 0.14);
-  color: #8a1c14;
+.pr-screen button:focus-visible {
+  outline: 2px solid var(--gold, #9a6f08);
+  outline-offset: -2px;
 }
 
 /* On a phone: larger text and touch-size controls. The list rows grow most: they are what is read and tapped. */

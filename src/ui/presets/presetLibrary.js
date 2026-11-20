@@ -5,7 +5,8 @@
 //
 // deps (all from boot):
 //   run(action)        'export' (resolves to the text written, or null) | 'backup' | 'restore' | 'save:N'
-//   importText(text)   loads a .thrl6p text into the Actual settings; resolves to { ok, message }
+//   importText(text)   loads a .thrl6p text into the Actual settings; resolves to { ok, message, refused } (refused:
+//                      the text cannot be loaded at all; otherwise a failure is the amp's, and the text is fine)
 //   pickTexts(accept)  the file dialog with multiple selection; resolves to [{ name, text }]
 //   currentText()      the current settings as .thrl6p text, under the header name (throws without settings)
 //   describe(text)     { name, amp } of a preset text the app can load (throws for one it cannot)
@@ -120,14 +121,15 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
     render();
   }
 
-  // One file is loaded and listed; several are listed only. A file already in the list is not added again.
+  // One file is loaded and listed; several are listed only. A file already in the list is not added again. One file the
+  // amp failed to take is still listed (not loaded), so a tap on its row tries again.
   async function importFiles() {
     const picked = await pickTexts('.thrl6p,application/json');
     if (picked.length === 1) {
       const { text } = picked[0];
       const result = await withBusy(() => importText(text));
-      const entry = result.ok && (findText(text) || add(text));
-      if (entry) markLoaded(entry);
+      const entry = !result.refused && (findText(text) || add(text));
+      if (entry && result.ok) markLoaded(entry);
     } else if (picked.length > 1) {
       const before = saved.entries.length;
       const refused = picked.filter(({ text }) => {

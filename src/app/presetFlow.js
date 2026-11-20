@@ -24,7 +24,8 @@ const today = () => new Date().toISOString().slice(0, 10);
 // send that fails ends the import: the amp is not answering, and some 50 more frames would only add to its load
 // (over BLE that fallback left the amp unresponsive until it was switched off and on).
 // deps: store, sync, send(frame, label), sendPlan(modules), selectSlot(slot) -> the Actual patch after the recall (or null),
-// log(text) for the trace, exclusive(label, fn), isConnected(), quickImport(),
+// log(text) for the trace, exclusive(label, fn), isConnected(), quickImport(), knownActual() -> the amp's Actual patch when
+// it is known to be current (or null),
 // device() -> { firmware, identity }, lookups { idOfName, nameOf, stateIdOf, isKnownType }, files { pickText, choose, download }, confirm, notify, pause.
 export function createPresetFlow(deps) {
   const { store, sync, files, notify } = deps;
@@ -41,10 +42,8 @@ export function createPresetFlow(deps) {
     return text;
   }
 
-  // The import of a .thrl6p text, wherever it comes from (a file, a preset source). Resolves to the message shown;
-  // throws when the text is refused, before anything changes.
-  async function importPresetText(text) {
-    const plan = presetToPlan(parseThrl6Preset(JSON.parse(text)), deps.lookups);
+  // The import of a preset plan, whatever text it comes from (a file, a preset source). Resolves to the message shown.
+  async function importPlan(plan) {
     let message = `Imported ${plan.presetName} (amp not connected)`;
 
     if (!deps.isConnected()) {
@@ -73,11 +72,18 @@ export function createPresetFlow(deps) {
     return message;
   }
 
+  // The amp is read back after an import. Returns where it differs from the preset.
+  async function readBack(plan) {
+    await sync.read(ACTUAL, { apply: true });
+    return comparePlan(store.getState(), plan);
+  }
+
   // Quick import: the preset as one patch, uploaded to the Actual settings; then the amp is read back.
-  // The patch is built on the amp's current Actual dump (buildPresetPatch). Returns where the amp then differs from
-  // the preset, or null when the patch could not be built. A failed read or send throws.
+  // The patch is built on the amp's current Actual dump (buildPresetPatch): the last one read while nothing changed
+  // since (knownActual), or else read now. Returns where the amp then differs from the preset, or null when the patch
+  // could not be built. A failed read or send throws.
   async function uploadPreset(plan) {
-    const template = await sync.read(ACTUAL);
+    const template = deps.knownActual() || await sync.read(ACTUAL);
     let frames;
     try {
       frames = buildUploadFrames(ACTUAL, buildPresetPatch(template, plan, deps.lookups));
@@ -90,12 +96,10 @@ export function createPresetFlow(deps) {
       await deps.pause(UPLOAD_PACE_MS);
     }
     await deps.pause(UPLOAD_SETTLE_MS);
-    await sync.read(ACTUAL, { apply: true });
-    return comparePlan(store.getState(), plan);
+    return readBack(plan);
   }
 
   // Value-by-value import: the store first, then the type selects and writes, then the amp is read back.
-  // Returns where the amp then differs from the preset.
   async function writePreset(plan) {
     // A type the amp already has is not selected again: fewer type switches, and its other settings stay.
     const current = store.getState();
@@ -105,8 +109,7 @@ export function createPresetFlow(deps) {
     }));
     applyPresetPlan(store, plan);
     await deps.sendPlan(modules);
-    await sync.read(ACTUAL, { apply: true });
-    return comparePlan(store.getState(), plan);
+    return readBack(plan);
   }
 
   async function readBackup() {
@@ -221,9 +224,17 @@ export function createPresetFlow(deps) {
       }
     },
     // Imports a .thrl6p text. Resolves to { ok, message }, the message being the one shown; never throws.
+    // refused: true when the text itself cannot be loaded (nothing changed). Without it a failed import is a failure of
+    // the amp or the link: the preset is fine and may be tried again.
     async importText(text) {
+      let plan;
       try {
-        return { ok: true, message: await importPresetText(text) };
+        plan = presetToPlan(parseThrl6Preset(JSON.parse(text)), deps.lookups);
+      } catch (err) {
+        return { ok: false, refused: true, message: failed('Import', err) };
+      }
+      try {
+        return { ok: true, message: await importPlan(plan) };
       } catch (err) {
         return { ok: false, message: failed('Import', err) };
       }

@@ -62,9 +62,9 @@ it('quick import: the preset goes to the amp as one upload, and the read-back ma
     app.presets('Import');
     await until(() => app.status() === 'Imported EarlyVH', 'the import without differences (got "' + app.status() + '")');
     assertDeepEqual(app.labels, [
-      'TX sync: actual dump', ...[1, 2, 3, 4].map(n => `TX import upload ${n}/4`), 'TX sync: actual dump'
-    ], 'one read, one upload, one read-back; no value writes');
-    const header = app.amp.sent[app.amp.sent.length - 6];
+      ...[1, 2, 3, 4].map(n => `TX import upload ${n}/4`), 'TX sync: actual dump'
+    ], 'one upload on the dump read at connect, one read-back; no value writes');
+    const header = app.amp.sent[app.amp.sent.length - 5];
     assertTrue(header.includes('7f 7f 7f 7f'), 'the upload header names the Actual target: ' + header);
 
     // The UI shows what the fake amp read back: the uploaded patch, decoded like any dump.
@@ -101,8 +101,8 @@ it('import of a text with an amp: the same frames as the file import; a refused 
     assertDeepEqual(result, { ok: true, message: 'Imported EarlyVH' }, 'result');
     assertEqual(app.status(), 'Imported EarlyVH', 'status');
     assertDeepEqual(app.labels, [
-      'TX sync: actual dump', ...[1, 2, 3, 4].map(n => `TX import upload ${n}/4`), 'TX sync: actual dump'
-    ], 'one read, one upload, one read-back');
+      ...[1, 2, 3, 4].map(n => `TX import upload ${n}/4`), 'TX sync: actual dump'
+    ], 'one upload, one read-back');
     await until(() => app.knob('MASTER').getAttribute('aria-valuenow') === '69', 'MASTER from the read-back');
 
     app.labels.length = 0;
@@ -123,7 +123,7 @@ it('import of a text with an amp: the same frames as the file import; a refused 
   }
 });
 
-it('quick import: when the amp does not answer the read, the import stops; nothing is sent value by value', async () => {
+it('quick import: when the amp stops answering, the import stops; nothing is sent value by value', async () => {
   const app = await bootApp({ connect: true });
   try {
     app.amp.onSend = bytes => {
@@ -132,8 +132,37 @@ it('quick import: when the amp does not answer the read, the import stops; nothi
     app.files.next = { name: 'EarlyVH.thrl6p', text: await sampleText() };
     app.presets('Import');
     await statusHas(app, 'Import failed: no dump');
-    assertDeepEqual(app.labels, ['TX sync: actual dump'], 'only the read was tried');
+    assertDeepEqual(app.labels.filter(label => !label.startsWith('TX import upload') && label !== 'TX sync: actual dump'), [],
+      'no value-by-value frames');
+    await until(() => app.container.querySelectorAll('.pr-entry').length === 1, 'the listed file');
+    assertEqual(app.container.querySelector('.pr-entry.is-selected'), null, 'listed, not marked loaded: a tap tries again');
     assertEqual(app.container.querySelector('.thr-app').classList.contains('is-busy'), false, 'controls enabled again');
+  } finally {
+    app.cleanup();
+  }
+});
+
+it('quick import: builds on the last Actual read (connect, read-back) while nothing changed; an edit makes it read again', async () => {
+  const app = await bootApp({ connect: true, takesUploads: true });
+  const uploadThenRead = [...[1, 2, 3, 4].map(n => `TX import upload ${n}/4`), 'TX sync: actual dump'];
+  const busy = () => app.container.querySelector('.thr-app').classList.contains('is-busy');
+  const importSample = async () => {
+    app.labels.length = 0;
+    app.files.next = { name: 'EarlyVH.thrl6p', text: await sampleText() };
+    app.presets('Import');
+    await until(() => app.labels.includes('TX import upload 4/4') && app.labels[app.labels.length - 1] === 'TX sync: actual dump' && !busy(), 'the import');
+    await statusHas(app, 'Imported EarlyVH');
+    return [...app.labels];
+  };
+  try {
+    assertDeepEqual(await importSample(), uploadThenRead, 'the first import builds on the dump read at connect');
+    assertDeepEqual(await importSample(), uploadThenRead, 'the next one builds on the read-back');
+
+    app.page('Amp settings');
+    app.labels.length = 0;
+    app.knob('MASTER').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    await until(() => app.labels.length > 0, 'the edit sent');
+    assertDeepEqual(await importSample(), ['TX sync: actual dump', ...uploadThenRead], 'after an edit the amp is read again');
   } finally {
     app.cleanup();
   }
@@ -150,7 +179,7 @@ it('quick import: when the amp then differs, the preset is sent value by value; 
       await statusHas(app, 'Imported EarlyVH');
       const firstWrite = app.labels.indexOf('TX import Amp type');
       assertDeepEqual(app.labels.slice(0, firstWrite), quick
-        ? ['TX sync: actual dump', ...[1, 2, 3, 4].map(n => `TX import upload ${n}/4`), 'TX sync: actual dump']
+        ? [...[1, 2, 3, 4].map(n => `TX import upload ${n}/4`), 'TX sync: actual dump']
         : [], quick ? 'the upload is tried first' : 'no upload');
     } finally {
       flags.quickImport = before;

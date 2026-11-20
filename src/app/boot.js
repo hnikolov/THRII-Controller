@@ -118,10 +118,19 @@ export async function boot(rootEl, {
     return sync.requestDump().catch(() => null);
   };
 
+  // The amp's Actual patch from the last applied read (connect, memory switch, import read-back), with the change stamp
+  // right after it. The stamp moves with every edit, every event from the amp and every frame sent; while it stands the
+  // amp still has that patch, and an import builds on it without reading it again (over BLE a read takes seconds).
+  let framesSent = 0;
+  transports.bus.on('raw:out', () => { framesSent += 1; });
+  const changeStamp = () => `${store.changeCount()}/${framesSent}`;
+  let lastActual = null;
+  const knownActual = () => (lastActual && lastActual.stamp === changeStamp() ? lastActual.patch : null);
+
   const sync = nameOf ? createSyncFlow({
     send: (bytes, label) => transports.send(bytes, label),
     nameOf,
-    onPatch: (entries, presetName) => {
+    onPatch: (entries, presetName, patch) => {
       applyDumpPatch(store, entries, nameOf, presetName, liveIdOf);
       generation += 1;
       if (pendingSlot !== null) {
@@ -129,6 +138,7 @@ export async function boot(rootEl, {
         pendingSlot = null;
         store.commit(state => { state.activeSlot = slot; }, 'device');
       }
+      lastActual = { patch, stamp: changeStamp() };
     },
     onError: err => {
       pendingSlot = null;
@@ -349,16 +359,17 @@ export async function boot(rootEl, {
     selectSlot: selectPreset,
     isConnected: () => transports.isConnected(),
     quickImport: () => flags.quickImport,
+    knownActual,
     device: () => ({ firmware: connection.version || null, identity: getDeviceIdentity() }),
     lookups
   }) : null;
   const noPresets = () => {
     const message = 'Presets need the symbol table.';
     notify(message);
-    return { ok: false, message };
+    return { ok: false, refused: true, message };
   };
-  // A .thrl6p text from any page goes through the same import; resolves to { ok, message }. A successful one replaces
-  // the settings as a whole. The count moves after the import's own store changes were seen, so the Presets page is
+  // A .thrl6p text from any page goes through the same import; resolves to { ok, message, refused }
+  // (presetFlow.importText). A successful one replaces the settings as a whole. The count moves after the import's own store changes were seen, so the Presets page is
   // told again.
   const importText = presets
     ? async (text) => {

@@ -4,7 +4,7 @@ import { AMP_ID_BY_MODEL, CREDIT, PICKUPS, SOUNDS_MAX } from './config.js';
 // Import AI: a screen that asks the preset generator of amplifier-presets.com for a preset and hands its .thrl6p text
 // to the app's import. Self-contained: it imports nothing from the rest of the app and gets everything it may use from
 // the shell, as open({ host, importText, ampModel, setActivity }) (see boot's presetSources). It never sets a knob or
-// sends a frame.
+// sends a frame. importText resolves to { ok, message, refused }: refused when the app cannot load the text at all.
 //
 // The screen: the card is the loaded version, with its request in the fields and its tip under the
 // version tabs; the fields are also the draft of the next request. The action row makes a version of the loaded sound
@@ -366,8 +366,9 @@ export function createAiPresetSource({
       load(sound, versionsOf(sound)[0]);
     }
 
-    // The result is loaded into the app first; one the app refuses is not kept. Its sound may have been removed during
-    // the generation: then the result starts a sound of its own.
+    // The result is loaded into the app first; one the app refuses is not kept. One that failed on the amp (it did not
+    // answer, the link dropped) is kept as the card's version with the failure shown, so a tap on its tab tries again.
+    // Its sound may have been removed during the generation: then the result starts a sound of its own.
     async function keep(soundId, version) {
       let sound = soundId && soundOf(soundId);
       if (!sound) {
@@ -375,10 +376,8 @@ export function createAiPresetSource({
         version.letter = LETTERS[0];
       }
       const result = await importVersion(sound, version);
-      if (!result.ok) {
-        say(result.message);
-        return;
-      }
+      if (!result.ok) say(result.message);
+      if (result.refused) return;
       sound.versions = [...sound.versions.filter(other => other.letter !== version.letter), version];
       saved.sounds = [sound, ...saved.sounds.filter(other => other !== sound)].slice(0, SOUNDS_MAX);
       saved.current = { soundId: sound.id, versionId: version.id };

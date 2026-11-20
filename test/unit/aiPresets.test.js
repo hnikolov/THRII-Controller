@@ -454,8 +454,27 @@ it('import AI: failures stay on the screen and nothing is kept', async () => {
   }
 });
 
+it('import AI: a result the amp failed to take is kept as the version on the card with the failure shown; its tab tries again', async () => {
+  let result = { ok: false, message: 'Import failed: the amp sent no complete settings dump' };
+  const ctx = setup({ ampModel: 1, importResult: () => result });
+  try {
+    await ctx.open();
+    await ctx.generate(first, 'walsh');
+    assertEqual(ctx.status(), 'Import failed: the amp sent no complete settings dump', 'the failure is shown');
+    assertTrue(ctx.find('.ai-status').classList.contains('is-error'), 'as an error');
+    assertDeepEqual([ctx.rows(), ctx.tabs()], [['> Preset walsh [A]'], '[A]'], 'kept as version A of a new sound');
+
+    result = { ok: true, message: 'Imported' };
+    ctx.tab('A');
+    await until(() => ctx.imported.length === 2 && ctx.status() === '', 'the second try');
+    assertDeepEqual(ctx.imported.map(describe), ['walsh:Preset walsh', 'walsh:Preset walsh'], 'the same preset again');
+  } finally {
+    ctx.cleanup();
+  }
+});
+
 it('import AI: a preset the app refuses is reported and not kept; an unreachable generator switches ▶ off', async () => {
-  const refusing = setup({ importResult: () => ({ ok: false, message: 'Import failed: unknown names' }) });
+  const refusing = setup({ importResult: () => ({ ok: false, refused: true, message: 'Import failed: unknown names' }) });
   try {
     await refusing.open();
     await refusing.generate(first, 'bad');

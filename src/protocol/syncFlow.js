@@ -116,7 +116,7 @@ export function createSyncFlow({ send, nameOf, onPatch, onError = () => {}, onSt
     const seconds = ((clock.now() - job.startedAt) / 1000).toFixed(1);
     const done = end(`${job.apply ? 'dump' : 'read'} complete, ${seconds} s`);
     try {
-      if (done.apply) onPatch(parseDumpPatch(patch, nameOf), parsePatchName(patch));
+      if (done.apply) onPatch(parseDumpPatch(patch, nameOf), parsePatchName(patch), patch);
       done.resolve(patch);
     } catch (err) {
       done.reject(err);
@@ -129,7 +129,8 @@ export function createSyncFlow({ send, nameOf, onPatch, onError = () => {}, onSt
       return state;
     },
 
-    // Reads the Actual settings and applies them; the promise gives the raw patch. During a running applied read the
+    // Reads the Actual settings and applies them (onPatch gets the entries, the name and the raw patch); the promise
+    // gives the raw patch. During a running applied read the
     // request makes that read start over.
     requestDump: requestActual,
 
