@@ -72,7 +72,7 @@ Standing checks after a change (grep): rules 1, 7 and 8, and no assignment to st
 
 | Flow | Path |
 |---|---|
-| Connect | CONNECT -> `boot.connect()`: BLE first, USB if BLE is cancelled or unavailable. With `autoActivate`: `identity.runActivation` sends the identity request, takes family and model from the reply, sends frames 2 to 4 with them (500 ms apart); then `syncFlow.requestDump()` reads the Actual settings, which replace the units (`'dump'`). The firmware version shows on the CONNECT button. |
+| Connect | CONNECT -> `boot.connect()`: BLE first, USB if BLE is cancelled or unavailable. With `autoActivate`: `identity.runActivation` sends the identity request, takes family and model from the reply, sends frames 2 to 4 with them (500 ms apart); then `syncFlow.requestDump()` reads the Actual settings, which replace the units (`'dump'`). The firmware version shows on the CONNECT button. No identity reply (2 s) ends the session: the port is closed and the button is back to CONNECT (the USB fallback opens the first MIDI port, which may not be the amp). |
 | Edit a knob | view -> intent -> `commit('ui')` -> `writeScheduler` -> `builders.buildParamWriteFrames` -> transport. |
 | Change amp model or effect type | intent -> `boot.sendUnitType`: 256 ms pause, type select frames, 512 ms pause, the type's default values 50 ms apart, then the module's enable (the amp hard-stopped on faster switching). |
 | Amp knob or event | `raw:in` -> `extractSysexFrames` -> `decodeIncomingEvent` -> `applyDeviceEvent` (`'device'`). Ids the amp reports differently from the dump are matched by name (`symbolTable.makeLiveIdOf`, `findLiveParam`). |

@@ -178,6 +178,7 @@ export async function boot(rootEl, {
   // What the CONNECT button shows: { kind, version } while connected. The firmware version comes from the activation's identity reply.
   let connection = {};
 
+  // Returns whether the amp answered; a failure is reported here.
   async function activate() {
     try {
       scheduler.flushAll();
@@ -195,8 +196,10 @@ export async function boot(rootEl, {
       // The amp's current settings fill the UI (the knobs, names, and preset name), as after a slot press.
       scheduler.flushAll();
       if (sync) sync.requestDump();
+      return true;
     } catch (err) {
       notify('Activation failed: ' + err.message);
+      return false;
     }
   }
 
@@ -225,7 +228,12 @@ export async function boot(rootEl, {
       });
       onStatus(status);
       connection = { kind: used };
-      if (flags.autoActivate) await activate();
+      // No answer, no session: the port may be another MIDI device (a cancelled BLE pick falls back to USB, which
+      // opens the first port there is). The button is back to CONNECT for the next try.
+      if (flags.autoActivate && !(await activate())) {
+        disconnect();
+        return;
+      }
       runtime.setConnection(connection);
       if (library) library.update();
     } catch (err) {

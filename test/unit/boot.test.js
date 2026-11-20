@@ -70,6 +70,27 @@ it('boot: the CONNECT button connects, activates, reads the Actual settings and 
 const pageButtons = app => [...app.container.querySelectorAll('.strip-page-button')].map(button => button.getAttribute('aria-label') || button.textContent);
 const hidden = (app, selector) => app.container.querySelector(selector).classList.contains('is-hidden');
 
+it('boot: a port that does not answer the activation ends the session; the button is back to CONNECT', async () => {
+  const amp = createFakeAmp();
+  amp.install();
+  const container = document.createElement('div');
+  document.body.append(container);
+  const app = await boot(container, { sleep: async () => {} });
+  try {
+    const button = container.querySelector('.strip-button');
+    button.click();
+    await until(() => !button.disabled && amp.sent.length > 0, 'the activation to give up');
+    assertEqual(button.getAttribute('aria-label'), 'Connect', 'the button connects again');
+    assertEqual(button.classList.contains('is-connected'), false, 'the plug is not shown plugged in');
+    assertEqual(app.transports.isConnected(), false, 'the port is closed');
+    assertEqual(/Activation failed/.test(container.querySelector('.status-toast').textContent), true, 'the failure is shown');
+  } finally {
+    app.disconnect();
+    container.remove();
+    amp.uninstall();
+  }
+});
+
 it('boot: the Presets page is the app\'s own; a preset source adds its page button, and a press opens it with the page, the import and the amp model', async () => {
   const plain = await bootApp();
   try {
