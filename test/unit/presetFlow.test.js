@@ -141,17 +141,22 @@ it('quick import: when the amp does not answer the read, the import stops; nothi
   }
 });
 
-it('quick import: every import reads the amp right before its upload, also when nothing changed since the last read', async () => {
+it('quick import: a preset the amp already plays is not sent again; the read before the upload shows it', async () => {
   const app = await bootApp({ connect: true, takesUploads: true });
   const busy = () => app.container.querySelector('.thr-app').classList.contains('is-busy');
+  const importSample = async (frameCount, status) => {
+    app.labels.length = 0;
+    app.files.next = { name: 'EarlyVH.thrl6p', text: await sampleText() };
+    app.presets('Import');
+    await until(() => app.labels.length === frameCount && !busy(), 'the import');
+    await until(() => app.status() === status, `status "${status}" (got "${app.status()}")`);
+    return [...app.labels];
+  };
   try {
-    for (const round of [1, 2]) {
-      app.labels.length = 0;
-      app.files.next = { name: 'EarlyVH.thrl6p', text: await sampleText() };
-      app.presets('Import');
-      await until(() => app.labels.includes('TX import upload 4/4') && app.labels[app.labels.length - 1] === 'TX sync: actual dump' && !busy(), 'the import');
-      assertDeepEqual(app.labels, ['TX sync: actual dump', ...[1, 2, 3, 4].map(n => `TX import upload ${n}/4`), 'TX sync: actual dump'], `import ${round}: read, upload, read-back`);
-    }
+    assertDeepEqual(await importSample(6, 'Imported EarlyVH'),
+      ['TX sync: actual dump', ...[1, 2, 3, 4].map(n => `TX import upload ${n}/4`), 'TX sync: actual dump'], 'read, upload, read-back');
+    assertDeepEqual(await importSample(1, 'EarlyVH is already on the amp'), ['TX sync: actual dump'], 'the same preset again: one read, nothing sent');
+    await until(() => app.container.querySelector('.pr-entry.is-selected'), 'the loaded row');
   } finally {
     app.cleanup();
   }

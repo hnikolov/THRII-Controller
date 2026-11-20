@@ -10,6 +10,8 @@ const SLOT_COUNT = 5;
 const UPLOAD_SETTLE_MS = 300;
 const BACKUP_FORMAT = 'thrii-backup';
 const ACTUAL = { kind: 'actual' };
+// What uploadPreset returns when the amp already plays the preset and nothing was sent: no differences, its own message.
+const ALREADY_PLAYING = Object.freeze([]);
 const slotTarget = slot => ({ kind: 'slot', value: slot - 1 });
 
 const toBase64 = bytes => btoa(String.fromCharCode(...bytes));
@@ -63,9 +65,9 @@ export function createPresetFlow(deps) {
         state.activeSlot = null;
         state.modified = true;
       }, 'import');
-      message = differences.length
-        ? `Imported ${plan.presetName}, but the amp differs in: ${differences.join(', ')}`
-        : `Imported ${plan.presetName}`;
+      if (differences === ALREADY_PLAYING) message = `${plan.presetName} is already on the amp`;
+      else if (differences.length) message = `Imported ${plan.presetName}, but the amp differs in: ${differences.join(', ')}`;
+      else message = `Imported ${plan.presetName}`;
       notify(message);
     });
     return message;
@@ -80,17 +82,22 @@ export function createPresetFlow(deps) {
   // Quick import: the preset as one patch, uploaded to the Actual settings; then the amp is read back.
   // The patch is built on the amp's Actual dump, read right before the upload (buildPresetPatch). Returns where the amp
   // then differs from the preset, or null when the patch could not be built. A failed read or send throws.
-  // The read is not skipped, even when an earlier read is still current: every upload that worked on the amp came right
-  // after a read, and one built on an earlier read failed over BLE (no complete dump on the read-back, the amp needed a
-  // power cycle; phone, 2026-11-20).
+  // The read is made for every import, as in every upload that worked on the amp. It also tells whether the amp already
+  // plays the preset (a second tap on the loaded one): then nothing is sent.
   async function uploadPreset(plan) {
     const template = await sync.read(ACTUAL);
+    let patch;
     let frames;
     try {
-      frames = buildUploadFrames(ACTUAL, buildPresetPatch(template, plan, deps.lookups));
+      patch = buildPresetPatch(template, plan, deps.lookups);
+      frames = buildUploadFrames(ACTUAL, patch);
     } catch (err) {
       deps.log(`Quick import not possible (${err.message}); sending the preset value by value`);
       return null;
+    }
+    if (!memoryDifferences(template, patch, deps.lookups.nameOf).length) {
+      deps.log('Quick import: the amp already plays this preset; nothing sent');
+      return ALREADY_PLAYING;
     }
     for (const [index, frame] of frames.entries()) {
       await deps.send(frame, `TX import upload ${index + 1}/${frames.length}`);
