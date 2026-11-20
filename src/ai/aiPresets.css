@@ -323,13 +323,16 @@
   outline-offset: -1px;
 }
 
-/* One line; the people's full names and roles are in their titles. */
+/* Two lines, the site and the people; their roles are in their titles. */
 .ai-credit {
   padding: 4px 8px;
   border-top: 1px solid var(--line, #3d3525);
   color: var(--muted, #5f553f);
   font-size: 11px;
   text-align: center;
+}
+
+.ai-credit > div {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -416,6 +419,7 @@
   }
 
   .ai-credit {
-    font-size: min(13px, 3.45vw);
+    padding: 5px 8px;
+    font-size: 14px;
   }
 }

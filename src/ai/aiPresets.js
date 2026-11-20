@@ -172,10 +172,11 @@ export function createAiPresetSource({
       tip,
       el('div', { class: 'ai-actions' }, ampSelect, targetSelect, goButton),
       statusLine);
-    const initials = name => name.replace(/^(\S)\S*\s+/, '$1. ');
+    // Two lines: the site, then the people by their full names (their roles in the titles).
     const credit = el('footer', { class: 'ai-credit' },
-      'Presets by ', el('a', { href: CREDIT.url, target: '_blank', rel: 'noopener', text: CREDIT.text }),
-      ...CREDIT.people.flatMap(person => [' · ', el('span', { title: `${person.name}, ${person.role}`, text: initials(person.name) })]));
+      el('div', {}, 'Presets by ', el('a', { href: CREDIT.url, target: '_blank', rel: 'noopener', text: CREDIT.text })),
+      el('div', {}, ...CREDIT.people.flatMap((person, index) => [
+        ...(index ? [' · '] : []), el('span', { title: `${person.name}, ${person.role}`, text: person.name })])));
 
     promptInput.value = saved.fields.prompt;
     guitarInput.value = saved.fields.guitar;

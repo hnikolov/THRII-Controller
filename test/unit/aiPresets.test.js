@@ -130,7 +130,8 @@ it('import AI: first use lists the amps with a preset export, pre-selects the co
       assertEqual(ctx.rows().length, 0, 'no sounds yet');
       assertEqual(ctx.host.querySelectorAll('.ai-hint').length, 2, 'a hint in their place');
       assertEqual(ctx.credit().querySelector('a').href, 'https://amplifier-presets.com/', 'credit link');
-      assertEqual(ctx.credit().textContent, 'Presets by amplifier-presets.com · M. Bredeli · F. Hegelstad', 'the credit on one line');
+      assertDeepEqual([...ctx.credit().children].map(line => line.textContent),
+        ['Presets by amplifier-presets.com', 'Magnus Bredeli · Ferdinand Hegelstad'], 'the credit on two lines, with full names');
       assertEqual(ctx.credit().querySelector('span').title, 'Magnus Bredeli, development', 'the full name and role in the title');
       assertEqual(/No amp connected/.test(ctx.status()), ampModel === null, 'the note about a missing amp');
     } finally {
