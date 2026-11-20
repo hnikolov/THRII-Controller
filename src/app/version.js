@@ -2,4 +2,4 @@
 // for a release; BUILD is a hash of the shipped files, written by `python scripts/check_release.py --stamp`. Any change
 // here makes the browser install the new service worker, which is how a release reaches installed apps.
 export const APP_VERSION = '1.0.1';
-export const BUILD = '90ca1404';
+export const BUILD = 'c2541c8e';

@@ -1016,7 +1016,7 @@ button.module-badge:disabled {
   font-size: 12px;
 }
 
-@media (max-width: 420px) {
+@media (max-width: 500px) {
   html, body {
     height: 100%;
   }
@@ -1039,12 +1039,13 @@ button.module-badge:disabled {
     box-shadow: none;
   }
 
-  /* On a phone the frame is the whole screen: strips of touch size, larger text, and knobs as wide as five fit. */
+  /* On a phone the frame is the whole screen: strips of touch size, larger text, and knobs as wide as five fit.
+     (Widths are CSS pixels: phones are 360 to 430 wide, whatever their physical resolution.) */
   :root {
     --app-width: 100vw;
-    --header-height: 44px;
+    --header-height: 42px;
     --ui-font-size: 14px;
-    --knob-size: min(18vw, 76px);
+    --knob-size: min(18vw + 2px, 78px);
     --center-font-size: min(4.1vw, 16px);
     /* Five labels share the width: "PRE DELAY" must keep inside its fifth. */
     --knob-font-size: min(3.05vw, 12px);
@@ -1123,9 +1124,13 @@ button.module-badge:disabled {
   .unit-selector-button,
   .unit-selector-option,
   .unit-selector.is-amp .unit-selector-option,
-  .unit-selector.is-cab .unit-selector-option,
   .unit-selector-column-title {
     font-size: 14px;
+  }
+
+  /* Cabinet names are mixed case: at the size of the cabinet name above, they read as large as the other menus. */
+  .unit-selector.is-cab .unit-selector-option {
+    font-size: 16px;
   }
 
   .unit-selector-caret {
@@ -1165,11 +1170,6 @@ button.module-badge:disabled {
 
   .module-head .module-led-slot {
     top: calc(50% + 2px);
-  }
-
-  /* In the half-width modules the LED stands right of the centre, clear of a title like NOISE GATE. */
-  .module-section.compact .module-led-slot {
-    left: 70%;
   }
 
   .label {

@@ -241,7 +241,7 @@
 }
 
 /* On a phone: larger text and touch-size controls. The list rows grow most: they are what is read and tapped. */
-@media (max-width: 420px) {
+@media (max-width: 500px) {
   .pr-screen {
     font-size: 15px;
   }
@@ -292,12 +292,17 @@
   }
 
   .pr-amp {
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .pr-icon {
     min-height: 40px;
     font-size: 20px;
+  }
+
+  /* The ↻ glyph is drawn smaller than ✎ and × at the same size. */
+  .pr-update {
+    font-size: 25px;
   }
 
   .pr-chip {

@@ -240,7 +240,7 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
   function row(entry, current) {
     const isLoaded = entry === current;
     const update = isLoaded && edited
-      ? button({ class: 'pr-icon', 'aria-label': `Update ${entry.name}`, title: 'Store the current settings in this preset', text: '↻' }, () => updateEntry(entry))
+      ? button({ class: 'pr-icon pr-update', 'aria-label': `Update ${entry.name}`, title: 'Store the current settings in this preset', text: '↻' }, () => updateEntry(entry))
       : el('span');
     const node = el('div', { class: isLoaded ? 'pr-entry is-selected' : 'pr-entry' },
       nameNode(entry, isLoaded),

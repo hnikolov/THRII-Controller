@@ -120,7 +120,7 @@ export const RUNTIME_LAYOUT = {
         },
         {
           key: 'gate',
-          mode: 'NOISE GATE',
+          mode: 'NS GATE',
           compact: true,
           unit: 'GuitarProc',
           enable: 'GateEnableState',
