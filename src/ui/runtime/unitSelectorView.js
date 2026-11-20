@@ -1,14 +1,16 @@
 // Dropdown control. A user pick calls onChange with the item value; store-driven updates use update() and never call it.
 // Items are strings (value and label alike) or { value, label, title, disabled } objects; title is the spoken name of
 // an item whose label is too short to stand alone. groups are titled lists of items, shown as columns. rowLabels name the rows of grouped columns (the n-th item of every group).
+// splitLabel(label) returns the parts of a menu entry, shown as spans set apart by the stylesheet (name and size).
 const toItem = item => (typeof item === 'string' ? { value: item, label: item } : item);
 
 export class UnitSelectorView {
   static activeInstance = null;
 
-  constructor({ ariaLabel, className = '', items = [], groups = null, rowLabels = null, displayValue = null, onChange = null }) {
+  constructor({ ariaLabel, className = '', items = [], groups = null, rowLabels = null, displayValue = null, splitLabel = null, onChange = null }) {
     this.ariaLabel = ariaLabel;
     this.className = className;
+    this.splitLabel = splitLabel;
     this.groups = groups;
     this.rowLabels = rowLabels;
     this.rowLabelNodes = [];
@@ -103,10 +105,18 @@ export class UnitSelectorView {
     const option = document.createElement('button');
     option.type = 'button';
     option.className = 'unit-selector-option';
-    option.textContent = item.label;
+    if (this.splitLabel) {
+      option.append(...this.splitLabel(item.label).map((text) => {
+        const part = document.createElement('span');
+        part.textContent = text;
+        return part;
+      }));
+    } else {
+      option.textContent = item.label;
+    }
     option.disabled = !!item.disabled;
     option.setAttribute('role', 'menuitemradio');
-    if (spokenName) option.setAttribute('aria-label', spokenName);
+    if (spokenName || this.splitLabel) option.setAttribute('aria-label', spokenName || item.label);
     option.addEventListener('click', (event) => {
       event.stopPropagation();
       this.close();

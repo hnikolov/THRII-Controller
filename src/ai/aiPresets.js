@@ -22,7 +22,7 @@ const NAME_BASE_MAX = 18;
 // A sound's name is the list's umbrella for its versions and never goes to the amp; this keeps the rows tidy.
 const SOUND_NAME_MAX = 40;
 const UNREACHABLE = 'The preset generator cannot be reached. Start the app with "python scripts/serve.py".';
-const NO_AMP = 'No amp connected: a preset is loaded into the app only.';
+const NO_AMP = 'No amp connected: presets load into the app only.';
 
 function el(tag, props = {}, ...children) {
   const node = document.createElement(tag);

@@ -300,8 +300,10 @@
     font-size: 20px;
   }
 
-  /* The ↻ glyph is drawn smaller than ✎ and × at the same size. */
+  /* The ↻ glyph is drawn smaller than ✎ and × at the same size, and low: its ink sits about 1 px under the centre,
+     and its open top makes it look lower still. */
   .pr-update {
+    padding-bottom: 3px;
     font-size: 25px;
   }
 

@@ -31,6 +31,8 @@ export class AmpView {
       ariaLabel: 'Select speaker cabinet',
       className: 'align-right is-cab',
       items: this.config.cabinets,
+      // "British 4x12": the name, and the speakers at the right of the menu.
+      splitLabel: name => name.match(/^(.*?)(?: (\d+x\d+))?$/).slice(1).filter(Boolean),
       onChange: name => this.handlers.onCabinet(name)
     }).mount(headRow);
 

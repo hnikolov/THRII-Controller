@@ -881,8 +881,11 @@ button.module-badge:disabled {
   background: transparent;
 }
 
+/* The entry in use is marked like the loaded preset in the preset list (not by a heavier weight, which would widen
+   the entry). */
 .unit-selector-option.is-selected {
-  font-weight: 800;
+  background: rgba(154, 111, 8, 0.14);
+  box-shadow: inset 3px 0 0 var(--gold);
 }
 
 .unit-selector.open .unit-selector-menu.is-grouped {
@@ -1016,6 +1019,29 @@ button.module-badge:disabled {
   font-size: 12px;
 }
 
+/* Cabinet menu: the name at the left, the speakers (4x12) at the right. */
+.unit-selector.is-cab .unit-selector-option {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* The amp menu spans the amp head (its row is the menu's frame, not the button), its families sharing the width. */
+.unit-selector.is-amp {
+  position: static;
+}
+
+.unit-selector.is-amp .unit-selector-menu {
+  left: 0;
+  right: 0;
+  min-width: 0;
+}
+
+.unit-selector.is-amp.open .unit-selector-menu.has-row-labels {
+  grid-template-columns: max-content;
+  grid-auto-columns: auto;
+}
+
 @media (max-width: 500px) {
   html, body {
     height: 100%;
@@ -1144,7 +1170,7 @@ button.module-badge:disabled {
   }
 
   .unit-selector.open .unit-selector-menu.is-grouped {
-    column-gap: 4px;
+    column-gap: 2px;
   }
 
   .unit-selector-column-title {
@@ -1153,7 +1179,7 @@ button.module-badge:disabled {
   }
 
   .unit-selector-menu.has-row-labels .unit-selector-option {
-    padding: 5px 4px;
+    padding: 5px 2px 5px 7px;
     letter-spacing: 0;
   }
 
