@@ -202,7 +202,7 @@ it('save to a memory: when the recalled memory differs, the previous content is 
     await until(() => box.value === 'Nw/name', 'the sanitized name');
 
     app.presets('Save to THR memory 3');
-    await statusHas(app, 'Save failed; memory 3 has its previous content again');
+    await statusHas(app, 'Save failed; memory 3 is unchanged');
     assertDeepEqual(app.confirms, [
       'Overwrite memory 3 on the amp?', 'Memory 3 does not hold what was sent. Put its previous content back?'
     ], 'questions');

@@ -1140,6 +1140,12 @@ button.module-badge:disabled {
     font-size: 17px;
   }
 
+  /* As large as the screens' text; a long message wraps (it is gone after a few seconds) rather than shrinks. */
+  .status-toast {
+    padding: 8px 12px;
+    font-size: 15px;
+  }
+
   .amp-name,
   .amp-cab,
   .unit-selector.is-amp .unit-selector-button,

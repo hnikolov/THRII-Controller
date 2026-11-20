@@ -102,7 +102,7 @@ export async function boot(rootEl, {
   let pendingSlot = null;
   const selectPreset = async slot => {
     if (!sync || !transports.isConnected()) {
-      notify(sync ? 'Connect the amp to switch memories' : 'Memory slot switch needs the symbol table (the read-back uses it).');
+      notify(sync ? 'Connect the amp to switch memories' : 'Memory switching needs the symbol table.');
       return null;
     }
     try {
@@ -165,7 +165,7 @@ export async function boot(rootEl, {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         identityWaiter = null;
-        reject(new Error('No identity reply from the amp.'));
+        reject(new Error('the amp did not answer.'));
       }, timeoutMs);
       identityWaiter = identity => {
         clearTimeout(timer);

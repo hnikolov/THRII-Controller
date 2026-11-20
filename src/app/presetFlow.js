@@ -160,9 +160,9 @@ export function createPresetFlow(deps) {
       if (!deps.confirm(`Memory ${slot} does not hold what was sent. Put its previous content back?`)) {
         notify(`Memory ${slot} was not saved correctly`);
       } else if (await writeSlot(slot, previous)) {
-        notify(`Save failed; memory ${slot} has its previous content again`);
+        notify(`Save failed; memory ${slot} is unchanged`);
       } else {
-        notify(`Save failed and memory ${slot} could not be put back; use Restore with a backup file`);
+        notify(`Save failed; memory ${slot} not put back. Use RESTORE with a backup.`);
       }
     });
   }
