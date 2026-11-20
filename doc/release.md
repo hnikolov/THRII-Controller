@@ -31,7 +31,7 @@ A change that touches only files outside the release set (docs, tests, `dev.html
 
 ## Version number
 
-`APP_VERSION` in `src/app/version.js` is the number users see (`v1.0.0` under CONNECT). Change it by hand when you want a new release to have a new number, then stamp. A stamp without a new number still reaches the installed apps; they only show the same number.
+`APP_VERSION` in `src/app/version.js` is the number users see (`v1.0.0` beside the plug of the connect button). Change it by hand when you want a new release to have a new number, then stamp. A stamp without a new number still reaches the installed apps; they only show the same number.
 
 Suggested use: patch number (`1.0.1`) for fixes, minor number (`1.1.0`) for new features.
 
@@ -56,7 +56,7 @@ One-time setting (already needed for the first deploy): **Settings → Pages →
 
 ## How the installed apps get the update
 
-The next time an installed app opens or comes back to the front, it finds the new version and downloads it in the background. A `⇪` button then appears left of CONNECT:
+The next time an installed app opens or comes back to the front, it finds the new version and downloads it in the background. A `⇪` button then appears left of the connect button:
 
 - **Pressed:** the app restarts with the new version (if an amp is connected, it asks first, since a restart disconnects it).
 - **Not pressed:** the app keeps working on its current version. The update is applied by itself the next time the app is fully closed (removed from the recent apps) and opened again.

@@ -339,3 +339,83 @@
   color: var(--gold, #9a6f08);
   font-weight: 700;
 }
+
+/* On a phone: reading size for the request, the tip and the sounds, and touch-size controls. The fields are 16 px,
+   below which iOS zooms the page in on focus. The credit stays small, on one line. */
+@media (max-width: 420px) {
+  .ai-screen {
+    font-size: 16px;
+  }
+
+  .ai-card {
+    gap: 8px;
+  }
+
+  .ai-field {
+    font-size: 12px;
+  }
+
+  .ai-card input,
+  .ai-card textarea,
+  .ai-sound-input {
+    padding-inline: 4px;
+    font-size: 16px;
+  }
+
+  .ai-tabbar {
+    min-height: 36px;
+  }
+
+  .ai-tab {
+    min-width: 56px;
+    font-size: 14px;
+  }
+
+  .ai-actions select {
+    font-size: 14px;
+  }
+
+  .ai-go {
+    min-height: 36px;
+    font-size: 16px;
+  }
+
+  .ai-status {
+    font-size: 14px;
+  }
+
+  .ai-hint {
+    font-size: 15px;
+  }
+
+  .ai-sound {
+    grid-template-columns: minmax(0, 1fr) auto 40px 40px;
+  }
+
+  .ai-sound-name {
+    padding: 11px 4px 11px 6px;
+    font-size: 16px;
+  }
+
+  .ai-letter {
+    width: 30px;
+    height: 30px;
+    font-size: 13px;
+  }
+
+  .ai-remove,
+  .ai-sound-delete {
+    width: 40px;
+    min-height: 36px;
+    font-size: 20px;
+  }
+
+  .ai-sound-rename {
+    min-height: 36px;
+    font-size: 19px;
+  }
+
+  .ai-credit {
+    font-size: 12px;
+  }
+}

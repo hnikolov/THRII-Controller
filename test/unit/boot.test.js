@@ -41,7 +41,7 @@ it('boot: the CONNECT button connects, activates, reads the Actual settings and 
     assertDeepEqual(labels, [
       'TX THR activation 1/4', 'TX THR activation 2/4', 'TX THR activation 3/4', 'TX THR activation 4/4', 'TX sync: actual dump'
     ], 'send order');
-    assertEqual(button.textContent, 'FW 1.44.0.a', 'firmware version on the button');
+    assertEqual(button.textContent, '1.44.0.a', 'firmware version on the button');
     assertEqual(container.querySelector('[aria-label="MASTER control"]').getAttribute('aria-valuenow'), '67', 'MASTER from the dump');
     assertEqual(container.querySelector('[aria-label="User memory label"]').value, 'Crunch Ico LP', 'preset name');
 
@@ -59,7 +59,7 @@ it('boot: the CONNECT button connects, activates, reads the Actual settings and 
     assertEqual(container.querySelector('.footer-memory-button.is-selected').textContent, String(ampSlot), 'the amp\'s slot is highlighted');
 
     amp.unplug();
-    assertEqual(button.textContent, 'CONNECT', 'a pulled USB cable ends the session');
+    assertEqual(button.getAttribute('aria-label'), 'Connect', 'a pulled USB cable ends the session');
   } finally {
     app.disconnect();
     container.remove();

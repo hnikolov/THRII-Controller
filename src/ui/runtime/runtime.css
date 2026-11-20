@@ -278,12 +278,35 @@ body {
   cursor: default;
 }
 
-/* The app's version under CONNECT. */
-.strip-caption {
-  display: block;
-  margin-top: 2px;
-  font-size: 9px;
-  opacity: 0.75;
+/* CONNECT: a plug and, beside it, the app's version (the amp's firmware while connected). */
+.strip-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.strip-plug {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.strip-button.is-connected .strip-plug-body {
+  fill: currentColor;
+}
+
+.strip-button.is-busy .strip-plug {
+  animation: page-activity 0.5s ease-in-out infinite alternate;
+}
+
+.strip-version {
+  font-size: 10px;
 }
 
 /* Shown only while an app update waits: one press installs it (the app restarts). */
@@ -1020,10 +1043,11 @@ button.module-badge:disabled {
   :root {
     --app-width: 100vw;
     --header-height: 44px;
-    --ui-font-size: 12px;
+    --ui-font-size: 14px;
     --knob-size: min(18vw, 76px);
-    --center-font-size: min(3.6vw, 14px);
-    --knob-font-size: min(2.7vw, 11px);
+    --center-font-size: min(4.1vw, 16px);
+    /* Five labels share the width: "PRE DELAY" must keep inside its fifth. */
+    --knob-font-size: min(3.05vw, 12px);
     --led-size: 18px;
     --strip-side: 116px;
   }
@@ -1031,7 +1055,7 @@ button.module-badge:disabled {
   /* Both sides of the top strip are as wide as three tabs, so the preset name stays on the screen centre; the name
      takes all the width between them, and the view sets a long name smaller until it fits. */
   .top-strip {
-    font-size: 13px;
+    font-size: 15px;
     grid-template-columns: var(--strip-side) minmax(0, 1fr) var(--strip-side);
     gap: 4px;
   }
@@ -1048,8 +1072,14 @@ button.module-badge:disabled {
     padding: 0 6px;
   }
 
-  .strip-caption {
-    font-size: 10px;
+  /* Smaller than the strip's text, so the plug, the firmware version and the update button fit one side. */
+  .strip-plug {
+    width: 20px;
+    height: 20px;
+  }
+
+  .strip-version {
+    font-size: 13px;
   }
 
   .strip-item.has-pages {
@@ -1066,37 +1096,64 @@ button.module-badge:disabled {
 
   .strip-page-button.is-icon,
   .strip-update-button {
-    font-size: 20px;
+    font-size: 22px;
   }
 
   .strip-page-button.is-knob::before {
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
   }
 
   .strip-page-button.is-knob::after {
-    top: calc(50% - 9px);
-    height: 9px;
+    top: calc(50% - 10px);
+    height: 10px;
   }
 
   .footer-strip {
-    font-size: 15px;
+    font-size: 17px;
   }
 
   .amp-name,
   .amp-cab,
   .unit-selector.is-amp .unit-selector-button,
   .unit-selector.is-cab .unit-selector-button {
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .unit-selector-button,
-  .unit-selector-option {
-    font-size: 12px;
+  .unit-selector-option,
+  .unit-selector.is-amp .unit-selector-option,
+  .unit-selector.is-cab .unit-selector-option,
+  .unit-selector-column-title {
+    font-size: 14px;
+  }
+
+  .unit-selector-caret {
+    font-size: 11px;
+  }
+
+  /* The amp menu (row names and three families) fits the screen's width at this size only with less spacing. */
+  .unit-selector-row-label {
+    padding-right: 4px;
+    font-size: 11px;
+  }
+
+  .unit-selector.open .unit-selector-menu.is-grouped {
+    column-gap: 4px;
+  }
+
+  .unit-selector-column-title {
+    padding: 2px 4px 4px;
+    letter-spacing: 0.02em;
+  }
+
+  .unit-selector-menu.has-row-labels .unit-selector-option {
+    padding: 5px 4px;
+    letter-spacing: 0;
   }
 
   .module-badge {
-    font-size: 11px;
+    font-size: 13px;
   }
 
   /* The module head sits 2 px lower, clear of the line above; the LED moves with the title (it is centred on the
@@ -1110,8 +1167,13 @@ button.module-badge:disabled {
     top: calc(50% + 2px);
   }
 
+  /* In the half-width modules the LED stands right of the centre, clear of a title like NOISE GATE. */
+  .module-section.compact .module-led-slot {
+    left: 70%;
+  }
+
   .label {
-    letter-spacing: 0.1em;
+    letter-spacing: 0.05em;
   }
 
   /* The knob area fills the height between the strips: each row takes an equal share of what is left and centres

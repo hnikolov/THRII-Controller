@@ -256,15 +256,16 @@ it('mount: the CONNECT button connects, and disconnects once the shell reports a
   const runtime = mountRuntime(container, { store, intents });
   try {
     const button = container.querySelector('.strip-button');
-    assertEqual(button.textContent, 'CONNECT', 'idle label');
+    assertEqual(button.getAttribute('aria-label'), 'Connect', 'idle label');
     button.click();
     runtime.setConnection({ busy: true });
     assertEqual(button.disabled, true, 'disabled while connecting');
     runtime.setConnection({ kind: 'ble' });
-    assertEqual(button.textContent, 'DISCONNECT', 'connected label');
+    assertEqual(button.getAttribute('aria-label'), 'Disconnect', 'connected label');
+    assertTrue(button.classList.contains('is-connected'), 'the plug is shown plugged in');
     assertEqual(button.disabled, false, 'enabled when connected');
     runtime.setConnection({ kind: 'ble', version: '1.44.0.a' });
-    assertEqual(button.textContent, 'FW 1.44.0.a', 'firmware version once activated');
+    assertEqual(button.textContent, '1.44.0.a', 'firmware version once activated');
     button.click();
     assertDeepEqual(calls, ['connect', 'disconnect'], 'intents');
   } finally {
@@ -273,7 +274,7 @@ it('mount: the CONNECT button connects, and disconnects once the shell reports a
   }
 });
 
-it('mount: the app version shows under CONNECT without an amp, and the update button only while an update waits', () => {
+it('mount: the app version shows beside the plug without an amp, and the update button only while an update waits', () => {
   const store = createStore(createEmptyDeviceState());
   const intents = createRuntimeIntents({ store, flags, sendParam: () => {} });
   const container = document.createElement('div');
@@ -283,14 +284,14 @@ it('mount: the app version shows under CONNECT without an amp, and the update bu
     const button = container.querySelector('.strip-button');
     const update = container.querySelector('[aria-label="Update the app"]');
     runtime.setAppInfo({ version: '1.2.3' });
-    assertEqual(button.textContent, 'CONNECTv1.2.3', 'version under CONNECT');
+    assertEqual(button.textContent, 'v1.2.3', 'the app version beside the plug');
     assertEqual(update.hidden, true, 'no update button without an update');
     runtime.setConnection({ kind: 'usb', version: '1.44.0.a' });
-    assertEqual(button.textContent, 'FW 1.44.0.a', 'the firmware version replaces it while connected');
+    assertEqual(button.textContent, '1.44.0.a', 'the firmware version replaces it while connected');
     let pressed = 0;
     runtime.setAppInfo({ version: '1.2.3', onUpdate: () => { pressed += 1; } });
     assertEqual(update.hidden, false, 'update button while an update waits');
-    assertEqual(button.textContent, 'FW 1.44.0.a', 'the connection label stays');
+    assertEqual(button.textContent, '1.44.0.a', 'the connection label stays');
     update.click();
     assertEqual(pressed, 1, 'a press asks the shell to update');
   } finally {

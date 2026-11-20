@@ -75,6 +75,10 @@ export class MemoryView {
     this.connectButton = document.createElement('button');
     this.connectButton.type = 'button';
     this.connectButton.className = 'strip-button';
+    this.connectButton.innerHTML = PLUG_ICON;
+    this.connectVersion = document.createElement('span');
+    this.connectVersion.className = 'strip-version';
+    this.connectButton.append(this.connectVersion);
     this.connectButton.addEventListener('click', () => this.onConnect(this.connected));
     connectSlot.append(this.connectButton);
     this.setConnection();
@@ -97,22 +101,20 @@ export class MemoryView {
     if (button) button.classList.toggle('is-active', !!active);
   }
 
-  // Shell-driven: one press connects; once connected the same button disconnects and shows the amp's firmware version
-  // (DISCONNECT until the activation has reported it). kind is the transport in use.
-  // Without an amp, the app's own version shows under CONNECT.
+  // Shell-driven: one press connects; once connected the same button disconnects. The plug beside the version is drawn
+  // plugged in while connected and blinks while connecting. The version is the amp's firmware once the activation has
+  // reported it, and the app's own without an amp. kind is the transport in use.
   setConnection({ kind = null, version = '', busy = false, error = '' } = {}) {
     this.connection = { kind, version, busy, error };
     this.connected = !!kind;
-    const connectedLabel = version ? `FW ${version}` : 'DISCONNECT';
-    this.connectButton.textContent = busy ? 'CONNECTING' : (kind ? connectedLabel : 'CONNECT');
-    if (!kind && !busy && this.appVersion) {
-      const caption = document.createElement('span');
-      caption.className = 'strip-caption';
-      caption.textContent = `v${this.appVersion}`;
-      this.connectButton.append(caption);
-    }
+    this.connectVersion.textContent = kind ? version : (this.appVersion ? `v${this.appVersion}` : '');
+    this.connectButton.classList.toggle('is-connected', !!kind);
+    this.connectButton.classList.toggle('is-busy', busy);
+    this.connectButton.setAttribute('aria-label', busy ? 'Connecting' : (kind ? 'Disconnect' : 'Connect'));
     this.connectButton.disabled = busy;
-    this.connectButton.title = kind ? `Connected over ${kind.toUpperCase()}. Press to disconnect.` : error;
+    this.connectButton.title = kind
+      ? `Connected over ${kind.toUpperCase()}${version ? `, amp firmware ${version}` : ''}. Press to disconnect.`
+      : (error || 'Connect to the amp');
   }
 
   // Shell-driven: the app's version, and onUpdate while an app update waits (null hides the update button).
@@ -178,6 +180,10 @@ export class MemoryView {
     });
   }
 }
+
+// A plug: prongs, body and cord. The body is filled while connected (runtime.css).
+const PLUG_ICON = '<svg class="strip-plug" viewBox="0 0 24 24" aria-hidden="true">'
+  + '<path d="M9 2v5M15 2v5M12 17v5"/><path class="strip-plug-body" d="M6 7h12v4a6 6 0 0 1-12 0z"/></svg>';
 
 function labelFor(slot) {
   return slot === null ? 'ACTUAL' : `USER MEMORY ${slot}`;
