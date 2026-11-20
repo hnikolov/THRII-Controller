@@ -78,7 +78,7 @@ Standing checks after a change (grep): rules 1, 7 and 8, and no assignment to st
 | Amp knob or event | `raw:in` -> `extractSysexFrames` -> `decodeIncomingEvent` -> `applyDeviceEvent` (`'device'`). Ids the amp reports differently from the dump are matched by name (`symbolTable.makeLiveIdOf`, `findLiveParam`). |
 | Memory press on the amp | settings notification -> `activeSlot` (`'device'`) and, with `slotSync`, `syncFlow` reads the Actual settings. |
 | Memory press in the app | `buildSelectPreset` -> Actual read -> units replaced, then `activeSlot` set. |
-| Import a preset | `presetModel.parseThrl6Preset` -> `presetToPlan` (names to ids via the symbol table) -> `applyPresetPlan` (`'import'`). With an amp and `quickImport`: one patch built on the amp's Actual dump (`memoryPatch.buildPresetPatch`) is uploaded to the Actual settings; otherwise, or if that fails or differs, value by value (`boot.sendPlan`). Then the amp is read back and compared (`comparePlan`). |
+| Import a preset | `presetModel.parseThrl6Preset` -> `presetToPlan` (names to ids via the symbol table) -> `applyPresetPlan` (`'import'`). With an amp and `quickImport`: one patch built on the amp's Actual dump (`memoryPatch.buildPresetPatch`) is uploaded to the Actual settings; otherwise, or if that patch cannot be built or the amp then differs, value by value (`boot.sendPlan`). A read or send that fails ends the import (no value-by-value fallback onto an amp that is not answering). Then the amp is read back and compared (`comparePlan`). |
 | Export | `storeToPreset` -> `presetToText` -> file. Works without an amp. |
 | Save to memory | the amp's own Actual dump, renamed, uploaded to the memory (`buildSlotUploadFrames`, 18 ms per frame), recalled after 300 ms, compared. The old content is read first and offered back if the check fails. |
 | Backup / Restore | read the five memories into one JSON file; restore uploads them (a backup of the current memories is written first). Format notes: [backup_format_comparison.md](backup_format_comparison.md). |
@@ -112,7 +112,7 @@ Browser storage (per site, `localStorage`): the Presets list (`thrii.presets`) a
 | Type change pauses | 256 ms before, 512 ms after, defaults 50 ms apart | `app/boot.js` | the amp hard-stopped on rapid switches |
 | Upload pace | 18 ms per frame | `protocol/builders.js` | pacing the amp accepts for patch uploads |
 | Upload settle | 300 ms | `app/presetFlow.js` | before a written memory is recalled |
-| Dump timeout | 4 s | `protocol/syncFlow.js` | a stuck read is given up |
+| Dump timeout | 4 s from the request or the last dump frame; one more request, then the read fails | `protocol/syncFlow.js` | a stuck read is given up; over BLE a dump takes seconds, and a second request sent while one was still arriving left the amp unresponsive |
 | Command counter | 3..0x7e, then 3 | `protocol/builders.js` | header 0x7f followed by body 0x00 silenced the amp |
 
 ## Files

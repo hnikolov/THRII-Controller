@@ -20,7 +20,9 @@ const today = () => new Date().toISOString().slice(0, 10);
 // an amp (on the store); with an amp, an import also sends the preset and reads it back. Backup, Save and Restore need the amp.
 // Import with an amp has two mechanisms. Quick (quickImport() true): one patch built from the preset is uploaded to the
 // Actual settings. Value by value: the type selects and parameter writes of the UI edits, with their pauses. The quick
-// one falls back to the other when its patch cannot be built or sent, or when the amp then differs from the preset.
+// one falls back to the other when its patch cannot be built, or when the amp then differs from the preset. A read or
+// send that fails ends the import: the amp is not answering, and some 50 more frames would only add to its load
+// (over BLE that fallback left the amp unresponsive until it was switched off and on).
 // deps: store, sync, send(frame, label), sendPlan(modules), selectSlot(slot) -> the Actual patch after the recall (or null),
 // log(text) for the trace, exclusive(label, fn), isConnected(), quickImport(),
 // device() -> { firmware, identity }, lookups { idOfName, nameOf, stateIdOf, isKnownType }, files { pickText, choose, download }, confirm, notify, pause.
@@ -73,21 +75,23 @@ export function createPresetFlow(deps) {
 
   // Quick import: the preset as one patch, uploaded to the Actual settings; then the amp is read back.
   // The patch is built on the amp's current Actual dump (buildPresetPatch). Returns where the amp then differs from
-  // the preset, or null when the patch could not be built or sent.
+  // the preset, or null when the patch could not be built. A failed read or send throws.
   async function uploadPreset(plan) {
+    const template = await sync.read(ACTUAL);
+    let frames;
     try {
-      const frames = buildUploadFrames(ACTUAL, buildPresetPatch(await sync.read(ACTUAL), plan, deps.lookups));
-      for (const [index, frame] of frames.entries()) {
-        await deps.send(frame, `TX import upload ${index + 1}/${frames.length}`);
-        await deps.pause(UPLOAD_PACE_MS);
-      }
-      await deps.pause(UPLOAD_SETTLE_MS);
-      await sync.read(ACTUAL, { apply: true });
-      return comparePlan(store.getState(), plan);
+      frames = buildUploadFrames(ACTUAL, buildPresetPatch(template, plan, deps.lookups));
     } catch (err) {
-      deps.log(`Quick import failed (${err.message}); sending the preset value by value`);
+      deps.log(`Quick import not possible (${err.message}); sending the preset value by value`);
       return null;
     }
+    for (const [index, frame] of frames.entries()) {
+      await deps.send(frame, `TX import upload ${index + 1}/${frames.length}`);
+      await deps.pause(UPLOAD_PACE_MS);
+    }
+    await deps.pause(UPLOAD_SETTLE_MS);
+    await sync.read(ACTUAL, { apply: true });
+    return comparePlan(store.getState(), plan);
   }
 
   // Value-by-value import: the store first, then the type selects and writes, then the amp is read back.

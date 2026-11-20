@@ -130,6 +130,21 @@ it('sync: a dump that never completes is requested once more, then reported; lat
   assertEqual(clock.pendingCount(), 0, 'no timer left');
 });
 
+it('sync: a slow dump that keeps arriving is not requested again; the timeout counts from its last frame', async () => {
+  setDeviceIdentity({ family: 0x24, model: 0x01 });
+  const { sent, patches, errors, clock, make } = harness();
+  const sync = make(await loadNameOf(SYMBOLS));
+  sync.requestDump();
+  for (const frame of await loadInboundFrames('/test/fixtures/transcripts/actual_dump.txt')) {
+    clock.advance(DUMP_TIMEOUT_MS - 1);
+    sync.onFrame(frame, decodeIncomingEvent(frame));
+  }
+  assertEqual(sent.length, 1, 'no second request while the dump arrives (BLE)');
+  assertEqual(errors.length, 0, 'no error');
+  assertEqual(patches.length, 1, 'the slow dump is applied');
+  assertEqual(clock.pendingCount(), 0, 'no timer left');
+});
+
 it('sync: cancel drops a running dump without an error', async () => {
   setDeviceIdentity({ family: 0x24, model: 0x01 });
   const { patches, errors, clock, make } = harness();

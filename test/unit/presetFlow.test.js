@@ -123,6 +123,22 @@ it('import of a text with an amp: the same frames as the file import; a refused 
   }
 });
 
+it('quick import: when the amp does not answer the read, the import stops; nothing is sent value by value', async () => {
+  const app = await bootApp({ connect: true });
+  try {
+    app.amp.onSend = bytes => {
+      if (bytes[7] === 0x01) throw new Error('no dump');
+    };
+    app.files.next = { name: 'EarlyVH.thrl6p', text: await sampleText() };
+    app.presets('Import');
+    await statusHas(app, 'Import failed: no dump');
+    assertDeepEqual(app.labels, ['TX sync: actual dump'], 'only the read was tried');
+    assertEqual(app.container.querySelector('.thr-app').classList.contains('is-busy'), false, 'controls enabled again');
+  } finally {
+    app.cleanup();
+  }
+});
+
 it('quick import: when the amp then differs, the preset is sent value by value; with the flag off that is the whole import', async () => {
   for (const quick of [true, false]) {
     const app = await bootApp({ connect: true });

@@ -18,7 +18,7 @@ const ACTUAL = { kind: 'actual' };
 export function createSyncFlow({ send, nameOf, onPatch, onError = () => {}, onState = () => {}, clock = realClock }) {
   const assembler = createDumpAssembler({ now: clock.now });
   let state = 'idle';
-  // The running read: { target, apply, attempt, rerun, resolve, reject }.
+  // The running read: { target, apply, attempt, rerun, startedAt, resolve, reject }.
   // rerun: an Actual request arrived while this applied read was running. Its dump may show the settings from before
   // that request, so it is dropped and read again.
   let job = null;
@@ -34,8 +34,7 @@ export function createSyncFlow({ send, nameOf, onPatch, onError = () => {}, onSt
     job = next;
     job.attempt += 1;
     job.rerun = false;
-    clock.clearTimeout(timer);
-    timer = clock.setTimeout(onTimeout, DUMP_TIMEOUT_MS);
+    armTimeout();
     setState('awaitingDump', job.attempt > 1 ? 'retry' : '');
     const label = job.target.kind === 'actual' ? 'TX sync: actual dump' : `TX read memory ${job.target.value + 1}`;
     try {
@@ -43,6 +42,14 @@ export function createSyncFlow({ send, nameOf, onPatch, onError = () => {}, onSt
     } catch (err) {
       fail(err);
     }
+  }
+
+  // The timeout counts from the request or from the last dump frame received. Over BLE a dump (about 1.5 KB) takes
+  // seconds; a fixed timeout fired while a dump was still arriving, its second request went out on top of it, no dump
+  // completed, and the amp stopped answering until it was switched off and on (BLE, 2026-11-20).
+  function armTimeout() {
+    clock.clearTimeout(timer);
+    timer = clock.setTimeout(onTimeout, DUMP_TIMEOUT_MS);
   }
 
   function restart() {
@@ -68,7 +75,7 @@ export function createSyncFlow({ send, nameOf, onPatch, onError = () => {}, onSt
     if (done.apply) onError(err);
   }
 
-  // A dump that does not complete (a lost BLE packet, for example) is asked for once more, then reported.
+  // A dump that stops arriving (a lost BLE packet, for example) is asked for once more, then reported.
   // Either way the flow moves on, so later requests are not blocked.
   function onTimeout() {
     if (job.rerun) restart();
@@ -77,7 +84,7 @@ export function createSyncFlow({ send, nameOf, onPatch, onError = () => {}, onSt
   }
 
   function read(target = ACTUAL, { apply = false } = {}) {
-    const next = { target, apply, attempt: 0, rerun: false };
+    const next = { target, apply, attempt: 0, rerun: false, startedAt: clock.now() };
     next.promise = new Promise((resolve, reject) => {
       next.resolve = resolve;
       next.reject = reject;
@@ -106,7 +113,8 @@ export function createSyncFlow({ send, nameOf, onPatch, onError = () => {}, onSt
       return;
     }
     const patch = payloadBytes.slice(DUMP_HEADER_BYTES);
-    const done = end(job.apply ? 'dump complete' : 'read complete');
+    const seconds = ((clock.now() - job.startedAt) / 1000).toFixed(1);
+    const done = end(`${job.apply ? 'dump' : 'read'} complete, ${seconds} s`);
     try {
       if (done.apply) onPatch(parseDumpPatch(patch, nameOf), parsePatchName(patch));
       done.resolve(patch);
@@ -157,6 +165,7 @@ export function createSyncFlow({ send, nameOf, onPatch, onError = () => {}, onSt
     }
     if (parsed) {
       assembler.push(parsed).forEach(dumpEvent => {
+        if (dumpEvent.kind === 'dump_chunk' && job) armTimeout();
         if (dumpEvent.kind === 'dump_complete') onDumpPayload(dumpEvent.payloadBytes);
       });
     }
