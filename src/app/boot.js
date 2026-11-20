@@ -118,19 +118,10 @@ export async function boot(rootEl, {
     return sync.requestDump().catch(() => null);
   };
 
-  // The amp's Actual patch from the last applied read (connect, memory switch, import read-back), with the change stamp
-  // right after it. The stamp moves with every edit, every event from the amp and every frame sent; while it stands the
-  // amp still has that patch, and an import builds on it without reading it again (over BLE a read takes seconds).
-  let framesSent = 0;
-  transports.bus.on('raw:out', () => { framesSent += 1; });
-  const changeStamp = () => `${store.changeCount()}/${framesSent}`;
-  let lastActual = null;
-  const knownActual = () => (lastActual && lastActual.stamp === changeStamp() ? lastActual.patch : null);
-
   const sync = nameOf ? createSyncFlow({
     send: (bytes, label) => transports.send(bytes, label),
     nameOf,
-    onPatch: (entries, presetName, patch) => {
+    onPatch: (entries, presetName) => {
       applyDumpPatch(store, entries, nameOf, presetName, liveIdOf);
       generation += 1;
       if (pendingSlot !== null) {
@@ -138,7 +129,6 @@ export async function boot(rootEl, {
         pendingSlot = null;
         store.commit(state => { state.activeSlot = slot; }, 'device');
       }
-      lastActual = { patch, stamp: changeStamp() };
     },
     onError: err => {
       pendingSlot = null;
@@ -359,7 +349,6 @@ export async function boot(rootEl, {
     selectSlot: selectPreset,
     isConnected: () => transports.isConnected(),
     quickImport: () => flags.quickImport,
-    knownActual,
     device: () => ({ firmware: connection.version || null, identity: getDeviceIdentity() }),
     lookups
   }) : null;

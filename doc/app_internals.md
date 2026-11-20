@@ -78,7 +78,7 @@ Standing checks after a change (grep): rules 1, 7 and 8, and no assignment to st
 | Amp knob or event | `raw:in` -> `extractSysexFrames` -> `decodeIncomingEvent` -> `applyDeviceEvent` (`'device'`). Ids the amp reports differently from the dump are matched by name (`symbolTable.makeLiveIdOf`, `findLiveParam`). |
 | Memory press on the amp | settings notification -> `activeSlot` (`'device'`) and, with `slotSync`, `syncFlow` reads the Actual settings. |
 | Memory press in the app | `buildSelectPreset` -> Actual read -> units replaced, then `activeSlot` set. |
-| Import a preset | `presetModel.parseThrl6Preset` -> `presetToPlan` (names to ids via the symbol table) -> `applyPresetPlan` (`'import'`). With an amp and `quickImport`: one patch built on the amp's Actual dump (`memoryPatch.buildPresetPatch`; the last applied Actual read (connect, memory switch, import read-back) while no edit, no event from the amp and no frame sent has followed it (`boot.knownActual`), else a fresh read) is uploaded to the Actual settings; otherwise, or if that patch cannot be built or the amp then differs, value by value (`boot.sendPlan`). A read or send that fails ends the import (no value-by-value fallback onto an amp that is not answering). Then the amp is read back and compared (`comparePlan`). The result `{ ok, message, refused }` tells a text that cannot be loaded (`refused`) from a failure of the amp: the Presets list and the AI screen keep a preset the amp failed to take, so a tap tries again. |
+| Import a preset | `presetModel.parseThrl6Preset` -> `presetToPlan` (names to ids via the symbol table) -> `applyPresetPlan` (`'import'`). With an amp and `quickImport`: one patch built on the amp's Actual dump (`memoryPatch.buildPresetPatch`; always read right before the upload: one built on an earlier read failed over BLE) is uploaded to the Actual settings; otherwise, or if that patch cannot be built or the amp then differs, value by value (`boot.sendPlan`). A read or send that fails ends the import (no value-by-value fallback onto an amp that is not answering). Then the amp is read back and compared (`comparePlan`). The result `{ ok, message, refused }` tells a text that cannot be loaded (`refused`) from a failure of the amp: the Presets list and the AI screen keep a preset the amp failed to take, so a tap tries again. |
 | Export | `storeToPreset` -> `presetToText` -> file. Works without an amp. |
 | Save to memory | the amp's own Actual dump, renamed, uploaded to the memory (`buildSlotUploadFrames`, 18 ms per frame), recalled after 300 ms, compared. The old content is read first and offered back if the check fails. |
 | Backup / Restore | read the five memories into one JSON file; restore uploads them (a backup of the current memories is written first). Format notes: [backup_format_comparison.md](backup_format_comparison.md). |
@@ -98,18 +98,6 @@ Standing checks after a change (grep): rules 1, 7 and 8, and no assignment to st
 ```
 
 Values are normalized (0..1 for knobs, booleans for switches); `rawU32` keeps the amp's raw word. Module enables and mixes live on the `GuitarProc` unit. Parameters are keyed by the id the amp reports and accepts writes for.
-
-### The last Actual patch (beside the store)
-
-`boot` keeps the raw bytes of the last applied Actual read (connect, memory switch, import read-back), next to the store. It is the raw form of the same read that last filled the store, not a second state:
-
-| | Shadow store | Last Actual patch |
-|---|---|---|
-| Holds | parsed, normalized values of the settings the app models | the amp's own bytes, including what the store does not model (name and meta section, block headers, records without a control) |
-| Changes with | every edit and every amp event | nothing: it is replaced by the next applied read |
-| Used for | the UI, parameter writes, type selects | the base of a quick-import upload only (`memoryPatch.buildPresetPatch`) |
-
-It is valid only while the change stamp taken with it still stands: `store.changeCount()` (commits from `'ui'` and `'device'`) plus the number of frames sent. An edit, an amp event or any frame sent makes it stale; `knownActual()` then returns null and the import reads the amp first. The store stays the single source of truth; the patch never feeds it and is never shown.
 
 Browser storage (per site, `localStorage`): the Presets list (`thrii.presets`) and the AI screen's sounds and fields (`thrii.aiPresets.v2`). Nothing else is stored; the amp is the source of its own settings.
 
@@ -148,7 +136,7 @@ Browser storage (per site, `localStorage`): the Presets list (`thrii.presets`) a
 
 | File | Purpose |
 |---|---|
-| `boot.js` | Composition root shared by both pages: transports, store, symbol table, sync flow, scheduler, intents, Presets screen; connect, activate, unit type changes, the busy lock, the last Actual patch and its change stamp. |
+| `boot.js` | Composition root shared by both pages: transports, store, symbol table, sync flow, scheduler, intents, Presets screen; connect, activate, unit type changes, the busy lock. |
 | `main.js` | App-shell additions for `index.html`: service worker and update offer, wake lock, reload guard. |
 | `presetFlow.js` | Preset operations: import (quick or value by value, with read-back), export, save to memory, backup, restore. |
 | `files.js` | Browser file dialogs: pick, choose a save place, download. |
@@ -192,7 +180,7 @@ Browser storage (per site, `localStorage`): the Presets list (`thrii.presets`) a
 
 | File | Purpose |
 |---|---|
-| `shadowStore.js` | The store: state, `commit`, batched notifications, a count of the commits that may go with a change on the amp (`changeCount`: sources `'ui'` and `'device'`). |
+| `shadowStore.js` | The store: state, `commit`, batched notifications. |
 | `selectors.js` | Find a unit or parameter by id or name. |
 | `applyDeviceEvent.js` | Device events and whole dumps into the store. |
 | `applyPreset.js` | A preset plan into the store; compare the store with a plan. |

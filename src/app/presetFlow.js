@@ -24,8 +24,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 // send that fails ends the import: the amp is not answering, and some 50 more frames would only add to its load
 // (over BLE that fallback left the amp unresponsive until it was switched off and on).
 // deps: store, sync, send(frame, label), sendPlan(modules), selectSlot(slot) -> the Actual patch after the recall (or null),
-// log(text) for the trace, exclusive(label, fn), isConnected(), quickImport(), knownActual() -> the amp's Actual patch when
-// it is known to be current (or null),
+// log(text) for the trace, exclusive(label, fn), isConnected(), quickImport(),
 // device() -> { firmware, identity }, lookups { idOfName, nameOf, stateIdOf, isKnownType }, files { pickText, choose, download }, confirm, notify, pause.
 export function createPresetFlow(deps) {
   const { store, sync, files, notify } = deps;
@@ -79,11 +78,13 @@ export function createPresetFlow(deps) {
   }
 
   // Quick import: the preset as one patch, uploaded to the Actual settings; then the amp is read back.
-  // The patch is built on the amp's current Actual dump (buildPresetPatch): the last one read while nothing changed
-  // since (knownActual), or else read now. Returns where the amp then differs from the preset, or null when the patch
-  // could not be built. A failed read or send throws.
+  // The patch is built on the amp's Actual dump, read right before the upload (buildPresetPatch). Returns where the amp
+  // then differs from the preset, or null when the patch could not be built. A failed read or send throws.
+  // The read is not skipped, even when an earlier read is still current: every upload that worked on the amp came right
+  // after a read, and one built on an earlier read failed over BLE (no complete dump on the read-back, the amp needed a
+  // power cycle; phone, 2026-11-20).
   async function uploadPreset(plan) {
-    const template = deps.knownActual() || await sync.read(ACTUAL);
+    const template = await sync.read(ACTUAL);
     let frames;
     try {
       frames = buildUploadFrames(ACTUAL, buildPresetPatch(template, plan, deps.lookups));
