@@ -18,7 +18,7 @@ The app reads the amp's model from its identity reply and uses it in every messa
 
 | Amp | Model code | Status |
 |---|---|---|
-| THR10II Wireless | `0x01` | Tested |
+| THR10II Wireless | `0x01` | Tested with version 1.44.0.a |
 | THR30II Wireless | `0x02` | Expected to work; not tested yet |
 | THR10II | `0x00` | Expected to work; not tested yet |
 | THR30IIA Wireless (acoustic) | unknown | Unknown: its amp and effect models differ, so it likely needs its own symbol table |
