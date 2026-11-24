@@ -99,7 +99,7 @@ Standing checks after a change (grep): rules 1, 7 and 8, and no assignment to st
 
 Values are normalized (0..1 for knobs, booleans for switches); `rawU32` keeps the amp's raw word. Module enables and mixes live on the `GuitarProc` unit. Parameters are keyed by the id the amp reports and accepts writes for.
 
-Browser storage (per site, `localStorage`): the Presets list (`thrii.presets`) and the AI screen's sounds and fields (`thrii.aiPresets.v2`). Nothing else is stored; the amp is the source of its own settings.
+Browser storage (per site, `localStorage`): the Presets list (`thrii.presets`) and the AI screen's sounds, fields and remembered guitars and pickups (`thrii.aiPresets.v2`). Nothing else is stored; the amp is the source of its own settings.
 
 ## Timing and limits found on the hardware
 

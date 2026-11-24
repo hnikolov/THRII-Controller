@@ -1,5 +1,5 @@
 import { createApi } from './api.js';
-import { AMP_ID_BY_MODEL, CREDIT, PICKUPS, SOUNDS_MAX } from './config.js';
+import { AMP_ID_BY_MODEL, CHOICES_MAX, CREDIT, PICKUPS, SOUNDS_MAX } from './config.js';
 
 // Import AI: a screen that asks the preset generator of amplifier-presets.com for a preset and hands its .thrl6p text
 // to the app's import. Self-contained: it imports nothing from the rest of the app and gets everything it may use from
@@ -123,7 +123,15 @@ export function createAiPresetSource({
   // last from here. fields: the card's draft, with the target ('new' or a letter of the current sound).
   const saved = stored(box => JSON.parse(box.getItem(STORAGE_KEY)))
     || migrate(stored(box => JSON.parse(box.getItem(OLD_STORAGE_KEY))) || {}, uuid);
+  // choices: the guitars and pickups sent, per field, newest first (added after the first release of v2).
+  saved.choices ||= { guitar: [], pickup: [] };
   const save = () => stored(box => box.setItem(STORAGE_KEY, JSON.stringify(saved)));
+  // A value sent goes to the top of its field's own entries, once whatever its case; one of the fixed entries is not copied.
+  const remember = (key, value, fixed = []) => {
+    const same = other => other.toLowerCase() === value.toLowerCase();
+    if (!value || fixed.some(same)) return;
+    saved.choices[key] = [value, ...saved.choices[key].filter(other => !same(other))].slice(0, CHOICES_MAX);
+  };
   const soundOf = id => saved.sounds.find(sound => sound.id === id);
   const currentSound = () => (saved.current && soundOf(saved.current.soundId)) || null;
   const currentVersion = () => {
@@ -149,7 +157,7 @@ export function createAiPresetSource({
 
     const promptInput = el('textarea', { 'aria-label': 'Sound', rows: '3', placeholder: 'e.g. Joe Walsh, Hotel California solo' });
     const guitarInput = el('input', { type: 'text', 'aria-label': 'Guitar', placeholder: 'e.g. Fender Stratocaster', autocomplete: 'off' });
-    const pickupInput = el('input', { type: 'text', 'aria-label': 'Pickups', placeholder: 'optional', autocomplete: 'off', list: 'ai-pickups' });
+    const pickupInput = el('input', { type: 'text', 'aria-label': 'Pickups', placeholder: 'optional', autocomplete: 'off' });
     const inputs = { prompt: promptInput, guitar: guitarInput, pickup: pickupInput };
     const removeButton = el('button', { type: 'button', class: 'ai-remove', title: 'Remove this version', text: '×' });
     const tabs = el('div', { class: 'ai-tabs', role: 'tablist', 'aria-label': 'Versions' });
@@ -163,11 +171,62 @@ export function createAiPresetSource({
     const statusLine = el('p', { class: 'ai-status', role: 'status' });
     const list = el('div', { class: 'ai-list' });
 
+    // The guitar and pickup fields each have a ▾ that lists, whatever is typed, the user's own entries (each with an
+    // ×) and then the fixed ones. One list is open at a time; a press outside it or Escape closes it.
+    const combos = [];
+    let openMenu = null;
+    function closeMenu() {
+      if (!openMenu) return;
+      openMenu.menu.hidden = true;
+      openMenu.toggle.setAttribute('aria-expanded', 'false');
+      openMenu = null;
+    }
+
+    function combo(input, key, fixed = []) {
+      const label = input.getAttribute('aria-label');
+      const toggle = el('button', { type: 'button', class: 'ai-combo-toggle', 'aria-label': `${label} list`, 'aria-expanded': 'false', text: '▾' });
+      const menu = el('div', { class: 'ai-combo-menu', role: 'listbox', 'aria-label': `${label} entries`, hidden: '' });
+      const wrap = el('div', { class: 'ai-combo' }, input, toggle, menu);
+      // A pick goes through the field's input event, as typing does.
+      const item = (value, own) => {
+        const pick = el('button', { type: 'button', class: 'ai-combo-pick', role: 'option', text: value });
+        pick.addEventListener('click', () => {
+          input.value = value;
+          input.dispatchEvent(new Event('input'));
+          closeMenu();
+        });
+        if (!own) return el('div', { class: 'ai-combo-item' }, pick);
+        const remove = el('button', { type: 'button', class: 'ai-combo-remove', 'aria-label': `Remove ${value}`, text: '×' });
+        remove.addEventListener('click', () => {
+          saved.choices[key] = saved.choices[key].filter(other => other !== value);
+          save();
+          fill();
+          render();
+        });
+        return el('div', { class: 'ai-combo-item is-own' }, pick, remove);
+      };
+      const fill = () => menu.replaceChildren(...saved.choices[key].map(value => item(value, true)), ...fixed.map(value => item(value, false)));
+      toggle.addEventListener('click', () => {
+        const wasOpen = openMenu && openMenu.menu === menu;
+        closeMenu();
+        if (wasOpen) return;
+        fill();
+        menu.hidden = false;
+        toggle.setAttribute('aria-expanded', 'true');
+        openMenu = { wrap, menu, toggle };
+      });
+      wrap.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeMenu(); });
+      combos.push({ key, fixed, toggle });
+      return wrap;
+    }
+    document.addEventListener('pointerdown', (event) => {
+      if (openMenu && !openMenu.wrap.contains(event.target)) closeMenu();
+    });
+
     const form = el('form', { class: 'ai-request' },
       el('div', { class: 'ai-card' },
         field('Sound', promptInput),
-        el('div', { class: 'ai-pair' }, field('Guitar', guitarInput), field('Pickups', pickupInput)),
-        el('datalist', { id: 'ai-pickups' }, ...PICKUPS.map(value => el('option', { value })))),
+        el('div', { class: 'ai-pair' }, field('Guitar', combo(guitarInput, 'guitar')), field('Pickups', combo(pickupInput, 'pickup', PICKUPS)))),
       tabBar,
       tip,
       el('div', { class: 'ai-actions' }, ampSelect, targetSelect, goButton),
@@ -301,6 +360,10 @@ export function createAiPresetSource({
       goButton.setAttribute('aria-label', job ? 'Cancel' : (target === NEW ? 'Generate a new sound' : `Generate version ${target}`));
       goButton.disabled = !job && (!reachable || !!importing);
 
+      // A field with nothing to list has no ▾.
+      combos.forEach(({ key, fixed, toggle }) => { toggle.hidden = !saved.choices[key].length && !fixed.length; });
+      if (openMenu && openMenu.toggle.hidden) closeMenu();
+
       if (!renaming) renderList();
       // While an import runs (about a second with an amp) nothing else may load or remove.
       host.querySelectorAll('.ai-tab, .ai-remove, .ai-sound button').forEach((button) => { button.disabled = !!importing; });
@@ -403,6 +466,8 @@ export function createAiPresetSource({
       const letter = sound ? saved.fields.target : LETTERS[0];
       if (sound && versionOf(sound, letter) && !confirm(`Replace version ${letter} of ${sound.name}?`)) return;
       if (!saved.sessionId) saved.sessionId = uuid();
+      remember('guitar', request.guitar);
+      remember('pickup', request.pickup, PICKUPS);
       save();
 
       job = { controller: new AbortController(), label: sound ? letter : 'a new sound' };

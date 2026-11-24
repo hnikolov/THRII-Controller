@@ -535,3 +535,64 @@ it('AI availability: only a 200 from the proxy health check offers Import AI; 40
   assertEqual(await aiAvailable({ base: '/api', fetch: silent, timeoutMs: 20 }), false, 'no answer in time');
   assertDeepEqual(calls, ['/api/health', '/api/health', '/api/health'], 'only the health check is asked, never the generator');
 });
+
+// The ▾ list of a field: its entries in order, the user's own marked with *; null while closed.
+const entries = (ctx, label) => {
+  const menu = ctx.find(`[aria-label="${label} entries"]`);
+  return menu.hidden ? null : [...menu.querySelectorAll('.ai-combo-item')].map(item => `${item.classList.contains('is-own') ? '*' : ''}${item.textContent.replace('×', '')}`);
+};
+const toggle = (ctx, label) => ctx.find(`[aria-label="${label} list"]`);
+
+it('import AI: the pickup ▾ lists every entry whatever is typed; the guitar ▾ shows once there is an entry', async () => {
+  const ctx = setup();
+  try {
+    await ctx.open();
+    assertEqual(toggle(ctx, 'Guitar').hidden, true, 'no guitar entries: no ▾');
+    ctx.type('Pickups', 'xyz');
+    toggle(ctx, 'Pickups').click();
+    assertDeepEqual(entries(ctx, 'Pickups'), ['Single coil', 'Humbucker', 'P90', 'HSS', 'HSH', 'Active humbucker'], 'all fixed entries');
+    ctx.find('[aria-label="Pickups entries"] .ai-combo-pick').click();
+    assertDeepEqual([ctx.field('Pickups').value, entries(ctx, 'Pickups')], ['Single coil', null], 'a pick fills the field and closes the list');
+
+    toggle(ctx, 'Pickups').click();
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    assertEqual(entries(ctx, 'Pickups'), null, 'a press outside closes the list');
+  } finally {
+    ctx.cleanup();
+  }
+});
+
+it('import AI: guitars and pickups sent are remembered newest first, once each; × removes one; both survive a reload', async () => {
+  const storage = fakeStorage();
+  const ctx = setup({ storage });
+  try {
+    await ctx.open();
+    await ctx.generate({ ...first, Pickups: 'Fat single coils' }, 'a');
+    await ctx.generate({ Guitar: 'Les Paul', Pickups: 'humbucker' }, 'b');
+    await ctx.generate({ Guitar: 'strat' }, 'c');
+    toggle(ctx, 'Guitar').click();
+    assertDeepEqual(entries(ctx, 'Guitar'), ['*strat', '*Les Paul'], 'newest first, a case variant once');
+    toggle(ctx, 'Pickups').click();
+    assertDeepEqual(entries(ctx, 'Guitar'), null, 'one list open at a time');
+    assertDeepEqual(entries(ctx, 'Pickups'), ['*Fat single coils', 'Single coil', 'Humbucker', 'P90', 'HSS', 'HSH', 'Active humbucker'],
+      'own entries first; a fixed one is not copied');
+
+    ctx.find('[aria-label="Remove Fat single coils"]').click();
+    assertDeepEqual(entries(ctx, 'Pickups'), ['Single coil', 'Humbucker', 'P90', 'HSS', 'HSH', 'Active humbucker'], 'removed; the list stays open');
+    toggle(ctx, 'Guitar').click();
+    [...ctx.host.querySelectorAll('[aria-label="Guitar entries"] .ai-combo-pick')][1].click();
+    assertDeepEqual([ctx.field('Guitar').value, ctx.field('Guitar').classList.contains('is-edited')], ['Les Paul', true], 'a pick is an edit');
+  } finally {
+    ctx.cleanup();
+  }
+  const again = setup({ storage });
+  try {
+    await again.open();
+    toggle(again, 'Guitar').click();
+    assertDeepEqual(entries(again, 'Guitar'), ['*strat', '*Les Paul'], 'guitars after a reload');
+    toggle(again, 'Pickups').click();
+    assertEqual(entries(again, 'Pickups')[0], 'Single coil', 'the removal after a reload');
+  } finally {
+    again.cleanup();
+  }
+});

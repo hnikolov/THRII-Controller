@@ -74,8 +74,83 @@
   border-left: 4px solid var(--gold, #9a6f08);
 }
 
+/* Guitar and pickup: a text field with a ▾ that always lists the user's entries, then the fixed ones. */
+.ai-combo {
+  position: relative;
+}
+
+.ai-card .ai-combo input {
+  padding-right: 28px;
+}
+
+.ai-combo-toggle {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  width: 26px;
+  border: 0;
+  background: transparent;
+  color: var(--muted, #5f553f);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.ai-combo-toggle[aria-expanded="true"] {
+  color: var(--gold, #9a6f08);
+}
+
+.ai-combo-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--line, #3d3525);
+  border-top: 0;
+  background: #f7f2e3;
+  /* The menu sits inside the field's caption; it takes back the text look of the fields. */
+  font: 400 13px/1.35 var(--ui-font-family, Arial, Helvetica, sans-serif);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.ai-combo-item {
+  display: flex;
+}
+
+/* A rule between the user's own entries and the fixed ones. */
+.ai-combo-item.is-own + .ai-combo-item:not(.is-own) {
+  border-top: 1px solid var(--line, #3d3525);
+}
+
+.ai-combo-pick {
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 6px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--ink, #141414);
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ai-combo-pick:hover,
+.ai-combo-pick:focus-visible {
+  outline: none;
+  background: rgba(154, 111, 8, 0.16);
+}
+
 .ai-remove,
-.ai-sound-delete {
+.ai-sound-delete,
+.ai-combo-remove {
   width: 32px;
   min-height: 26px;
   border: 0;
@@ -89,8 +164,10 @@
 
 .ai-remove:hover:not(:disabled),
 .ai-sound-delete:hover:not(:disabled),
+.ai-combo-remove:hover,
 .ai-remove:focus-visible,
-.ai-sound-delete:focus-visible {
+.ai-sound-delete:focus-visible,
+.ai-combo-remove:focus-visible {
   outline: none;
   background: rgba(138, 28, 20, 0.14);
   color: #8a1c14;
@@ -362,6 +439,10 @@
   .ai-card textarea,
   .ai-sound-input {
     padding-inline: 4px;
+    font-size: 16px;
+  }
+
+  .ai-combo-menu {
     font-size: 16px;
   }
 
