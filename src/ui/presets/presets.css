@@ -212,7 +212,7 @@
   line-height: 1;
 }
 
-/* PRESETS │ SETS beside Backup and Restore: two joined outlined buttons, the shown mode filled. */
+/* PRESETS │ BANKS beside Backup and Restore: two joined outlined buttons, the shown mode filled. */
 .pr-mode {
   flex: 1;
   display: flex;
@@ -329,7 +329,7 @@
    (Import, Export) until the next tap elsewhere. Keyboard focus gets a ring, not the fill: focus also comes back to the
    button when a file or confirm dialog closes. */
 @media (hover: hover) {
-  /* The switch only tints: a black fill would look like the mode shown. */
+  /* The other mode only tints: a black fill would look like the mode shown. */
   .pr-mode-button:hover:not([aria-pressed="true"]) {
     background: rgba(154, 111, 8, 0.18);
   }

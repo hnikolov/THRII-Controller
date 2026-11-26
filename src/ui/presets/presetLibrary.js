@@ -2,9 +2,9 @@
 // persistent list of presets for quick switching, and the amp memories' Backup and Restore. Self-contained like
 // src/ai: it imports nothing from the rest of the app and gets every operation from boot, so it never touches the
 // store or sends a frame itself.
-// With saveSet, a switch beside Backup and Restore shows the memory sets instead: named groups of five list entries,
-// one per amp memory (or none: that memory is left as it is), saved to the amp in one go. A set refers to its entries,
-// so an entry's update or rename shows in every set; a set file carries the preset texts themselves.
+// With saveSet, a switch beside Backup and Restore shows the banks instead (memory sets in the code): named groups of
+// five list entries, one per amp memory (or none: that memory is left as it is), saved to the amp in one go. A bank
+// refers to its entries, so an entry's update or rename shows in every bank; a bank file carries the preset texts.
 //
 // deps (all from boot):
 //   run(action)        'export' (resolves to the text written, or null) | 'backup' | 'restore' | 'save:N'
@@ -208,7 +208,7 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
   // An entry in sets leaves their memories empty.
   function remove(entry) {
     const using = memorySets.sets.filter(set => set.slots.includes(entry.id));
-    const note = using.length ? ` It is in ${using.length} memory set${using.length === 1 ? '' : 's'}; those memories become empty.` : '';
+    const note = using.length ? ` It is in ${using.length} bank${using.length === 1 ? '' : 's'}; those memories become empty.` : '';
     if (busy || !confirm(`Remove ${entry.name} from the list?${note}`)) return;
     saved.entries = saved.entries.filter(other => other !== entry);
     if (loaded && loaded.id === entry.id) loaded = null;
@@ -271,7 +271,7 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
   }
 
   const isRenaming = (item, isSet) => !!renaming && renaming.set === isSet && renaming.id === item.id;
-  const renameButton = (item, isSet) => button({ class: 'pr-icon', 'aria-label': `Rename ${isSet ? 'set ' : ''}${item.name}`, title: 'Rename', text: '✎' }, () => startRename(item, isSet));
+  const renameButton = (item, isSet) => button({ class: 'pr-icon', 'aria-label': `Rename ${isSet ? 'bank ' : ''}${item.name}`, title: 'Rename', text: '✎' }, () => startRename(item, isSet));
 
   // While picking, a tap on a row puts the entry in the memory picked, and the row has no other tools.
   function row(entry, current) {
@@ -320,8 +320,8 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
   function newSet() {
     const names = new Set(memorySets.sets.map(set => set.name));
     let number = memorySets.sets.length + 1;
-    while (names.has(`Set ${number}`)) number += 1;
-    const set = { id: uuid(), name: `Set ${number}`, slots: SLOTS.map(() => null), time: now() };
+    while (names.has(`Bank ${number}`)) number += 1;
+    const set = { id: uuid(), name: `Bank ${number}`, slots: SLOTS.map(() => null), time: now() };
     memorySets.sets.unshift(set);
     saveSets();
     openSet = set.id;
@@ -329,7 +329,7 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
   }
 
   function removeSet(set) {
-    if (busy || !confirm(`Remove the set ${set.name}?`)) return;
+    if (busy || !confirm(`Remove the bank ${set.name}?`)) return;
     memorySets.sets = memorySets.sets.filter(other => other !== set);
     if (openSet === set.id) openSet = null;
     saveSets();
@@ -352,7 +352,7 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
     const set = setOf(openSet);
     if (!set) return;
     const slots = SLOTS.map(slot => ({ slot, preset: (entryOf(set.slots[slot - 1]) || {}).text || null }));
-    if (await saveFile(`THR set ${set.name}.json`, JSON.stringify({ format: SET_FORMAT, version: 1, name: set.name, slots }, null, 1) + '\n')) {
+    if (await saveFile(`THR bank ${set.name}.json`, JSON.stringify({ format: SET_FORMAT, version: 1, name: set.name, slots }, null, 1) + '\n')) {
       notify('Exported ' + set.name);
     }
   }
@@ -372,7 +372,7 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
         if (!presets) throw new Error('not a set');
         presets.forEach(preset => preset && describe(preset));
         const slots = presets.map(preset => (preset ? ((findText(preset) || add(preset)) || {}).id || null : null));
-        memorySets.sets.unshift({ id: uuid(), name: String(json.name || '').trim().slice(0, NAME_MAX) || 'Set', slots, time: now() });
+        memorySets.sets.unshift({ id: uuid(), name: String(json.name || '').trim().slice(0, NAME_MAX) || 'Bank', slots, time: now() });
         added += 1;
       } catch {
         refused.push(name);
@@ -383,7 +383,7 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
       openSet = memorySets.sets[0].id;
       saveSets();
     }
-    notify(`Added ${added} set${added === 1 ? '' : 's'}${refused.length ? `; not loadable: ${refused.join(', ')}` : ''}`);
+    notify(`Added ${added} bank${added === 1 ? '' : 's'}${refused.length ? `; not loadable: ${refused.join(', ')}` : ''}`);
     render();
   }
 
@@ -417,14 +417,14 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
     const filled = set.slots.filter(id => entryOf(id)).length;
     const head = el('div', { class: isOpen ? 'pr-set is-selected' : 'pr-set' },
       isRenaming(set, true)
-        ? nameInput('Set name')
+        ? nameInput('Bank name')
         : button({ class: 'pr-name', 'aria-expanded': String(isOpen), text: `${isOpen ? '▾' : '▸'} ${set.name}` }, () => {
           openSet = isOpen ? null : set.id;
           renderSets();
         }),
       el('span', { class: 'pr-count', text: `${filled}/${SLOTS.length}` }),
       renameButton(set, true),
-      button({ class: 'pr-icon pr-remove', 'aria-label': `Remove set ${set.name}`, title: 'Remove the set', text: '×' }, () => removeSet(set)));
+      button({ class: 'pr-icon pr-remove', 'aria-label': `Remove bank ${set.name}`, title: 'Remove the bank', text: '×' }, () => removeSet(set)));
     return isOpen ? [head, ...SLOTS.map(slot => slotRow(set, slot))] : [head];
   }
 
@@ -434,7 +434,7 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
     view.exportSet.disabled = !open;
     view.toAmp.disabled = !(open && connected && open.slots.some(entryOf));
     view.list.replaceChildren(...(memorySets.sets.length ? memorySets.sets.flatMap(setRows) : [
-      el('p', { class: 'pr-hint', text: '+ New makes a set: one preset of the list for each of the five amp memories.' }),
+      el('p', { class: 'pr-hint', text: '+ New makes a bank: one preset of the list for each of the five amp memories.' }),
       el('p', { class: 'pr-hint', text: 'Save to amp then saves them all; an empty memory is left as it is.' })
     ]));
     view.list.querySelectorAll('button').forEach((node) => { node.disabled = busy; });
@@ -503,24 +503,24 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
     let modeSwitch = el('span', { class: 'pr-label', text: 'Amp memories' });
     const setParts = [];
     if (saveSet) {
-      view.exportSet = button({ class: 'pr-action', 'aria-label': 'Export set', text: 'Export' }, exportSet);
-      view.toAmp = button({ class: 'pr-action', 'aria-label': 'Save set to amp', text: 'Save to amp' }, saveSetToAmp);
+      view.exportSet = button({ class: 'pr-action', 'aria-label': 'Export bank', text: 'Export' }, exportSet);
+      view.toAmp = button({ class: 'pr-action', 'aria-label': 'Save bank to amp', text: 'Save to amp' }, saveSetToAmp);
       view.setActions = el('div', { class: 'pr-actions' },
-        button({ class: 'pr-action', 'aria-label': 'Import sets', text: 'Import' }, importSets),
+        button({ class: 'pr-action', 'aria-label': 'Import banks', text: 'Import' }, importSets),
         view.exportSet,
-        button({ class: 'pr-action', 'aria-label': 'New set', text: '+ New' }, newSet),
+        button({ class: 'pr-action', 'aria-label': 'New bank', text: '+ New' }, newSet),
         view.toAmp);
       view.pickLabel = el('span', { class: 'pr-label' });
       view.pickBar = el('div', { class: 'pr-actions pr-pick' }, view.pickLabel, button({ class: 'pr-action', 'aria-label': 'Cancel pick', text: 'Cancel' }, () => {
         picking = null;
         render();
       }));
-      view.modes = [['presets', 'Presets'], ['sets', 'Sets']].map(([key, text]) => {
+      view.modes = [['presets', 'Presets'], ['sets', 'Banks']].map(([key, text]) => {
         const node = button({ class: 'pr-mode-button', 'aria-pressed': String(key === mode), text }, () => setMode(key));
         node.dataset.mode = key;
         return node;
       });
-      modeSwitch = el('div', { class: 'pr-mode', role: 'group', 'aria-label': 'Show presets or memory sets' }, ...view.modes);
+      modeSwitch = el('div', { class: 'pr-mode', role: 'group', 'aria-label': 'Show presets or banks' }, ...view.modes);
       setParts.push(view.setActions, view.pickBar);
     }
 

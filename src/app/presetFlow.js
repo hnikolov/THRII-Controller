@@ -275,7 +275,7 @@ export function createPresetFlow(deps) {
       try {
         await saveSet(name, texts);
       } catch (err) {
-        failed('Save set', err);
+        failed('Save bank', err);
       }
     },
     // Imports a .thrl6p text. Resolves to { ok, message }, the message being the one shown; never throws.

@@ -8,7 +8,7 @@ An editor and controller for Yamaha THR-II amplifiers that runs in the browser (
 
 - connect, activate the amp's session, and mirror its settings (knobs, amp model, cabinet, effects, the active memory);
 - edit live, from the screen or from the amp's own knobs and memory buttons;
-- import and export presets (`.thrl6p`, THR Remote's format), keep a list of presets, save to the amp's five memories, back up and restore them; group presets into memory sets of five and save a set to the amp in one go (behind `memorySets`);
+- import and export presets (`.thrl6p`, THR Remote's format), keep a list of presets, save to the amp's five memories, back up and restore them; group presets into banks of five (memory sets in the code) and save a bank to the amp in one go (behind `memorySets`);
 - Import AI: get a preset from the generator of amplifier-presets.com and load it;
 - work offline (everything except Import AI), keep the screen on, and update itself when a new version is published.
 
@@ -81,7 +81,7 @@ Standing checks after a change (grep): rules 1, 7 and 8, and no assignment to st
 | Import a preset | `presetModel.parseThrl6Preset` -> `presetToPlan` (names to ids via the symbol table) -> `applyPresetPlan` (`'import'`). With an amp and `quickImport`: one patch built on the amp's Actual dump (`memoryPatch.buildPresetPatch`, on a read made right before) is uploaded to the Actual settings, unless that read shows the amp already plays the preset (`memoryDifferences` empty: nothing is sent); otherwise, or if that patch cannot be built or the amp then differs, value by value (`boot.sendPlan`). A read or send that fails ends the import (no value-by-value fallback onto an amp that is not answering). Then the amp is read back and compared (`comparePlan`). The result `{ ok, message, refused }` tells a text that cannot be loaded (`refused`) from a failure of the amp: the Presets list and the AI screen keep a preset the amp failed to take, so a tap tries again. |
 | Export | `storeToPreset` -> `presetToText` -> file. Works without an amp. |
 | Save to memory | the amp's own Actual dump, renamed, uploaded to the memory (`buildSlotUploadFrames`, 18 ms per frame), recalled after 300 ms, compared. The old content is read first and offered back if the check fails. |
-| Save a memory set | (flag `memorySets`) a set is five list entries or empty. Like Restore: the five memories go to a file first; then for each filled memory a patch built from the preset on the Actual dump read once before (`buildPresetPatch`; a preset that cannot be built is sent value by value and the Actual dump it leaves is taken) is uploaded, recalled and compared as in Save to memory. An empty memory is not touched; the first memory that does not verify ends it. |
+| Save a bank | (flag `memorySets`) a bank (memory set) is five list entries or empty. Like Restore: the five memories go to a file first; then for each filled memory a patch built from the preset on the Actual dump read once before (`buildPresetPatch`; a preset that cannot be built is sent value by value and the Actual dump it leaves is taken) is uploaded, recalled and compared as in Save to memory. An empty memory is not touched; the first memory that does not verify ends it. |
 | Backup / Restore | read the five memories into one JSON file; restore uploads them (a backup of the current memories is written first). Format notes: [backup_format_comparison.md](backup_format_comparison.md). |
 | Import AI | the shell checks `<API_BASE>/health` at start; the AI screen asks the generator and hands the `.thrl6p` text to the same import. |
 | Offline and updates | `sw.js` caches the release set and serves the app page from it; a new release waits until the update button is pressed or the app is closed. Details: [release.md](release.md). |
@@ -140,7 +140,7 @@ Browser storage (per site, `localStorage`): the Presets list (`thrii.presets`), 
 |---|---|
 | `boot.js` | Composition root shared by both pages: transports, store, symbol table, sync flow, scheduler, intents, Presets screen; connect, activate, unit type changes, the busy lock. |
 | `main.js` | App-shell additions for `index.html`: service worker and update offer, wake lock, reload guard. |
-| `presetFlow.js` | Preset operations: import (quick or value by value, with read-back), export, save to memory, save a memory set, backup, restore. |
+| `presetFlow.js` | Preset operations: import (quick or value by value, with read-back), export, save to memory, save a bank, backup, restore. |
 | `files.js` | Browser file dialogs: pick, choose a save place, download. |
 | `version.js` | `APP_VERSION` (by hand) and `BUILD` (stamp). |
 | `wakeLock.js` | Keeps the screen on while the app is visible. |
@@ -213,7 +213,7 @@ Browser storage (per site, `localStorage`): the Presets list (`thrii.presets`), 
 
 | File | Purpose |
 |---|---|
-| `ui/presets/presetLibrary.js`, `presets.css` | Presets screen: action row, stored list, backup and restore; with `memorySets` a PRESETS │ SETS switch and the sets (open one shows its five memories, a memory is picked from the presets list, export and import as `thrii-memory-set` JSON holding the preset texts). |
+| `ui/presets/presetLibrary.js`, `presets.css` | Presets screen: action row, stored list, backup and restore; with `memorySets` a PRESETS │ BANKS switch and the banks (the open one shows its five memories, a memory is picked from the presets list, export and import as `thrii-memory-set` JSON holding the preset texts). |
 | `ai/aiPresets.js`, `aiPresets.css` | Import AI screen: request fields, versions, sounds list. |
 | `ai/api.js` | Calls to the generator and the proxy health check. |
 | `ai/config.js` | Proxy address, amp ids by model code, limits, credit. |
