@@ -4,10 +4,13 @@
 // slotSync is on since its hardware check passed for the memory slots: a slot press on the amp reads the Actual settings.
 // quickImport is on since the upload to the Actual settings passed on hardware (2026-11-13): a preset import is one
 // patch upload; the value-by-value import stays as the fallback (and is the whole import when this is off).
+// memorySets is off until a set saved to the amp (presets built into memory patches, five uploads) is checked on
+// hardware: it shows the SETS mode of the Presets screen.
 // Only the dev composition root may turn these on, from query parameters; runtime code reads them only.
 export const flags = {
   coalesceWrites: true,
   autoActivate: true,
   slotSync: true,
-  quickImport: true
+  quickImport: true,
+  memorySets: false
 };

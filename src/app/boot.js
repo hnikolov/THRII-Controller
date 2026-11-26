@@ -379,8 +379,14 @@ export async function boot(rootEl, {
   let compared = { text: null, plan: null };
   const library = presets ? createPresetLibrary({
     run: presets.run,
+    saveSet: flags.memorySets ? presets.saveSet : null,
     importText,
     pickTexts: accept => files.pickTexts(accept),
+    saveFile: async (name, text) => {
+      const target = await files.choose(name);
+      if (target) await target.write(text);
+      return !!target;
+    },
     currentText: () => {
       const state = store.getState();
       return presetToText(storeToPreset(state, (state.presetName || '').trim() || 'My Preset'));

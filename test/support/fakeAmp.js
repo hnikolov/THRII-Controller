@@ -75,7 +75,8 @@ function dumpFramesFor(patch) {
 // files.next is the file (or a list of files, for Import) the next pick returns; files.saved collects the downloads.
 // With connect: the fake amp answers the activation and every dump request (Actual and memories) with the captured
 // Actual dump, and the app is connected and filled before this resolves. With takesUploads the fake amp behaves like
-// the real one for an upload to the Actual settings: it then answers Actual reads with the uploaded patch.
+// the real one for an upload to the Actual settings: it then answers Actual reads with the uploaded patch; and for an
+// upload to a memory: a recall of that memory then makes the uploaded patch the Actual settings.
 export async function bootApp({ connect = false, takesUploads = false, presetSources = {} } = {}) {
   const container = document.createElement('div');
   document.body.append(container);
@@ -126,6 +127,7 @@ export async function bootApp({ connect = false, takesUploads = false, presetSou
       amp.uninstall();
       container.remove();
       localStorage.removeItem('thrii.presets');
+      localStorage.removeItem('thrii.memorySets');
     }
   };
 
@@ -135,15 +137,20 @@ export async function bootApp({ connect = false, takesUploads = false, presetSou
     amp.install();
     let uploading = [];
     let actualFrames = dumpFrames;
+    const memories = {};
     app.transports.bus.on('raw:out', ({ bytes, label }) => {
       labels.push(label);
       if (label === 'TX THR activation 1/4') amp.deliver([identityReply]);
-      if (takesUploads && label.startsWith('TX import upload')) {
-        const [index, count] = label.split(' ').pop().split('/').map(Number);
+      const upload = label.match(/^TX (import upload|save memory (\d)) (\d+)\/(\d+)$/);
+      if (takesUploads && upload) {
+        const [index, count] = [Number(upload[3]), Number(upload[4])];
         if (index === 1) uploading = [];
         else uploading.push(...parseIncomingThrFrame(bytes, 'app').decodedPayload);
-        if (index === count) actualFrames = dumpFramesFor(Uint8Array.from(uploading));
+        if (index === count && upload[2]) memories[upload[2]] = dumpFramesFor(Uint8Array.from(uploading));
+        else if (index === count) actualFrames = dumpFramesFor(Uint8Array.from(uploading));
       }
+      const recall = label.match(/^TX memory slot (\d)$/);
+      if (recall && memories[recall[1]]) actualFrames = memories[recall[1]];
       if (label === 'TX sync: actual dump') amp.deliver(actualFrames);
       if (label.startsWith('TX read memory')) amp.deliver(dumpFrames);
     });

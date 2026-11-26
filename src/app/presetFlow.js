@@ -212,6 +212,44 @@ export function createPresetFlow(deps) {
     });
   }
 
+  // The patch for a memory from a preset: built on the Actual dump as quick import builds it. A preset that cannot be
+  // built that way is sent value by value and the Actual settings it leaves are taken, as Import then Save would.
+  async function presetSlotPatch(template, plan) {
+    try {
+      return buildPresetPatch(template, plan, deps.lookups);
+    } catch (err) {
+      deps.log(`Set: ${plan.presetName} cannot be built as a patch (${err.message}); sending it value by value`);
+      await writePreset(plan);
+      return withPatchName(await sync.read(ACTUAL), plan.presetName);
+    }
+  }
+
+  // A memory set to the amp: texts holds five preset texts or null, null leaving that memory as it is. Like Restore: the
+  // five memories go to a file first, then each preset is uploaded and verified; the last one written plays afterwards.
+  async function saveSet(name, texts) {
+    if (!deps.isConnected()) throw new Error('connect the amp first');
+    const plans = texts.map(text => text && presetToPlan(parseThrl6Preset(JSON.parse(text)), deps.lookups));
+    const slots = plans.flatMap((plan, index) => (plan ? [index + 1] : []));
+    const empty = plans.flatMap((plan, index) => (plan ? [] : [index + 1]));
+    if (!slots.length) throw new Error('the set has no presets');
+    let kept = '';
+    if (empty.length === 1) kept = ` Memory ${empty[0]} (empty) is left as it is.`;
+    else if (empty.length) kept = ` Memories ${empty.join(', ')} (empty) are left as they are.`;
+    const what = slots.length === 1 ? `memory ${slots[0]}` : `memories ${slots.join(', ')}`;
+    if (!deps.confirm(`Overwrite ${what} on the amp with ${name}?${kept}`)) return;
+    await deps.exclusive(`Saving ${name}`, async () => {
+      files.download(`THR backup ${today()} before ${name}.json`, JSON.stringify(await readBackup(), null, 1) + '\n');
+      const template = await sync.read(ACTUAL);
+      for (const [index, slot] of slots.entries()) {
+        notify(`Saving ${name}: memory ${slot} (${index + 1} of ${slots.length})`);
+        if (!(await writeSlot(slot, await presetSlotPatch(template, plans[slot - 1])))) {
+          throw new Error(`memory ${slot} did not verify; ${index} of ${slots.length} memories were saved before it`);
+        }
+      }
+      notify(`${name} is on the amp`);
+    });
+  }
+
   const actions = { export: exportPreset, backup, restore, save };
 
   const failed = (name, err) => {
@@ -230,6 +268,14 @@ export function createPresetFlow(deps) {
       } catch (err) {
         failed(`${name[0].toUpperCase()}${name.slice(1)}`, err);
         return null;
+      }
+    },
+    // A memory set to the amp (saveSet above). Failures are reported, never thrown.
+    async saveSet(name, texts) {
+      try {
+        await saveSet(name, texts);
+      } catch (err) {
+        failed('Save set', err);
       }
     },
     // Imports a .thrl6p text. Resolves to { ok, message }, the message being the one shown; never throws.

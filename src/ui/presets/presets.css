@@ -35,6 +35,16 @@
   border-bottom: 1px solid var(--line, #3d3525);
 }
 
+/* The presets and the sets action rows share fixed columns, so a mode switch moves no button. */
+.pr-actions:not(.pr-pick) {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.85fr 1.55fr;
+}
+
+.pr-actions:not(.pr-pick) .pr-action {
+  min-width: 0;
+}
+
 .pr-memories {
   margin-top: auto;
   border-top: 1px solid var(--line, #3d3525);
@@ -152,7 +162,8 @@
   border-left: 3px solid transparent;
 }
 
-.pr-entry.is-selected {
+.pr-entry.is-selected,
+.pr-set.is-selected {
   border-left-color: var(--gold, #9a6f08);
   background: rgba(154, 111, 8, 0.14);
 }
@@ -201,6 +212,105 @@
   line-height: 1;
 }
 
+/* PRESETS │ SETS beside Backup and Restore: two joined outlined buttons, the shown mode filled. */
+.pr-mode {
+  flex: 1;
+  display: flex;
+}
+
+.pr-mode-button {
+  flex: 0 1 auto;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--ink, #141414);
+  background: transparent;
+  color: var(--ink, #141414);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pr-mode-button + .pr-mode-button {
+  margin-left: -1px;
+}
+
+.pr-mode-button[aria-pressed="true"] {
+  background: var(--ink, #141414);
+  color: var(--paper, #ede6d2);
+}
+
+/* The memory being picked: the bar in the memory strip's gold over the presets list. */
+.pr-pick {
+  border-bottom: 1px solid var(--line, #3d3525);
+  background: rgba(154, 111, 8, 0.22);
+}
+
+.pr-pick .pr-label {
+  color: var(--ink, #141414);
+}
+
+.pr-pick .pr-action {
+  flex: 0 0 auto;
+  min-width: 84px;
+}
+
+/* A pick row: name and amp model only. */
+.pr-entry.is-pick {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+/* A set: name (a tap opens it), filled memories, ✎ and ×. The open one is marked as the loaded preset is. */
+.pr-set {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 32px 32px;
+  align-items: center;
+  border-left: 3px solid transparent;
+  border-top: 1px solid rgba(61, 53, 37, 0.25);
+}
+
+.pr-set .pr-count {
+  padding: 0 6px;
+}
+
+/* The open set's memories: number, preset, its amp model, – (clears the memory). */
+.pr-memory {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto 32px;
+  align-items: center;
+  border-left: 3px solid var(--gold, #9a6f08);
+  background: rgba(154, 111, 8, 0.06);
+}
+
+.pr-memory-number {
+  justify-self: center;
+  min-width: 20px;
+  padding: 2px 0;
+  background: var(--gold, #9a6f08);
+  color: #fff6da;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.pr-memory .pr-name {
+  font-weight: 400;
+}
+
+.pr-memory .pr-name.is-empty,
+.pr-memory-amp {
+  color: var(--muted, #5f553f);
+}
+
+.pr-memory-amp {
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 /* The amp filter in force; a tap clears it. */
 .pr-chip {
   min-height: 26px;
@@ -219,6 +329,11 @@
    (Import, Export) until the next tap elsewhere. Keyboard focus gets a ring, not the fill: focus also comes back to the
    button when a file or confirm dialog closes. */
 @media (hover: hover) {
+  /* The switch only tints: a black fill would look like the mode shown. */
+  .pr-mode-button:hover:not([aria-pressed="true"]) {
+    background: rgba(154, 111, 8, 0.18);
+  }
+
   .pr-action:hover:not(:disabled) {
     background: var(--ink, #141414);
     color: var(--paper, #ede6d2);
@@ -261,6 +376,30 @@
 
   .pr-memories .pr-action {
     min-width: 96px;
+  }
+
+  .pr-mode-button {
+    min-height: 36px;
+    padding: 0 8px;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+  }
+
+  .pr-set {
+    grid-template-columns: minmax(0, 1fr) auto 40px 40px;
+  }
+
+  .pr-memory {
+    grid-template-columns: 34px minmax(0, 1fr) auto 40px;
+  }
+
+  .pr-memory-number {
+    min-width: 24px;
+    font-size: 14px;
+  }
+
+  .pr-memory-amp {
+    font-size: 13px;
   }
 
   .pr-label,
