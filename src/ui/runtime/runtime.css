@@ -6,6 +6,9 @@
   color-scheme: light;
   --shell: #e8e0c8;
   --paper: #ede6d2;
+  --paper-alt: #e4dcc4;
+  --gutter: #c8bc9c;
+  --gutter-size: 3px;
   --ink: #141414;
   --line: #3d3525;
   --gold: #9a6f08;
@@ -395,7 +398,7 @@ body {
 
 /* Above the module rows, so an open amp or cabinet menu is not painted under the next module's selector. */
 .amp-head {
-  border-bottom: 1px solid var(--line);
+  border-bottom: var(--gutter-size) solid var(--gutter);
   padding: 6px 6px 0;
   background: rgba(255, 255, 255, 0.15);
   position: relative;
@@ -446,8 +449,14 @@ body {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+/* The modules are panels set into the shell: a gutter between them, each panel's edge raised (light on top, shaded
+   at the bottom), and every other row a darker paper. The footer strip closes the last row. */
 .module-row {
-  border-bottom: 1px solid var(--line);
+  border-bottom: var(--gutter-size) solid var(--gutter);
+}
+
+.module-row:last-child {
+  border-bottom: 0;
 }
 
 .module-row.dual {
@@ -456,12 +465,22 @@ body {
 }
 
 .module-row.dual .module-section:first-child {
-  border-right: 1px solid var(--line);
+  border-right: var(--gutter-size) solid var(--gutter);
 }
 
 .module-section {
   min-width: 0;
   background: var(--paper);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 -1px 0 rgba(61, 53, 37, 0.18);
+}
+
+.ui-body > :nth-child(even) .module-section {
+  background: var(--paper-alt);
+}
+
+/* The amp panel meets the selected tab above it: no raised edge on top, or a light line would cut the tab off. */
+.module-section.amp-head {
+  box-shadow: inset 0 -1px 0 rgba(61, 53, 37, 0.18);
 }
 
 .module-head {
