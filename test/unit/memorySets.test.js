@@ -38,8 +38,15 @@ const pick = (app, slot, name) => {
   [...app.container.querySelectorAll('.pr-entry .pr-name')].find(button => button.textContent === name).click();
 };
 
-it('memory sets: off by default, the bottom row is as before', async () => {
-  const app = await bootApp();
+it('memory sets: with the flag off, the bottom row is as before', async () => {
+  const before = flags.memorySets;
+  flags.memorySets = false;
+  let app;
+  try {
+    app = await bootApp();
+  } finally {
+    flags.memorySets = before;
+  }
   try {
     app.page('☰');
     assertEqual(app.container.querySelector('.pr-mode'), null, 'no mode switch');
@@ -93,8 +100,8 @@ it('memory sets: a new set is named, its memories picked from the presets list a
     assertEqual(setLines(app)[0], '> ▾ Gig 1/5', 'cleared');
 
     reloaded = await bootApp();
-    reloaded.page('☰');
-    assertEqual(reloaded.container.querySelector('.pr-mode'), null, 'sets stay hidden with the flag off');
+    reloaded.presets('Banks');
+    assertDeepEqual(setLines(reloaded), ['▸ Gig 1/5'], 'the bank after a reload, closed');
     const stored = JSON.parse(localStorage.getItem('thrii.memorySets'));
     assertDeepEqual(stored.sets.map(set => [set.name, set.slots.filter(Boolean).length]), [['Gig', 1]], 'stored');
   } finally {

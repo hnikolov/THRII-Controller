@@ -51,7 +51,7 @@ ui/runtime -> intents -> store.commit(..., 'ui') -> write scheduler -> protocol 
 - **Outbound writes are last-write-wins coalesced** in `src/protocol/writeScheduler.js` (40 ms quiet / 120 ms max, keyed `unitId:paramId`). The value is read from the store at flush time, not passed from the UI. Call `flushAll()` before any non-coalesced command. Unit-type (amp/effect) changes need deliberate pauses between frames or the amp hard-stops; the timing constants found on the hardware are listed in `doc/app_internals.md`; a refactor must not change them.
 - **Symbol table** (`src/protocol/symbolTable.js`, data in `src/data/thr10ii_w_symbol_table_1_44_0_a.json`, a copy of the one in `doc/`) maps numeric IDs <-> names <-> enums. It is part of the protocol/semantic layer, required for dump parsing and unit-type selection, and not a UI helper.
 - **Debug is a read-only observer.** `src/debug/observer.js` and `src/ui/debug/` subscribe to bus topics (`raw:in`, `raw:out`, `note`) and must never write to the store or drive runtime controls.
-- **Flags** (`src/core/flags.js`): `coalesceWrites`, `autoActivate`, `slotSync` and `quickImport`, all on since their hardware checks passed. A new protocol behavior gets a flag that stays off until checked on the amp. Only the dev composition root may flip them; runtime code only reads them.
+- **Flags** (`src/core/flags.js`): `coalesceWrites`, `autoActivate`, `slotSync`, `quickImport` and `memorySets`, all on. A new protocol behavior gets a flag that stays off until checked on the amp. Only the dev composition root may flip them; runtime code only reads them.
 
 ### Standing gates (check with grep after changes)
 

@@ -97,7 +97,7 @@ it('boot: the Presets page is the app\'s own; a preset source adds its page butt
     assertDeepEqual(pageButtons(plain), ['Amp settings', 'Presets'], 'without a source: the knobs and the Presets page');
     assertDeepEqual([...plain.container.querySelectorAll('.strip-page-button')].map(button => button.textContent), ['', '☰'], 'shown as icons (the knob is drawn)');
     plain.page('☰');
-    assertDeepEqual([...plain.container.querySelectorAll('.pr-actions button')].map(button => button.textContent),
+    assertDeepEqual([...plain.container.querySelectorAll('.pr-actions:not([hidden]) button')].map(button => button.textContent),
       ['Import', 'Export', '+ Add', 'Save to amp ▾'], 'its actions');
   } finally {
     plain.cleanup();
