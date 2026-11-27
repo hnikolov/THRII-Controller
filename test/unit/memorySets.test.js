@@ -26,7 +26,7 @@ const find = (app, name) => [...app.container.querySelectorAll('.pr-screen butto
 // The sets as lines: '> ' for the open one, its name and count; under the open one its memories.
 const setLines = app => [...app.container.querySelectorAll('.pr-set, .pr-memory')].map(row => (row.classList.contains('pr-set')
   ? `${row.classList.contains('is-selected') ? '> ' : ''}${row.querySelector('.pr-name').textContent} ${row.querySelector('.pr-count').textContent}`
-  : `  ${row.querySelector('.pr-memory-number').textContent} ${row.querySelector('.pr-name').textContent}`));
+  : `  ${row.querySelector('.pr-memory-number').textContent} ${row.classList.contains('is-empty') ? '-' : row.querySelector('.pr-name').textContent}`));
 const rename = (app, name) => {
   const input = app.container.querySelector('.pr-name-input');
   input.value = name;
@@ -34,7 +34,7 @@ const rename = (app, name) => {
   input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
 };
 const pick = (app, slot, name) => {
-  app.container.querySelectorAll('.pr-memory .pr-name')[slot - 1].click();
+  app.container.querySelectorAll('.pr-memory')[slot - 1].querySelector('button').click();
   [...app.container.querySelectorAll('.pr-entry .pr-name')].find(button => button.textContent === name).click();
 };
 
@@ -62,7 +62,7 @@ it('memory sets: a new set is named, its memories picked from the presets list a
     app.presets('New bank');
     assertEqual(app.container.querySelector('.pr-name-input').value, 'Bank 1', 'named, and the name field open');
     rename(app, 'Gig');
-    assertDeepEqual(setLines(app), ['> ▾ Gig 0/5', '  1 · empty ·', '  2 · empty ·', '  3 · empty ·', '  4 · empty ·', '  5 · empty ·'], 'open and empty');
+    assertDeepEqual(setLines(app), ['> ▾ Gig 0/5', '  1 -', '  2 -', '  3 -', '  4 -', '  5 -'], 'open and empty');
 
     const playing = app.nameBox().value;
     find(app, 'Memory 3: empty').click();
@@ -70,8 +70,24 @@ it('memory sets: a new set is named, its memories picked from the presets list a
     assertDeepEqual([...app.container.querySelectorAll('.pr-entry')].map(row => row.querySelectorAll('button').length), [2, 2], 'pick rows: name and amp only');
     [...app.container.querySelectorAll('.pr-entry .pr-name')].find(button => button.textContent === 'EarlyVH').click();
     pick(app, 1, 'Walsh Hotel Solo');
-    assertDeepEqual(setLines(app).slice(0, 4), ['> ▾ Gig 2/5', '  1 Walsh Hotel Solo', '  2 · empty ·', '  3 EarlyVH'], 'assigned');
+    assertDeepEqual(setLines(app).slice(0, 4), ['> ▾ Gig 2/5', '  1 Walsh Hotel Solo', '  2 -', '  3 EarlyVH'], 'assigned');
     assertEqual(app.nameBox().value, playing, 'a pick loads nothing');
+
+    // A memory row works as the preset's list row: the name loads it, an edit shows * and ↻, which stores it.
+    find(app, 'Memory 3: EarlyVH').click();
+    await until(() => app.nameBox().value === 'EarlyVH', 'loaded from the bank');
+    assertTrue(find(app, 'Memory 3: EarlyVH').closest('.pr-memory').classList.contains('is-selected'), 'the loaded memory row');
+    app.knob('MASTER').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    await until(() => find(app, 'Update EarlyVH'), 'the ↻ of the edited preset');
+    assertEqual(find(app, 'Memory 3: EarlyVH').textContent, 'EarlyVH *', 'marked as edited');
+    find(app, 'Update EarlyVH').click();
+    await statusHas(app, 'Updated EarlyVH');
+    assertEqual(find(app, 'Memory 3: EarlyVH').textContent, 'EarlyVH', 'stored');
+
+    // ⇄ picks another preset for a filled memory.
+    find(app, 'Choose preset for memory 3').click();
+    assertEqual(app.container.querySelector('.pr-pick .pr-label').textContent, 'Memory 3 · Gig', 'picking');
+    app.presets('Cancel pick');
 
     find(app, 'Clear memory 1').click();
     assertEqual(setLines(app)[0], '> ▾ Gig 1/5', 'cleared');
@@ -106,17 +122,34 @@ it('memory sets: a removed preset empties its memories; export and import bring 
     find(app, 'Remove EarlyVH').click();
     assertEqual(app.confirms[app.confirms.length - 1], 'Remove EarlyVH from the list? It is in 1 bank; those memories become empty.', 'asked');
     app.presets('Banks');
-    assertDeepEqual(setLines(app).slice(0, 3), ['> ▾ Gig 1/5', '  1 · empty ·', '  2 · empty ·'], 'memory 2 is empty');
+    assertDeepEqual(setLines(app).slice(0, 3), ['> ▾ Gig 1/5', '  1 -', '  2 -'], 'memory 2 is empty');
 
     app.files.next = [{ name: 'THR bank Gig.json', text: file.text }, { name: 'bad.json', text: '{"format":"other"}' }];
     app.presets('Import banks');
-    await statusHas(app, 'Added 1 bank; not loadable: bad.json');
-    assertDeepEqual(setLines(app).slice(0, 6), ['> ▾ Gig 2/5', '  1 · empty ·', '  2 EarlyVH', '  3 · empty ·', '  4 · empty ·', '  5 Walsh Hotel Solo'], 'imported and open');
+    await statusHas(app, 'Added 1 bank and 1 preset; not loadable: bad.json');
+    assertDeepEqual(setLines(app).slice(0, 6), ['> ▾ Gig 2/5', '  1 -', '  2 EarlyVH', '  3 -', '  4 -', '  5 Walsh Hotel Solo'], 'imported and open');
     const entries = JSON.parse(localStorage.getItem('thrii.presets')).entries.map(entry => entry.name);
     assertDeepEqual(entries.sort(), ['EarlyVH', 'Walsh Hotel Solo'], 'EarlyVH listed again, Walsh not twice');
 
+    // The same bank again is not added; nor through the Import of the presets mode, which takes bank files too.
+    app.files.next = [{ name: 'THR bank Gig.json', text: file.text }];
+    app.presets('Import banks');
+    await statusHas(app, '1 bank already there');
+    app.presets('Presets');
+    app.container.querySelector('.status-toast').textContent = '';
+    app.files.next = [{ name: 'THR bank Gig.json', text: file.text }];
+    app.presets('Import');
+    await statusHas(app, '1 bank already there');
+    app.presets('Banks');
+    assertEqual(setLines(app).filter(line => !line.startsWith('  ')).length, 2, 'the two banks only');
+
+    // A preset file picked under Banks is listed as a preset.
+    app.files.next = [await sample('neo-classical-fury')];
+    app.presets('Import banks');
+    await statusHas(app, 'Added 1 preset');
+
     find(app, 'Remove bank Gig').click();
-    assertEqual(setLines(app).length, 1, 'one set left');
+    assertEqual(setLines(app).filter(line => !line.startsWith('  ')).length, 1, 'one bank left');
   } finally {
     app.cleanup();
   }

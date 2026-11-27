@@ -12,5 +12,5 @@ export const flags = {
   autoActivate: true,
   slotSync: true,
   quickImport: true,
-  memorySets: false
+  memorySets: true
 };

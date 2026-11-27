@@ -4,7 +4,7 @@ import { ModuleView } from './moduleView.js';
 import { createTapTimer, tapValue } from './tapTempo.js';
 import { defaultsForType, knobToValue, nextFamilyModel } from './viewModel.js';
 
-const STATUS_SHOWN_MS = 6000;
+const STATUS_SHOWN_MS = 2000;
 
 // Whole runtime tree. Built once; update() applies a view model. User actions become intents here.
 export class AppView {

@@ -30,6 +30,15 @@ const SEARCH_FROM = 8;
 // The app's preset name limit: an entry's name goes to the amp when it is saved to a memory.
 const NAME_MAX = 20;
 const SLOTS = [1, 2, 3, 4, 5];
+const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
+
+function isBankText(text) {
+  try {
+    return JSON.parse(text).format === SET_FORMAT;
+  } catch {
+    return false;
+  }
+}
 
 function el(tag, props = {}, ...children) {
   const node = document.createElement(tag);
@@ -138,27 +147,48 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
     render();
   }
 
-  // One file is loaded and listed; several are listed only. A file already in the list is not added again. One file the
-  // amp failed to take is still listed (not loaded), so a tap on its row tries again.
+  // A file of either kind is taken by the Import of either mode (a file filter cannot tell a bank's .json from a
+  // backup, and an Android dialog that does not know .thrl6p needs JSON allowed). Banks become banks, the rest is
+  // listed; a file already in the list is not added again, nor a bank with the same name and memories.
+  function addFiles(files) {
+    const before = saved.entries.length;
+    const result = { banks: 0, same: 0, refused: [] };
+    files.forEach(({ name, text }) => {
+      try {
+        if (isBankText(text)) addBank(JSON.parse(text), result);
+        else if (!findText(text)) add(text);
+      } catch {
+        result.refused.push(name);
+      }
+    });
+    if (result.banks) saveSets();
+    return { ...result, presets: saved.entries.length - before };
+  }
+
+  // The toast of an import: what was added (what the mode imports first), banks already there, files refused.
+  function report({ presets, banks, same, refused }, first) {
+    const counts = [[presets, 'preset'], [banks, 'bank']];
+    if (first === 'banks') counts.reverse();
+    const added = counts.filter(([count]) => count).map(([count, word]) => plural(count, word));
+    const parts = [];
+    if (added.length || (!same && !refused.length)) parts.push(`Added ${added.join(' and ') || plural(0, counts[0][1])}`);
+    if (same) parts.push(`${plural(same, 'bank')} already there`);
+    if (refused.length) parts.push(`not loadable: ${refused.join(', ')}`);
+    const text = parts.join('; ');
+    notify(text[0].toUpperCase() + text.slice(1));
+  }
+
+  // One preset file is loaded and listed; anything else is listed only. One file the amp failed to take is still
+  // listed (not loaded), so a tap on its row tries again.
   async function importFiles() {
     const picked = await pickTexts('.thrl6p,application/json');
-    if (picked.length === 1) {
+    if (picked.length === 1 && !isBankText(picked[0].text)) {
       const { text } = picked[0];
       const result = await withBusy(() => importText(text));
       const entry = !result.refused && (findText(text) || add(text));
       if (entry && result.ok) markLoaded(entry);
-    } else if (picked.length > 1) {
-      const before = saved.entries.length;
-      const refused = picked.filter(({ text }) => {
-        try {
-          if (!findText(text)) add(text);
-          return false;
-        } catch {
-          return true;
-        }
-      }).map(file => file.name);
-      const added = saved.entries.length - before;
-      notify(`Added ${added} preset${added === 1 ? '' : 's'}${refused.length ? `; not loadable: ${refused.join(', ')}` : ''}`);
+    } else if (picked.length) {
+      report(addFiles(picked), 'presets');
     }
     checkEdited();
     render();
@@ -270,6 +300,10 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
     return input;
   }
 
+  // ↻ on the loaded entry's rows while it is edited (its list row and its memory rows in banks); an empty cell elsewhere.
+  const updateButton = (entry, isLoaded) => (isLoaded && edited
+    ? button({ class: 'pr-icon pr-update', 'aria-label': `Update ${entry.name}`, title: 'Store the current settings in this preset', text: '↻' }, () => updateEntry(entry))
+    : el('span'));
   const isRenaming = (item, isSet) => !!renaming && renaming.set === isSet && renaming.id === item.id;
   const renameButton = (item, isSet) => button({ class: 'pr-icon', 'aria-label': `Rename ${isSet ? 'bank ' : ''}${item.name}`, title: 'Rename', text: '✎' }, () => startRename(item, isSet));
 
@@ -281,9 +315,7 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
     else if (isRenaming(entry, false)) name = nameInput('Preset name');
     else name = button({ class: 'pr-name', text: `${entry.name}${isSelected && edited ? ' *' : ''}` }, () => load(entry));
     const tools = picking ? [] : [
-      isSelected && edited
-        ? button({ class: 'pr-icon pr-update', 'aria-label': `Update ${entry.name}`, title: 'Store the current settings in this preset', text: '↻' }, () => updateEntry(entry))
-        : el('span'),
+      updateButton(entry, isSelected),
       renameButton(entry, false),
       button({ class: 'pr-icon pr-remove', 'aria-label': `Remove ${entry.name}`, title: 'Remove from the list', text: '×' }, () => remove(entry))
     ];
@@ -357,33 +389,32 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
     }
   }
 
-  // Each file becomes a new set; its presets are listed unless the list has them already. A file with a preset the app
-  // cannot load is refused as a whole.
+  // A bank file becomes a new bank; its presets are listed unless the list has them already. A file with a preset the
+  // app cannot load is refused as a whole. The bank imported, or the one it matches, is opened.
+  function addBank(json, result) {
+    const presets = json.version === 1 && Array.isArray(json.slots) && json.slots.length === SLOTS.length
+      ? json.slots.map(entry => (entry && typeof entry.preset === 'string' ? entry.preset : null))
+      : null;
+    if (!presets) throw new Error('not a bank');
+    presets.forEach(preset => preset && describe(preset));
+    const slots = presets.map(preset => (preset ? ((findText(preset) || add(preset)) || {}).id || null : null));
+    const name = String(json.name || '').trim().slice(0, NAME_MAX) || 'Bank';
+    const same = memorySets.sets.find(set => set.name === name && set.slots.every((id, index) => id === slots[index]));
+    if (same) {
+      result.same += 1;
+      openSet = same.id;
+      return;
+    }
+    const set = { id: uuid(), name, slots, time: now() };
+    memorySets.sets.unshift(set);
+    openSet = set.id;
+    result.banks += 1;
+  }
+
   async function importSets() {
     const picked = await pickTexts('.json,application/json');
-    const refused = [];
-    let added = 0;
-    picked.forEach(({ name, text }) => {
-      try {
-        const json = JSON.parse(text);
-        const presets = json && json.format === SET_FORMAT && json.version === 1 && Array.isArray(json.slots) && json.slots.length === SLOTS.length
-          ? json.slots.map(entry => (entry && typeof entry.preset === 'string' ? entry.preset : null))
-          : null;
-        if (!presets) throw new Error('not a set');
-        presets.forEach(preset => preset && describe(preset));
-        const slots = presets.map(preset => (preset ? ((findText(preset) || add(preset)) || {}).id || null : null));
-        memorySets.sets.unshift({ id: uuid(), name: String(json.name || '').trim().slice(0, NAME_MAX) || 'Bank', slots, time: now() });
-        added += 1;
-      } catch {
-        refused.push(name);
-      }
-    });
     if (!picked.length) return;
-    if (added) {
-      openSet = memorySets.sets[0].id;
-      saveSets();
-    }
-    notify(`Added ${added} bank${added === 1 ? '' : 's'}${refused.length ? `; not loadable: ${refused.join(', ')}` : ''}`);
+    report(addFiles(picked), 'banks');
     render();
   }
 
@@ -395,21 +426,32 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
     render();
   }
 
-  function slotRow(set, slot) {
+  // A memory row works as the preset's list row: a tap on the name loads it, and the loaded one shows * and ↻ when
+  // edited. ⇄ picks another preset for the memory, × empties it. An empty memory is one button over the whole row, its
+  // number included (outlined: a save leaves that memory as it is on the amp), and a tap on it picks a preset.
+  function slotRow(set, slot, current) {
     const entry = entryOf(set.slots[slot - 1]);
-    return el('div', { class: 'pr-memory' },
-      el('span', { class: 'pr-memory-number', text: String(slot) }),
-      button({ class: entry ? 'pr-name' : 'pr-name is-empty', 'aria-label': `Memory ${slot}: ${entry ? entry.name : 'empty'}`, text: entry ? entry.name : '· empty ·' }, () => {
-        picking = { setId: set.id, slot };
-        render();
-      }),
-      el('span', { class: 'pr-memory-amp', text: entry ? entry.amp : 'tap to pick' }),
-      entry
-        ? button({ class: 'pr-icon pr-remove', 'aria-label': `Clear memory ${slot}`, title: 'Leave this memory as it is on the amp', text: '–' }, () => {
-          setSlot(set, slot, null);
-          renderSets();
-        })
-        : el('span'));
+    const isLoaded = !!entry && entry === current;
+    const startPick = () => {
+      picking = { setId: set.id, slot };
+      render();
+    };
+    const number = el('span', { class: 'pr-memory-number', text: String(slot) });
+    if (!entry) {
+      const pick = button({ class: 'pr-memory-pick', 'aria-label': `Memory ${slot}: empty` }, startPick);
+      pick.append(number, el('span', { text: 'Tap to pick a preset' }));
+      return el('div', { class: 'pr-memory is-empty' }, pick);
+    }
+    return el('div', { class: isLoaded ? 'pr-memory is-selected' : 'pr-memory' },
+      number,
+      button({ class: 'pr-name', 'aria-label': `Memory ${slot}: ${entry.name}`, text: `${entry.name}${isLoaded && edited ? ' *' : ''}` }, () => load(entry)),
+      el('span', { class: 'pr-memory-amp', text: entry.amp }),
+      updateButton(entry, isLoaded),
+      button({ class: 'pr-icon', 'aria-label': `Choose preset for memory ${slot}`, title: 'Choose another preset', text: '⇄' }, startPick),
+      button({ class: 'pr-icon pr-remove', 'aria-label': `Clear memory ${slot}`, title: 'Empty this memory (the preset stays in the list)', text: '×' }, () => {
+        setSlot(set, slot, null);
+        renderSets();
+      }));
   }
 
   function setRows(set) {
@@ -425,7 +467,7 @@ export function createPresetLibrary(deps, { storage = null, now = () => Date.now
       el('span', { class: 'pr-count', text: `${filled}/${SLOTS.length}` }),
       renameButton(set, true),
       button({ class: 'pr-icon pr-remove', 'aria-label': `Remove bank ${set.name}`, title: 'Remove the bank', text: '×' }, () => removeSet(set)));
-    return isOpen ? [head, ...SLOTS.map(slot => slotRow(set, slot))] : [head];
+    return isOpen ? [head, ...SLOTS.map(slot => slotRow(set, slot, loadedEntry()))] : [head];
   }
 
   function renderSets() {

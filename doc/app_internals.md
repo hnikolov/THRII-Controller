@@ -213,7 +213,7 @@ Browser storage (per site, `localStorage`): the Presets list (`thrii.presets`), 
 
 | File | Purpose |
 |---|---|
-| `ui/presets/presetLibrary.js`, `presets.css` | Presets screen: action row, stored list, backup and restore; with `memorySets` a PRESETS │ BANKS switch and the banks (the open one shows its five memories, a memory is picked from the presets list, export and import as `thrii-memory-set` JSON holding the preset texts). |
+| `ui/presets/presetLibrary.js`, `presets.css` | Presets screen: action row, stored list, backup and restore; with `memorySets` a PRESETS │ BANKS switch and the banks (the open one shows its five memories: a tap on one loads its preset as the list does, ⇄ picks it from the presets list, × empties it; export as `thrii-memory-set` JSON holding the preset texts; either Import takes preset and bank files alike, sorting them by content, and skips a bank already there). |
 | `ai/aiPresets.js`, `aiPresets.css` | Import AI screen: request fields, versions, sounds list. |
 | `ai/api.js` | Calls to the generator and the proxy health check. |
 | `ai/config.js` | Proxy address, amp ids by model code, limits, credit. |
